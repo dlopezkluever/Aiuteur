@@ -1,0 +1,705 @@
+[
+  {
+    "canonical_title": "Generic template route POST /api/llm/generate-from-template (umbrella over templates)",
+    "primary": "WD-IMPL-AI-0001",
+    "members": [
+      "WD-IMPL-AI-0001"
+    ],
+    "same_call_reason": "Route-level dispatcher; the prompt text is the named prompt_templates row, so its prompts are the entries for each template (68, 69, 70); it has no prompt of its own.",
+    "distinct_from": [
+      "WD-IMPL-AI-0068",
+      "WD-IMPL-AI-0069",
+      "WD-IMPL-AI-0070"
+    ]
+  },
+  {
+    "canonical_title": "Stage 2 treatment generation, template treatment_expansion",
+    "primary": "WD-IMPL-AI-0068",
+    "members": [
+      "WD-IMPL-AI-0068",
+      "WD-IMPL-AI-0013"
+    ],
+    "same_call_reason": "Same route and template (treatment_expansion) through llmClient.generate; treatmentService.generateTreatments and regenerateTreatments are the frontend callers of that request.",
+    "distinct_from": [
+      "WD-IMPL-AI-0002",
+      "WD-IMPL-AI-0029",
+      "WD-IMPL-AI-0014"
+    ]
+  },
+  {
+    "canonical_title": "Stage 3 beat extraction, template beat_extraction",
+    "primary": "WD-IMPL-AI-0069",
+    "members": [
+      "WD-IMPL-AI-0069",
+      "WD-IMPL-AI-0016",
+      "WD-IMPL-AI-0018"
+    ],
+    "same_call_reason": "generateBeats and regenerateBeats send the same beat_extraction template via the same route; regeneration_guidance has no placeholder so the prompt text is identical.",
+    "distinct_from": [
+      "WD-IMPL-AI-0003",
+      "WD-IMPL-AI-0030",
+      "WD-IMPL-AI-0017"
+    ]
+  },
+  {
+    "canonical_title": "Stage 4 master screenplay, template master_script_generation",
+    "primary": "WD-IMPL-AI-0070",
+    "members": [
+      "WD-IMPL-AI-0070",
+      "WD-IMPL-AI-0019",
+      "WD-IMPL-AI-0020"
+    ],
+    "same_call_reason": "generateScript and regenerateScript send the same master_script_generation template via the same route; regeneration_guidance has no placeholder.",
+    "distinct_from": [
+      "WD-IMPL-AI-0003",
+      "WD-IMPL-AI-0030",
+      "WD-IMPL-AI-0022"
+    ]
+  },
+  {
+    "canonical_title": "Treatment section rewrite, single (frontend-built prompt via /api/llm/generate)",
+    "primary": "WD-IMPL-AI-0014",
+    "members": [
+      "WD-IMPL-AI-0014"
+    ],
+    "same_call_reason": "Single-section rewrite prompt hardcoded in treatmentService.regenerateSection; sent through the generic /api/llm/generate pass-through.",
+    "distinct_from": [
+      "WD-IMPL-AI-0015",
+      "WD-IMPL-AI-0021"
+    ]
+  },
+  {
+    "canonical_title": "Treatment section rewrite, three alternatives (frontend-built prompt)",
+    "primary": "WD-IMPL-AI-0015",
+    "members": [
+      "WD-IMPL-AI-0015"
+    ],
+    "same_call_reason": "Separate hardcoded prompt in treatmentService.regenerateSectionAlternatives that demands exactly 3 JSON strings; not the same text as the single rewrite.",
+    "distinct_from": [
+      "WD-IMPL-AI-0014",
+      "WD-IMPL-AI-0022"
+    ]
+  },
+  {
+    "canonical_title": "Master script section rewrite, single (frontend-built prompt)",
+    "primary": "WD-IMPL-AI-0021",
+    "members": [
+      "WD-IMPL-AI-0021"
+    ],
+    "same_call_reason": "Separate hardcoded screenplay-editor prompt in scriptService.regenerateSection; sent through /api/llm/generate.",
+    "distinct_from": [
+      "WD-IMPL-AI-0014",
+      "WD-IMPL-AI-0022"
+    ]
+  },
+  {
+    "canonical_title": "Master script section rewrite, three alternatives (frontend-built prompt)",
+    "primary": "WD-IMPL-AI-0022",
+    "members": [
+      "WD-IMPL-AI-0022"
+    ],
+    "same_call_reason": "Separate hardcoded prompt in scriptService.regenerateSectionAlternatives; sent through /api/llm/generate.",
+    "distinct_from": [
+      "WD-IMPL-AI-0015",
+      "WD-IMPL-AI-0021"
+    ]
+  },
+  {
+    "canonical_title": "Beat brainstorm, three alternatives for one beat",
+    "primary": "WD-IMPL-AI-0017",
+    "members": [
+      "WD-IMPL-AI-0017"
+    ],
+    "same_call_reason": "Hardcoded prompt in beatService.brainstormBeatAlternatives sent through /api/llm/generate; only shared transport with splitBeat.",
+    "distinct_from": [
+      "WD-IMPL-AI-0026",
+      "WD-IMPL-AI-0015"
+    ]
+  },
+  {
+    "canonical_title": "Beat split (no caller)",
+    "primary": "WD-IMPL-AI-0026",
+    "members": [
+      "WD-IMPL-AI-0026"
+    ],
+    "same_call_reason": "Hardcoded prompt in beatService.splitBeat sent through /api/llm/generate; no UI caller in the repo.",
+    "distinct_from": [
+      "WD-IMPL-AI-0017"
+    ]
+  },
+  {
+    "canonical_title": "Streamline backfill: treatment from locked script",
+    "primary": "WD-IMPL-AI-0002",
+    "members": [
+      "WD-IMPL-AI-0002"
+    ],
+    "same_call_reason": "Hardcoded prompt in streamlineBackfillService.backfillTreatment; reads the locked Stage 4 script, not a template.",
+    "distinct_from": [
+      "WD-IMPL-AI-0068",
+      "WD-IMPL-AI-0029"
+    ]
+  },
+  {
+    "canonical_title": "Streamline backfill: beat sheet from locked script",
+    "primary": "WD-IMPL-AI-0003",
+    "members": [
+      "WD-IMPL-AI-0003"
+    ],
+    "same_call_reason": "Hardcoded prompt in streamlineBackfillService.backfillBeatSheet; reads the locked Stage 4 script.",
+    "distinct_from": [
+      "WD-IMPL-AI-0069",
+      "WD-IMPL-AI-0030"
+    ]
+  },
+  {
+    "canonical_title": "Stage 5 extract: visual distillation of extracted asset description",
+    "primary": "WD-IMPL-AI-0004",
+    "members": [
+      "WD-IMPL-AI-0004"
+    ],
+    "same_call_reason": "Hardcoded prompt in assetExtractionService.distillVisualSummary (called from the extract flow).",
+    "distinct_from": [
+      "WD-IMPL-AI-0005",
+      "WD-IMPL-AI-0024"
+    ]
+  },
+  {
+    "canonical_title": "Asset description merge via LLM (strategy merge, global + project)",
+    "primary": "WD-IMPL-AI-0005",
+    "members": [
+      "WD-IMPL-AI-0005"
+    ],
+    "same_call_reason": "Hardcoded prompt in assetDescriptionMerger.mergeWithLLM; a different prompt from the vision description merge.",
+    "distinct_from": [
+      "WD-IMPL-AI-0036",
+      "WD-IMPL-AI-0004"
+    ]
+  },
+  {
+    "canonical_title": "Full-script entity mention extraction, pass 1 (dead)",
+    "primary": "WD-IMPL-AI-0034",
+    "members": [
+      "WD-IMPL-AI-0034"
+    ],
+    "same_call_reason": "Private method assetExtractionService.extractEntityMentions; no call site.",
+    "distinct_from": [
+      "WD-IMPL-AI-0004"
+    ]
+  },
+  {
+    "canonical_title": "Uploaded asset image vision description (analyzeAssetImage)",
+    "primary": "WD-IMPL-AI-0035",
+    "members": [
+      "WD-IMPL-AI-0035",
+      "WD-IMPL-AI-0049"
+    ],
+    "same_call_reason": "Same ImageAnalysisService.analyzeAssetImage method (gemini-2.5-flash generateContent with image part); called from projectAssets and sceneAssets analyze routes.",
+    "distinct_from": [
+      "WD-IMPL-AI-0033",
+      "WD-IMPL-AI-0012"
+    ]
+  },
+  {
+    "canonical_title": "Vision description merge of existing and extracted text (mergeDescriptions)",
+    "primary": "WD-IMPL-AI-0036",
+    "members": [
+      "WD-IMPL-AI-0036",
+      "WD-IMPL-AI-0050"
+    ],
+    "same_call_reason": "Same ImageAnalysisService.mergeDescriptions method; text-only generateContent over the two description strings.",
+    "distinct_from": [
+      "WD-IMPL-AI-0005"
+    ]
+  },
+  {
+    "canonical_title": "Streamline uploaded image classification (vision)",
+    "primary": "WD-IMPL-AI-0033",
+    "members": [
+      "WD-IMPL-AI-0033"
+    ],
+    "same_call_reason": "ImageAnalysisService.classifyUploadedImage with its own classification prompt; called from the streamline classify-image route.",
+    "distinct_from": [
+      "WD-IMPL-AI-0035",
+      "WD-IMPL-AI-0012"
+    ]
+  },
+  {
+    "canonical_title": "Reference-frame vision analysis for camera-change generation (analyzeReferenceFrame)",
+    "primary": "WD-IMPL-AI-0012",
+    "members": [
+      "WD-IMPL-AI-0012",
+      "WD-IMPL-AI-0065"
+    ],
+    "same_call_reason": "Same ImageAnalysisService.analyzeReferenceFrame method; called from frameGenerationService.generateWithCameraChangeAnalysis.",
+    "distinct_from": [
+      "WD-IMPL-AI-0035",
+      "WD-IMPL-AI-0033"
+    ]
+  },
+  {
+    "canonical_title": "Streamline prose document classification",
+    "primary": "WD-IMPL-AI-0027",
+    "members": [
+      "WD-IMPL-AI-0027"
+    ],
+    "same_call_reason": "Inline prompt in streamlineClassificationService.classifyProseViaLLM (first 6000 chars).",
+    "distinct_from": [
+      "WD-IMPL-AI-0028",
+      "WD-IMPL-AI-0031"
+    ]
+  },
+  {
+    "canonical_title": "Streamline standalone asset draft from note file",
+    "primary": "WD-IMPL-AI-0028",
+    "members": [
+      "WD-IMPL-AI-0028"
+    ],
+    "same_call_reason": "Inline prompt in streamlineStandaloneAssetService.extractStandaloneAssetDraft (first 4000 chars).",
+    "distinct_from": [
+      "WD-IMPL-AI-0027"
+    ]
+  },
+  {
+    "canonical_title": "Streamline format document as treatment",
+    "primary": "WD-IMPL-AI-0029",
+    "members": [
+      "WD-IMPL-AI-0029"
+    ],
+    "same_call_reason": "Inline prompt in streamlineFormattingService.formatAsTreatment; user-triggered AI-format.",
+    "distinct_from": [
+      "WD-IMPL-AI-0002",
+      "WD-IMPL-AI-0068"
+    ]
+  },
+  {
+    "canonical_title": "Streamline format document as beat sheet",
+    "primary": "WD-IMPL-AI-0030",
+    "members": [
+      "WD-IMPL-AI-0030"
+    ],
+    "same_call_reason": "Inline prompt in streamlineFormattingService.formatAsBeatSheet; user-triggered AI-format.",
+    "distinct_from": [
+      "WD-IMPL-AI-0003",
+      "WD-IMPL-AI-0069"
+    ]
+  },
+  {
+    "canonical_title": "Ask Auteur question generation (analyzeBatch)",
+    "primary": "WD-IMPL-AI-0031",
+    "members": [
+      "WD-IMPL-AI-0031"
+    ],
+    "same_call_reason": "buildSystemPrompt/buildUserPrompt in streamlineQuestionService; called from the streamline analyze route.",
+    "distinct_from": [
+      "WD-IMPL-AI-0032",
+      "WD-IMPL-AI-0027"
+    ]
+  },
+  {
+    "canonical_title": "Ask Auteur reconciliation (rewrite documents from answers)",
+    "primary": "WD-IMPL-AI-0032",
+    "members": [
+      "WD-IMPL-AI-0032"
+    ],
+    "same_call_reason": "buildSystemPrompt/buildUserPrompt in streamlineReconciliationService; called from the streamline reconcile route.",
+    "distinct_from": [
+      "WD-IMPL-AI-0031"
+    ]
+  },
+  {
+    "canonical_title": "Legacy LLM scene dependency extraction (PUT scenes fallback)",
+    "primary": "WD-IMPL-AI-0023",
+    "members": [
+      "WD-IMPL-AI-0023"
+    ],
+    "same_call_reason": "Private extractWithLLM in sceneDependencyExtraction; reached only from the PUT scenes fallback when tiptapDoc is absent or manifest extraction throws.",
+    "distinct_from": [
+      "WD-IMPL-AI-0043"
+    ]
+  },
+  {
+    "canonical_title": "Stage 8 infer-from-story, single asset (also used per asset when bulk > 4)",
+    "primary": "WD-IMPL-AI-0024",
+    "members": [
+      "WD-IMPL-AI-0024",
+      "WD-IMPL-AI-0044"
+    ],
+    "same_call_reason": "Same storyContextService.callInferenceLLM method; bulkInferAssetContext calls it once per asset when more than 4 instances are selected.",
+    "distinct_from": [
+      "WD-IMPL-AI-0025"
+    ]
+  },
+  {
+    "canonical_title": "Stage 8 bulk story-context update, batched (4 or fewer assets)",
+    "primary": "WD-IMPL-AI-0025",
+    "members": [
+      "WD-IMPL-AI-0025",
+      "WD-IMPL-AI-0045"
+    ],
+    "same_call_reason": "Same storyContextService.callBulkInferenceLLM method; one batched prompt covering up to 4 assets.",
+    "distinct_from": [
+      "WD-IMPL-AI-0024"
+    ]
+  },
+  {
+    "canonical_title": "Stage 8 AI relevance detection (which master assets appear in a scene)",
+    "primary": "WD-IMPL-AI-0075",
+    "members": [
+      "WD-IMPL-AI-0075",
+      "WD-IMPL-AI-0043"
+    ],
+    "same_call_reason": "Same SceneAssetRelevanceService.detectRelevantAssets method and prompt builder; the class-qualified and plain callsite strings are the same function.",
+    "distinct_from": [
+      "WD-IMPL-AI-0024"
+    ]
+  },
+  {
+    "canonical_title": "Transformation post-description generation",
+    "primary": "WD-IMPL-AI-0076",
+    "members": [
+      "WD-IMPL-AI-0076",
+      "WD-IMPL-AI-0046"
+    ],
+    "same_call_reason": "Same TransformationEventService.generatePostDescription method; generated from the transformation card.",
+    "distinct_from": [
+      "WD-IMPL-AI-0077"
+    ]
+  },
+  {
+    "canonical_title": "Transformation prefill (post description, narrative, inferred trigger and type)",
+    "primary": "WD-IMPL-AI-0077",
+    "members": [
+      "WD-IMPL-AI-0077",
+      "WD-IMPL-AI-0047"
+    ],
+    "same_call_reason": "Same TransformationEventService.generateTransformationPrefill method; a different prompt from the post-description call.",
+    "distinct_from": [
+      "WD-IMPL-AI-0076"
+    ]
+  },
+  {
+    "canonical_title": "Stage 7 shot extraction, primary prompt",
+    "primary": "WD-IMPL-AI-0071",
+    "members": [
+      "WD-IMPL-AI-0071",
+      "WD-IMPL-AI-0055"
+    ],
+    "same_call_reason": "Same ShotExtractionService.extractShots primary path (9-section system prompt, user prompt, one llmClient.generate call).",
+    "distinct_from": [
+      "WD-IMPL-AI-0072",
+      "WD-IMPL-AI-0073"
+    ]
+  },
+  {
+    "canonical_title": "Stage 7 shot extraction, malformed-JSON retry system prompt",
+    "primary": "WD-IMPL-AI-0072",
+    "members": [
+      "WD-IMPL-AI-0072"
+    ],
+    "same_call_reason": "Second system prompt used once after a JSON.parse failure; same user prompt. Kept separate from the primary prompt.",
+    "distinct_from": [
+      "WD-IMPL-AI-0071",
+      "WD-IMPL-AI-0073"
+    ]
+  },
+  {
+    "canonical_title": "Stage 7 and Stage 9 shot split into 2 or 3 shots",
+    "primary": "WD-IMPL-AI-0073",
+    "members": [
+      "WD-IMPL-AI-0073",
+      "WD-IMPL-AI-0056"
+    ],
+    "same_call_reason": "Same shotSplitService.splitShot method and prompt builder.",
+    "distinct_from": [
+      "WD-IMPL-AI-0074"
+    ]
+  },
+  {
+    "canonical_title": "Stage 7 shot merge of two consecutive shots",
+    "primary": "WD-IMPL-AI-0074",
+    "members": [
+      "WD-IMPL-AI-0074",
+      "WD-IMPL-AI-0057"
+    ],
+    "same_call_reason": "Same shotMergeService.mergeShots method and prompt builder.",
+    "distinct_from": [
+      "WD-IMPL-AI-0073"
+    ]
+  },
+  {
+    "canonical_title": "Stage 9 start-frame prompt generation (generateFramePrompt)",
+    "primary": "WD-IMPL-AI-0006",
+    "members": [
+      "WD-IMPL-AI-0006",
+      "WD-IMPL-AI-0058"
+    ],
+    "same_call_reason": "Same PromptGenerationService.generateFramePrompt method (private; invoked by generatePromptSet through callLLM).",
+    "distinct_from": [
+      "WD-IMPL-AI-0007",
+      "WD-IMPL-AI-0009"
+    ]
+  },
+  {
+    "canonical_title": "End-frame prompt generation (generateEndFramePrompt)",
+    "primary": "WD-IMPL-AI-0007",
+    "members": [
+      "WD-IMPL-AI-0007",
+      "WD-IMPL-AI-0060"
+    ],
+    "same_call_reason": "Same PromptGenerationService.generateEndFramePrompt method; route generate-end-frame-prompt.",
+    "distinct_from": [
+      "WD-IMPL-AI-0006",
+      "WD-IMPL-AI-0083"
+    ]
+  },
+  {
+    "canonical_title": "Continuity recomposition prompt (generateContinuityFramePrompt, with or without vision analysis)",
+    "primary": "WD-IMPL-AI-0008",
+    "members": [
+      "WD-IMPL-AI-0008",
+      "WD-IMPL-AI-0061",
+      "WD-IMPL-AI-0053"
+    ],
+    "same_call_reason": "Same generateContinuityFramePrompt function; the camera-change path (generateWithCameraChangeAnalysis) passes the vision analysis as an argument, and the plain route generate-continuity-prompt calls it without.",
+    "distinct_from": [
+      "WD-IMPL-AI-0054",
+      "WD-IMPL-AI-0012"
+    ]
+  },
+  {
+    "canonical_title": "Video prompt generation (generateVideoPrompt)",
+    "primary": "WD-IMPL-AI-0009",
+    "members": [
+      "WD-IMPL-AI-0009",
+      "WD-IMPL-AI-0059"
+    ],
+    "same_call_reason": "Same PromptGenerationService.generateVideoPrompt method; prompt text stored to shots.video_prompt.",
+    "distinct_from": [
+      "WD-IMPL-AI-0006"
+    ]
+  },
+  {
+    "canonical_title": "Frame prompt surgical correction (applyFramePromptCorrection)",
+    "primary": "WD-IMPL-AI-0078",
+    "members": [
+      "WD-IMPL-AI-0078",
+      "WD-IMPL-AI-0062"
+    ],
+    "same_call_reason": "Same PromptGenerationService.applyFramePromptCorrection method; route regenerate-with-correction.",
+    "distinct_from": [
+      "WD-IMPL-AI-0006"
+    ]
+  },
+  {
+    "canonical_title": "Gemini image generation, NanoBananaClient.generateImage (gemini-2.5-flash-image)",
+    "primary": "WD-IMPL-AI-0010",
+    "members": [
+      "WD-IMPL-AI-0010",
+      "WD-IMPL-AI-0063"
+    ],
+    "same_call_reason": "Same NanoBananaClient.generateImage method; prompt rewrapped by role counts and style context, then one generateContent call. Shared sink for all image-job callers.",
+    "distinct_from": [
+      "WD-IMPL-AI-0011",
+      "WD-IMPL-AI-0081"
+    ]
+  },
+  {
+    "canonical_title": "Gemini inpaintImage, text-only (never called)",
+    "primary": "WD-IMPL-AI-0011",
+    "members": [
+      "WD-IMPL-AI-0011",
+      "WD-IMPL-AI-0064"
+    ],
+    "same_call_reason": "Same NanoBananaClient.inpaintImage method; no call site. Frame inpaint actually runs through generateImage with a text marker.",
+    "distinct_from": [
+      "WD-IMPL-AI-0010",
+      "WD-IMPL-AI-0042"
+    ]
+  },
+  {
+    "canonical_title": "Master asset image prompt, generate-image handler",
+    "primary": "WD-IMPL-AI-0037",
+    "members": [
+      "WD-IMPL-AI-0037"
+    ],
+    "same_call_reason": "projectAssets generate-image handler builds image_prompt or description, then createImageJob(master_asset), then the NanoBanana sink.",
+    "distinct_from": [
+      "WD-IMPL-AI-0038",
+      "WD-IMPL-AI-0039"
+    ]
+  },
+  {
+    "canonical_title": "Master asset image prompt, edit-image handler (projectAssets)",
+    "primary": "WD-IMPL-AI-0038",
+    "members": [
+      "WD-IMPL-AI-0038"
+    ],
+    "same_call_reason": "projectAssets edit-image handler builds editInstructions plus context and optional removeBackground suffix, then createImageJob(master_asset).",
+    "distinct_from": [
+      "WD-IMPL-AI-0051",
+      "WD-IMPL-AI-0037"
+    ]
+  },
+  {
+    "canonical_title": "Master asset regeneration from global asset (clone-from-global)",
+    "primary": "WD-IMPL-AI-0039",
+    "members": [
+      "WD-IMPL-AI-0039"
+    ],
+    "same_call_reason": "projectAssets clone-from-global handler passes the merged or override description as the prompt to createImageJob(master_asset) with the global image as reference.",
+    "distinct_from": [
+      "WD-IMPL-AI-0037",
+      "WD-IMPL-AI-0005"
+    ]
+  },
+  {
+    "canonical_title": "Angle-variant image prompt (createAngleVariantJob)",
+    "primary": "WD-IMPL-AI-0040",
+    "members": [
+      "WD-IMPL-AI-0040"
+    ],
+    "same_call_reason": "ImageGenerationService.createAngleVariantJob builds \"<angle> of <description>\" then createImageJob(angle_variant).",
+    "distinct_from": [
+      "WD-IMPL-AI-0037"
+    ]
+  },
+  {
+    "canonical_title": "Location-view direction image prompt (deterministic template)",
+    "primary": "WD-IMPL-AI-0082",
+    "members": [
+      "WD-IMPL-AI-0082",
+      "WD-IMPL-AI-0041"
+    ],
+    "same_call_reason": "Same projectAssets location-views generate-image handler and template string; createImageJob(scene_asset) with no assetId.",
+    "distinct_from": [
+      "WD-IMPL-AI-0037",
+      "WD-IMPL-AI-0040"
+    ]
+  },
+  {
+    "canonical_title": "Scene asset image prompt, createSceneAssetImageJob",
+    "primary": "WD-IMPL-AI-0048",
+    "members": [
+      "WD-IMPL-AI-0048"
+    ],
+    "same_call_reason": "ImageGenerationService.createSceneAssetImageJob builds effective_description plus visual modifiers plus isolation, then createImageJob(scene_asset).",
+    "distinct_from": [
+      "WD-IMPL-AI-0051",
+      "WD-IMPL-AI-0081"
+    ]
+  },
+  {
+    "canonical_title": "Scene asset edit-image prompt (sceneAssets handler)",
+    "primary": "WD-IMPL-AI-0051",
+    "members": [
+      "WD-IMPL-AI-0051"
+    ],
+    "same_call_reason": "sceneAssets edit-image handler builds editInstructions plus context, inline isolation for character, prop and extra_archetype, then createImageJob(scene_asset).",
+    "distinct_from": [
+      "WD-IMPL-AI-0038",
+      "WD-IMPL-AI-0048"
+    ]
+  },
+  {
+    "canonical_title": "Transformation post-image prompt (generate-post-image)",
+    "primary": "WD-IMPL-AI-0084",
+    "members": [
+      "WD-IMPL-AI-0084",
+      "WD-IMPL-AI-0052"
+    ],
+    "same_call_reason": "Same sceneAssets generate-post-image handler; post_description plus visual modifiers, createImageJob(transformation_post); no isolation suffix.",
+    "distinct_from": [
+      "WD-IMPL-AI-0048"
+    ]
+  },
+  {
+    "canonical_title": "Isolation suffix helper (injectBackgroundContext)",
+    "primary": "WD-IMPL-AI-0081",
+    "members": [
+      "WD-IMPL-AI-0081"
+    ],
+    "same_call_reason": "Shared helper appending the white-background sentence inside createImageJob (master_asset, angle_variant) and createSceneAssetImageJob (scene_asset); not a standalone prompt path.",
+    "distinct_from": [
+      "WD-IMPL-AI-0037",
+      "WD-IMPL-AI-0048"
+    ]
+  },
+  {
+    "canonical_title": "Frame inpaint marker and end-frame fallback suffixes",
+    "primary": "WD-IMPL-AI-0083",
+    "members": [
+      "WD-IMPL-AI-0083"
+    ],
+    "same_call_reason": "frameGenerationService appends \"[Inpainting: ...]\" in inpaintFrame and \"[End of shot ...]\" when no end_frame_prompt; both feed createImageJob for frames.",
+    "distinct_from": [
+      "WD-IMPL-AI-0007",
+      "WD-IMPL-AI-0054"
+    ]
+  },
+  {
+    "canonical_title": "Reuse/edit continuity-base prompt (buildReuseEditPrompt)",
+    "primary": "WD-IMPL-AI-0054",
+    "members": [
+      "WD-IMPL-AI-0054"
+    ],
+    "same_call_reason": "frameGenerationService.buildReuseEditPrompt wraps frame_prompt with a reuse/edit continuity-base instruction for start frames.",
+    "distinct_from": [
+      "WD-IMPL-AI-0083",
+      "WD-IMPL-AI-0008"
+    ]
+  },
+  {
+    "canonical_title": "Frontend imageService.generateImage (POST /api/images/generate), orphaned module",
+    "primary": "WD-IMPL-AI-0085",
+    "members": [
+      "WD-IMPL-AI-0085"
+    ],
+    "same_call_reason": "Frontend imageService.generateImage posts to /api/images/generate; the module has no importers in src.",
+    "distinct_from": [
+      "WD-IMPL-AI-0042"
+    ]
+  },
+  {
+    "canonical_title": "Frontend imageService.inpaintImage stub (orphaned module)",
+    "primary": "WD-IMPL-AI-0042",
+    "members": [
+      "WD-IMPL-AI-0042"
+    ],
+    "same_call_reason": "Own prompt string in imageService.inpaintImage, delegates to generateImage; the module has no importers.",
+    "distinct_from": [
+      "WD-IMPL-AI-0085"
+    ]
+  },
+  {
+    "canonical_title": "Connectivity probe (GET /api/llm/test-connectivity)",
+    "primary": "WD-IMPL-AI-0079",
+    "members": [
+      "WD-IMPL-AI-0079"
+    ],
+    "same_call_reason": "LLMClient.testConnectivity sends a fixed \"say hello\" request; route mounted at /api/llm, no UI caller.",
+    "distinct_from": []
+  },
+  {
+    "canonical_title": "Veo 3.1 image-to-video via Vertex AI predictLongRunning",
+    "primary": "WD-IMPL-AI-0080",
+    "members": [
+      "WD-IMPL-AI-0080",
+      "WD-IMPL-AI-0066"
+    ],
+    "same_call_reason": "Same Veo3Provider.generateVideo method; prompt is the stored video_prompt_snapshot.",
+    "distinct_from": [
+      "WD-IMPL-AI-0067"
+    ]
+  },
+  {
+    "canonical_title": "Mock video provider (default when VIDEO_PROVIDER is unset)",
+    "primary": "WD-IMPL-AI-0067",
+    "members": [
+      "WD-IMPL-AI-0067"
+    ],
+    "same_call_reason": "MockVideoProvider.generateVideo; no model call.",
+    "distinct_from": [
+      "WD-IMPL-AI-0066"
+    ]
+  }
+]

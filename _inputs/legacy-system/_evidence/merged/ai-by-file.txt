@@ -1,0 +1,120 @@
+## backend/src/routes/llm.ts
+WD-IMPL-AI-0001 backend/src/routes/llm.ts:generate-from-template [V2-AI-01]
+WD-IMPL-AI-0068 backend/src/routes/llm.ts:generate-from-template#template=treatment_expansion [E-AI-01,V3-AI-01]
+WD-IMPL-AI-0069 backend/src/routes/llm.ts:generate-from-template#template=beat_extraction [E-AI-02,V3-AI-04,V3-AI-06]
+WD-IMPL-AI-0070 backend/src/routes/llm.ts:generate-from-template#template=master_script_generation [E-AI-03,V3-AI-07,V3-AI-08]
+WD-IMPL-AI-0088 backend/src/routes/llm.ts:generate [M-AI-03]
+
+## backend/src/routes/projectassets.ts
+WD-IMPL-AI-0038 backend/src/routes/projectAssets.ts:edit-image handler (prompt) then ImageGenerationService.executeJobInBackground [V5-AI-09]
+WD-IMPL-AI-0039 backend/src/routes/projectAssets.ts:clone-from-global handler then ImageGenerationService.createImageJob [V5-AI-10]
+WD-IMPL-AI-0082 backend/src/routes/projectAssets.ts:location-view-generate-image [E-AI-46,V5-AI-12]
+
+## backend/src/routes/sceneassets.ts
+WD-IMPL-AI-0051 backend/src/routes/sceneAssets.ts:edit-image handler [V6-AI-09]
+WD-IMPL-AI-0084 backend/src/routes/sceneAssets.ts:generate-post-image [E-AI-48,V6-AI-10]
+
+## backend/src/services/assetdescriptionmerger.ts
+WD-IMPL-AI-0005 backend/src/services/assetDescriptionMerger.ts:mergeWithLLM [V2-AI-05,V5-AI-02,E-AI-25]
+
+## backend/src/services/assetextractionservice.ts
+WD-IMPL-AI-0004 backend/src/services/assetExtractionService.ts:distillVisualSummary [V2-AI-04,V5-AI-01,E-AI-23]
+WD-IMPL-AI-0034 backend/src/services/assetExtractionService.ts:extractEntityMentions [V5-AI-03,E-AI-24]
+
+## backend/src/services/framegenerationservice.ts
+WD-IMPL-AI-0054 backend/src/services/frameGenerationService.ts:buildReuseEditPrompt [V7-AI-04]
+WD-IMPL-AI-0083 backend/src/services/frameGenerationService.ts:inpaintFrame [E-AI-47]
+WD-IMPL-AI-0087 backend/src/services/frameGenerationService.ts:startFrameGeneration [M-AI-02]
+
+## backend/src/services/image-generation/imagegenerationservice.ts
+WD-IMPL-AI-0037 backend/src/services/image-generation/ImageGenerationService.ts:executeJobInBackground (with prompt built in routes/projectAssets.ts:generate-image handler) [V5-AI-08]
+WD-IMPL-AI-0040 backend/src/services/image-generation/ImageGenerationService.ts:createAngleVariantJob [V5-AI-11,E-AI-45]
+WD-IMPL-AI-0048 backend/src/services/image-generation/ImageGenerationService.ts:ImageGenerationService.createSceneAssetImageJob and executeJobInBackground [V6-AI-06]
+WD-IMPL-AI-0081 backend/src/services/image-generation/ImageGenerationService.ts:injectBackgroundContext [E-AI-44]
+WD-IMPL-AI-0086 backend/src/services/image-generation/ImageGenerationService.ts:createGlobalAssetImageJob [M-AI-01]
+
+## backend/src/services/image-generation/nanobananaclient.ts
+WD-IMPL-AI-0010 backend/src/services/image-generation/NanoBananaClient.ts:generateImage [V2-AI-10,E-AI-41,V9-AI-06]
+WD-IMPL-AI-0011 backend/src/services/image-generation/NanoBananaClient.ts:inpaintImage [V2-AI-11,E-AI-42,V9-AI-07]
+
+## backend/src/services/imageanalysisservice.ts
+WD-IMPL-AI-0012 backend/src/services/imageAnalysisService.ts:analyzeReferenceFrame [V2-AI-12,V5-AI-06,V7-AI-03,E-AI-38,V9-AI-08]
+WD-IMPL-AI-0033 backend/src/services/imageAnalysisService.ts:classifyUploadedImage [V4-AI-09,V5-AI-07,E-AI-39]
+WD-IMPL-AI-0035 backend/src/services/imageAnalysisService.ts:analyzeAssetImage [V5-AI-04,E-AI-36,V6-AI-07]
+WD-IMPL-AI-0036 backend/src/services/imageAnalysisService.ts:mergeDescriptions [V5-AI-05,E-AI-37,V6-AI-08]
+
+## backend/src/services/llm-client.ts
+WD-IMPL-AI-0079 backend/src/services/llm-client.ts:testConnectivity [E-AI-40]
+
+## backend/src/services/promptgenerationservice.ts
+WD-IMPL-AI-0006 backend/src/services/promptGenerationService.ts:generateFramePrompt [V2-AI-06,E-AI-31,V9-AI-01]
+WD-IMPL-AI-0007 backend/src/services/promptGenerationService.ts:generateEndFramePrompt [V2-AI-07,E-AI-33,V9-AI-03]
+WD-IMPL-AI-0008 backend/src/services/promptGenerationService.ts:generateContinuityFramePrompt [V2-AI-08,V7-AI-01,E-AI-34,V9-AI-04,V7-AI-02]
+WD-IMPL-AI-0009 backend/src/services/promptGenerationService.ts:generateVideoPrompt [V2-AI-09,E-AI-32,V9-AI-02]
+WD-IMPL-AI-0078 backend/src/services/promptGenerationService.ts:applyFramePromptCorrection [E-AI-35,V9-AI-05]
+
+## backend/src/services/sceneassetrelevanceservice.ts
+WD-IMPL-AI-0075 backend/src/services/sceneAssetRelevanceService.ts:detectRelevantAssets [E-AI-26,V6-AI-01]
+
+## backend/src/services/scenedependencyextraction.ts
+WD-IMPL-AI-0023 backend/src/services/sceneDependencyExtraction.ts:extractWithLLM [V3-AI-11,E-AI-22]
+
+## backend/src/services/shotextractionservice.ts
+WD-IMPL-AI-0071 backend/src/services/shotExtractionService.ts:extractShots [E-AI-18,V8-AI-01,V8-AI-02]
+WD-IMPL-AI-0072 backend/src/services/shotExtractionService.ts:extractShots#retry [E-AI-19]
+
+## backend/src/services/shotmergeservice.ts
+WD-IMPL-AI-0074 backend/src/services/shotMergeService.ts:mergeShots [E-AI-21,V8-AI-04]
+
+## backend/src/services/shotsplitservice.ts
+WD-IMPL-AI-0073 backend/src/services/shotSplitService.ts:splitShot [E-AI-20,V8-AI-03]
+
+## backend/src/services/storycontextservice.ts
+WD-IMPL-AI-0024 backend/src/services/storyContextService.ts:callInferenceLLM [V3-AI-12,E-AI-27,V6-AI-02]
+WD-IMPL-AI-0025 backend/src/services/storyContextService.ts:callBulkInferenceLLM [V3-AI-13,E-AI-28,V6-AI-03]
+
+## backend/src/services/streamlinebackfillservice.ts
+WD-IMPL-AI-0002 backend/src/services/streamlineBackfillService.ts:backfillTreatment [V2-AI-02,V3-AI-14,V4-AI-07,E-AI-16]
+WD-IMPL-AI-0003 backend/src/services/streamlineBackfillService.ts:backfillBeatSheet [V2-AI-03,V3-AI-15,V4-AI-08,E-AI-17]
+
+## backend/src/services/streamlineclassificationservice.ts
+WD-IMPL-AI-0027 backend/src/services/streamlineClassificationService.ts:classifyProseViaLLM [V4-AI-01,E-AI-10]
+
+## backend/src/services/streamlineformattingservice.ts
+WD-IMPL-AI-0029 backend/src/services/streamlineFormattingService.ts:formatAsTreatment [V4-AI-03,E-AI-12]
+WD-IMPL-AI-0030 backend/src/services/streamlineFormattingService.ts:formatAsBeatSheet [V4-AI-04,E-AI-13]
+
+## backend/src/services/streamlinequestionservice.ts
+WD-IMPL-AI-0031 backend/src/services/streamlineQuestionService.ts:analyzeBatch [V4-AI-05,E-AI-14]
+
+## backend/src/services/streamlinereconciliationservice.ts
+WD-IMPL-AI-0032 backend/src/services/streamlineReconciliationService.ts:reconcileDocuments [V4-AI-06,E-AI-15]
+
+## backend/src/services/streamlinestandaloneassetservice.ts
+WD-IMPL-AI-0028 backend/src/services/streamlineStandaloneAssetService.ts:extractStandaloneAssetDraft [V4-AI-02,E-AI-11]
+
+## backend/src/services/transformationeventservice.ts
+WD-IMPL-AI-0076 backend/src/services/transformationEventService.ts:generatePostDescription [E-AI-29,V6-AI-04]
+WD-IMPL-AI-0077 backend/src/services/transformationEventService.ts:generateTransformationPrefill [E-AI-30,V6-AI-05]
+
+## backend/src/services/video-generation/mockvideoprovider.ts
+WD-IMPL-AI-0067 backend/src/services/video-generation/MockVideoProvider.ts:MockVideoProvider.generateVideo [V10-AI-02]
+
+## backend/src/services/video-generation/veo3provider.ts
+WD-IMPL-AI-0080 backend/src/services/video-generation/Veo3Provider.ts:generateVideo [E-AI-43,V10-AI-01]
+
+## src/lib/services/beatservice.ts
+WD-IMPL-AI-0017 src/lib/services/beatService.ts:brainstormBeatAlternatives [V3-AI-05,E-AI-08]
+WD-IMPL-AI-0026 src/lib/services/beatService.ts:splitBeat [V3-AI-16,E-AI-09]
+
+## src/lib/services/imageservice.ts
+WD-IMPL-AI-0042 src/lib/services/imageService.ts:inpaintImage [V5-AI-13]
+WD-IMPL-AI-0085 src/lib/services/imageService.ts:generateImage [E-AI-49]
+
+## src/lib/services/scriptservice.ts
+WD-IMPL-AI-0021 src/lib/services/scriptService.ts:regenerateSection [V3-AI-09,E-AI-06]
+WD-IMPL-AI-0022 src/lib/services/scriptService.ts:regenerateSectionAlternatives [V3-AI-10,E-AI-07]
+
+## src/lib/services/treatmentservice.ts
+WD-IMPL-AI-0014 src/lib/services/treatmentService.ts:regenerateSection [V3-AI-02,E-AI-04]
+WD-IMPL-AI-0015 src/lib/services/treatmentService.ts:regenerateSectionAlternatives [V3-AI-03,E-AI-05]
