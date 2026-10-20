@@ -1,0 +1,205 @@
+<!doctype html>
+<!-- PROTOTYPE (throwaway) for Wayfinder ticket #63: trust signals, lock friction, reconcile, write-back.
+     Question: how are provenance, AI-made choices, possibly-out-of-date markers, lock friction,
+     bulk reconcile and write-back-vs-deviation shown quietly? Three variants switchable with ?variant=A|B|C or the bottom bar.
+     All state is in memory. No persistence. Not production code. -->
+<html lang="en"><head><meta charset="utf-8"><title>#63 prototype: trust signals</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+:root{--bg:#14120f;--panel:#1c1915;--line:#2d2922;--ink:#e8e1d4;--mute:#8d8576;--amber:#c9a05a;--ai:#8f86d9;--ok:#7fae8a}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 Georgia,'Iowan Old Style',serif}
+button{font:inherit;color:inherit;background:none;border:1px solid var(--line);border-radius:6px;padding:3px 9px;cursor:pointer}
+button:hover{border-color:var(--mute)}button.p{background:#2b2418;border-color:#5b4a2c;color:#e9cf9a}
+.sans{font-family:system-ui,-apple-system,Segoe UI,sans-serif}
+.top{display:flex;gap:14px;align-items:center;padding:10px 20px;border-bottom:1px solid var(--line);background:#100e0b;position:sticky;top:0;z-index:5}
+.top .t{font-size:13px;color:var(--mute)}.top b{color:var(--ink);font-weight:600}
+.try{display:flex;gap:8px;flex-wrap:wrap;padding:10px 20px;border-bottom:1px solid var(--line);background:#17140f;font-size:12px;align-items:center}
+.try span{color:var(--mute);margin-right:4px}
+.sw{display:inline-flex;gap:6px;align-items:center;cursor:pointer;font-size:12px;color:var(--mute)}
+.sw i{width:26px;height:14px;border-radius:8px;background:#3a352b;position:relative}.sw i:after{content:'';position:absolute;top:2px;left:2px;width:10px;height:10px;border-radius:50%;background:#8d8576;transition:.15s}
+.sw.on i{background:#4a4380}.sw.on i:after{left:14px;background:#d6d1ff}.sw.on{color:var(--ink)}
+.wrap{display:grid;grid-template-columns:minmax(300px,1fr) minmax(380px,1.3fr) auto;gap:0;min-height:calc(100vh - 130px)}
+.col{padding:18px 22px;border-right:1px solid var(--line)}
+h2{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--mute);margin:0 0 10px;font-family:system-ui,sans-serif;font-weight:600}
+.narr p{margin:0 0 12px}
+.seg{border-radius:3px;padding:0 2px}
+.prov .seg.ai{background:rgba(143,134,217,.16);box-shadow:inset 0 -1px 0 rgba(143,134,217,.5)}
+.prov .seg.cr{background:rgba(201,160,90,.10)}
+.lockrow{display:flex;gap:8px;align-items:center;font-size:12px;color:var(--mute);font-family:system-ui,sans-serif;margin-bottom:10px}
+.lk{display:inline-flex;gap:5px;align-items:center;color:var(--amber)}
+.shot{border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:10px;background:var(--panel);position:relative;transition:.2s}
+.shot .hd{display:flex;gap:10px;align-items:baseline;justify-content:space-between}
+.shot .id{font-family:system-ui;font-size:12px;color:var(--mute)}
+.shot .line{margin:4px 0 6px}
+.frames{display:flex;gap:5px;margin:6px 0}.fr{width:54px;height:32px;border-radius:3px;background:linear-gradient(135deg,#4b3f33,#2a2620);border:1px solid #3a342a}
+.takes{display:flex;gap:6px;align-items:center;font-family:system-ui;font-size:12px;color:var(--mute)}
+.tk{padding:2px 8px;border:1px solid var(--line);border-radius:12px;cursor:pointer}.tk.sel{border-color:var(--ok);color:var(--ok)}.tk.fin{background:rgba(127,174,138,.12)}
+.ai-tag{font-family:system-ui;font-size:11px;color:var(--ai);border-bottom:1px dotted var(--ai);cursor:pointer;margin-right:8px}
+.ai-tag.ov{color:var(--ok);border-color:var(--ok)}
+/* markers */
+.dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--amber);opacity:.85;cursor:pointer;vertical-align:middle;margin-left:6px}
+.rsn{font-family:system-ui;font-size:12px;color:#b9a77f;margin-top:4px}
+.rsn .acts{display:inline-flex;gap:6px;margin-left:8px}.rsn button{padding:0 7px;font-size:11.5px}
+.kept{font-family:system-ui;font-size:11px;color:var(--mute);margin-top:4px}
+.note{font-family:system-ui;font-size:12px;border-left:2px solid var(--amber);padding:5px 10px;margin:8px 0;background:rgba(201,160,90,.06)}
+.note .acts{margin-top:5px;display:flex;gap:6px;flex-wrap:wrap}
+.strip{font-family:system-ui;font-size:12.5px;border:1px solid #4a3d24;background:#1f1a11;border-radius:6px;padding:8px 12px;margin:8px 0}
+.strip .acts{margin-top:6px;display:flex;gap:6px}
+.bars{display:flex;gap:2px;align-items:flex-end;height:14px}.bars u{display:block;width:3px;background:var(--amber);opacity:.7;text-decoration:none}
+.tray{width:330px;padding:18px 18px;background:#12100c}
+.tray .grp{border-top:1px solid var(--line);padding:8px 0;font-family:system-ui;font-size:12.5px}
+.tray .grp .g{color:#b9a77f}.tray .it{display:flex;justify-content:space-between;gap:8px;color:var(--ink);padding:2px 0}
+.tray .it span:last-child{color:var(--mute)}
+/* B */
+.B .shot.stale{border-left:3px solid rgba(201,160,90,.55)}
+/* C */
+.C .shot.stale{filter:saturate(.55);opacity:.82;border-style:dashed;border-color:#5b4a2c}
+.C .shot.halo{box-shadow:0 0 0 1px rgba(201,160,90,.7),0 0 18px rgba(201,160,90,.15)}
+.C .seg.src{background:rgba(201,160,90,.2)}
+.sw-bar{position:fixed;bottom:14px;left:50%;transform:translateX(-50%);background:#f2ede1;color:#1a1713;border-radius:20px;padding:5px 12px;display:flex;gap:12px;align-items:center;font:600 13px system-ui;box-shadow:0 4px 20px rgba(0,0,0,.5);z-index:20}
+.sw-bar button{background:none;border:none;color:#1a1713;font-size:16px;padding:0 4px}
+.sheet{position:fixed;right:0;top:0;bottom:0;width:380px;background:#171410;border-left:1px solid #4a3d24;padding:22px;z-index:15;box-shadow:-10px 0 30px rgba(0,0,0,.45);font-family:system-ui;font-size:13px}
+.sheet .acts{display:flex;gap:6px;margin-top:14px}
+.small{font-size:12px;color:var(--mute)}
+.pop{position:absolute;background:#201b13;border:1px solid #5b4a2c;border-radius:8px;padding:10px 12px;z-index:9;font-family:system-ui;font-size:12.5px;max-width:330px;box-shadow:0 6px 24px rgba(0,0,0,.5)}
+</style></head><body>
+<div id="app"></div>
+<script>
+const V = new URLSearchParams(location.search).get('variant')||'A';
+const NAMES={A:'Whisper (inline dots, reasons on tap)',B:'Ledger (edge notch + changes tray)',C:'Trace (fade + dependency halo)'};
+/* ---------- in-memory model (stand-in for lineage; real one is derived, see LINEAGE-AND-STALENESS) ---------- */
+const init=()=>({
+ prov:false, narrLocked:true, planLocked:true,
+ narr:[{id:'n1',t:'Dawn. Marcus stands at the stove, hands trembling, pouring coffee he will not drink.',by:'cr'},
+       {id:'n2',t:'Elena enters in her work uniform and says nothing for a long moment; the kettle clicks off.',by:'ai'},
+       {id:'n3',t:'"You never told me about the letter," she says.',by:'cr'}],
+ shots:[
+  {id:'4.1',line:'Marcus pours coffee.',by:'cr',deps:['n1','marcus'],frames:2,takes:[1,2],sel:1,cost:6,choices:[{k:'Time of day',v:'dawn',ov:false}]},
+  {id:'4.2',line:'ELENA: Say something.',by:'ai',deps:['n2','marcus'],frames:3,takes:[1,2,3],sel:2,cost:14,choices:[{k:'Lens',v:'35mm',ov:false},{k:'Wardrobe',v:'work uniform',ov:false}]},
+  {id:'4.3',line:'ELENA: "You never told me about the letter."',by:'cr',deps:['n3'],frames:2,takes:[1,2],sel:1,cost:10,choices:[]},
+  {id:'4.4',line:'Close on Marcus, steam rising.',by:'ai',deps:['n2','marcus'],frames:2,takes:[1],sel:1,cost:8,choices:[{k:'Mood lighting',v:'cool window light',ov:false}]},
+ ].map(s=>({...s,stale:null,ack:null,final:false,div:null,devi:false})),
+ marcus:'Late 40s, grey stubble, work-worn hands.', pending:null, toast:'', open:null, hover:null
+});
+let S=init();
+const reasons={n:(id)=>`Scene 4 passage "${id}" changed after this was made`,marcus:()=>"Marcus's description changed after this was made"};
+const q=(d)=>S.shots.filter(s=>s.deps.includes(d));
+const money=(a)=>a.reduce((x,s)=>x+s.cost,0);
+function impact(d){const a=q(d).filter(s=>true);return{shots:a.length,frames:a.reduce((x,s)=>x+s.frames,0),takes:a.reduce((x,s)=>x+s.takes.length,0),cost:money(a),ids:a.map(s=>s.id)}}
+/* tier = friction scaled by downstream work (rule being proposed) */
+const tier=i=>i.shots==0?0:(i.cost<10?1:2);
+const staleShots=()=>S.shots.filter(s=>s.stale&&!s.ack);
+/* ---------- actions ---------- */
+function startEdit(kind){S.open=null;S.toast='';
+ if(kind==='narr'){const i=impact('n2');S.pending={kind:'narr',d:'n2',i,tier:tier(i),label:'Edit locked passage 2 of the Master Narrative'};if(!S.narrLocked||i.shots==0)return applyPending();}
+ if(kind==='plan'){const i={shots:1,frames:3,takes:3,cost:14,ids:['4.2']};S.pending={kind:'plan',d:'4.2',i,tier:tier(i),label:'Edit locked shot plan: reorder shot 4.2'};}
+ if(kind==='marcus'){const i=impact('marcus');S.pending={kind:'marcus',d:'marcus',i,tier:0,label:"Edit Marcus's description (not locked)"};return applyPending();}
+ if(kind==='line'){const s=S.shots[2];s.line='ELENA: "I found the letter in your coat. Why hide it?"';s.by='cr';s.div={field:'line',anchor:'passage 3'};S.toast='';}
+ if(kind==='tier0'){const i={shots:0,frames:0,takes:0,cost:0,ids:[]};S.pending={kind:'free',d:null,i,tier:0,label:'Edit a locked passage nothing depends on'};return S.toast='Tier 0: no downstream work, so the edit just happens. No step, no dialog.',S.pending=null,render()}
+ render()}
+function applyPending(){const p=S.pending;S.pending=null;
+ if(p.kind==='narr'){S.narr[1]={id:'n2',t:'Elena enters, still in her coat, and watches him from the doorway; the kettle clicks off.',by:'cr'};mark(p.d,'n')}
+ if(p.kind==='marcus'){S.marcus='Early 50s, clean-shaven, a scar through the left brow.';mark('marcus','m')}
+ if(p.kind==='plan'){S.toast='Shot plan edited. Dependent frames and takes of 4.2 are marked quietly.';const s=S.shots[1];s.stale={r:'Shot 4.2 changed (order) after this was made'};s.ack=null}
+ render()}
+function mark(d,k){q(d).forEach(s=>{s.stale={r:k==='n'?reasons.n(d):reasons.marcus()};s.ack=null});S.toast=`${q(d).length} items are marked possibly out of date. Nothing was regenerated or removed.`}
+function act(id,what){const s=S.shots.find(x=>x.id===id);
+ if(what==='keep'){s.ack='kept'}
+ if(what==='rec'){s.ack='reconciled';s.stale=null}
+ if(what==='regen'){s.stale=null;s.ack=null;s.takes.push(s.takes.length+1);s.sel=s.takes.length;S.toast=`New take added to ${id} (estimate shown first in the real app). Older takes kept.`}
+ render()}
+function bulk(what){staleShots().forEach(s=>act0(s,what));S.toast=what==='keep'?'All kept: reversible in one step (Undo).':what==='rec'?'All marked as fitting.':'Regenerate all: would show the combined estimate first.';render()}
+function act0(s,w){if(w==='keep')s.ack='kept';if(w==='rec'){s.ack='reconciled';s.stale=null}if(w==='regen'){}}
+function wb(how){const s=S.shots[2];if(how==='write'){S.narr[2]={id:'n3',t:'"I found the letter in your coat. Why hide it?" she says.',by:'cr'};S.toast='Written back: new Master Narrative revision. Other work made from passage 3 is marked quietly.';s.div=null;}
+ if(how==='dev'){s.div=null;s.devi=true;S.toast='Recorded as a deliberate local deviation for shot 4.3.'}
+ if(how==='later'){S.toast='Left open. It stays in the reconcile list.'}
+ render()}
+function pick(id,n){const s=S.shots.find(x=>x.id===id);s.sel=n;render()}
+function fin(id){const s=S.shots.find(x=>x.id===id);s.final=!s.final;render()}
+function ovr(id,i){const c=S.shots.find(x=>x.id===id).choices[i];c.ov=!c.ov;render()}
+function tog(k){S[k]=!S[k];render()}
+/* ---------- rendering ---------- */
+const lockIcon=(on)=>on?'🔒':'🔓';
+function seg(x,extra=''){return `<span class="seg ${x.by} ${extra}">${x.t}</span>`}
+function renderNarr(){
+ return `<h2>Master Narrative · Scene 4</h2>
+ <div class="lockrow"><span class="lk">${lockIcon(S.narrLocked)} Accepted &amp; locked</span><span>· edits ask only when work depends on them</span></div>
+ <div class="narr ${S.prov?'prov':''}">${S.narr.map(x=>`<p onmouseenter="S.hover='${x.id}';render()" onmouseleave="S.hover=null;render()">${seg(x,V==='C'&&S.pending&&S.pending.d===x.id?'src':'')}</p>`).join('')}</div>
+ ${S.pending&&V==='A'?strip():''}
+ ${S.shots[2].div?'':''}`}
+function strip(){const p=S.pending,i=p.i;
+ return `<div class="strip"><div><b>${p.label}</b></div>
+ <div class="small" style="margin-top:3px">${i.shots} shots · ${i.frames} frames · ${i.takes} takes depend on this · $${i.cost} already spent. Edits won't delete or regenerate anything; they will mark these as possibly out of date.</div>
+ <div class="acts"><button class="p" onclick="applyPending()">Edit anyway</button><button onclick="S.pending=null;render()">Cancel</button><button onclick="S.narrLocked=false;applyPending()" title="Always available; unlocking changes nothing else">Unlock</button></div></div>`}
+function markerA(s){if(!s.stale)return'';if(s.ack==='kept')return'';return `<span class="dot" onclick="S.open=S.open==='${s.id}'?null:'${s.id}';render()" title="possibly out of date"></span>`}
+function shotHTML(s){
+ const stale=s.stale&&!s.ack, keptNote=s.stale&&s.ack==='kept';
+ const halo=V==='C'&&S.hover&&s.deps.includes(S.hover);
+ const lk=S.planLocked?'🔒':'';
+ let h=`<div class="shot ${stale?'stale':''} ${halo?'halo':''}">
+ <div class="hd"><span class="id">Shot ${s.id} ${lk}${V==='A'?markerA(s):''}${s.devi?' <span class="small">· deviates on purpose</span>':''}</span>
+  <span class="small">${s.frames} frames · $${s.cost}</span></div>
+ <div class="line ${S.prov?'prov':''}"><span class="seg ${s.by}">${s.line}</span></div>
+ <div>${s.choices.map((c,i)=>`<span class="ai-tag ${c.ov?'ov':''}" onclick="ovr('${s.id}',${i})" title="AI chose this. Click to override.">${c.k}: ${c.ov?'<i>yours</i>':c.v}</span>`).join('')}</div>
+ <div class="frames">${Array.from({length:s.frames}).map(()=>'<div class="fr"></div>').join('')}</div>
+ <div class="takes">Takes: ${s.takes.map(n=>`<span class="tk ${s.sel===n?'sel':''} ${s.sel===n&&s.final?'fin':''}" onclick="pick('${s.id}',${n})">${n}${s.sel===n?' ✓':''}</span>`).join('')}
+   <button style="padding:0 7px;font-size:11px" onclick="fin('${s.id}')" title="Optional: mark this take final (locks the choice)">${s.final?'final 🔒':'mark final'}</button></div>`;
+ if(V==='A'&&stale&&S.open===s.id)h+=`<div class="rsn">${s.stale.r}.<span class="acts"><button onclick="act('${s.id}','regen')">Regenerate</button><button onclick="act('${s.id}','rec')">It still fits</button><button onclick="act('${s.id}','keep')">Keep as is</button></span></div>`;
+ if(V==='B'&&stale)h+=`<div class="rsn small">may be out of date: ${s.stale.r.replace(/ after this was made/,'')}</div>`;
+ if(V==='C'&&stale)h+=`<div class="rsn">↳ ${s.stale.r}<span class="acts"><button onclick="act('${s.id}','regen')">Regenerate</button><button onclick="act('${s.id}','rec')">Fits</button><button onclick="act('${s.id}','keep')">Keep</button></span></div>`;
+ if(keptNote)h+=`<div class="kept">Kept despite: ${s.stale.r.replace(/ after this was made/,'')}</div>`;
+ if(s.div){h+=divNote(s)}
+ return h+'</div>'}
+function divNote(s){
+ const t=`<b>This line now differs from the Master Narrative (${s.div.anchor}).</b>`;
+ const btns=`<button class="p" onclick="wb('write')">Update the Master Narrative</button><button onclick="wb('dev')">Keep for this shot only</button><button onclick="wb('later')">Decide later</button>`;
+ if(V==='A')return `<div class="note">${t}<div class="acts">${btns}</div></div>`;
+ if(V==='B')return `<div class="rsn small">differs from narrative · decide in tray →</div>`;
+ return `<div class="rsn">↳ differs from the narrative <span class="acts"><button onclick="wb('write')">Write back</button><button onclick="wb('dev')">Deviation</button><button onclick="wb('later')">Later</button></span></div>`}
+function renderShots(){
+ return `<h2>Shots · Scene 4 <span class="lk" style="text-transform:none;letter-spacing:0">${lockIcon(S.planLocked)} plan locked</span></h2>
+  ${V==='A'&&S.pending&&S.pending.kind==='plan'?strip():''}
+  ${V==='C'&&S.pending?`<div class="strip"><b>${S.pending.label}</b> ${bars(S.pending.i)}<div class="small" style="margin:4px 0">${S.pending.i.shots} shots · ${S.pending.i.frames} frames · ${S.pending.i.takes} takes · $${S.pending.i.cost} are drawn from this. Hover the passage to see them glow.</div><div class="acts"><button class="p" onclick="applyPending()">Edit anyway</button><button onclick="S.pending=null;render()">Cancel</button></div></div>`:''}
+  ${S.shots.map(shotHTML).join('')}`}
+function bars(i){const n=Math.min(12,Math.max(1,i.shots*2+Math.round(i.cost/10)));return `<span class="bars" title="weight of the lock = downstream work">${Array.from({length:n},(_,k)=>`<u style="height:${4+k}px"></u>`).join('')}</span>`}
+function renderTray(){
+ if(V!=='B')return '';
+ const st=staleShots(),dv=S.shots.filter(s=>s.div);
+ const by={};st.forEach(s=>(by[s.stale.r]=by[s.stale.r]||[]).push(s));
+ return `<div class="tray"><h2>Changes to look at</h2>
+ ${!st.length&&!dv.length?'<div class="small">Nothing to look at. Work that may be out of date shows up here; it never blocks anything.</div>':''}
+ ${Object.entries(by).map(([r,a])=>`<div class="grp"><div class="g">${r.replace(/ after this was made/,'')}</div>${a.map(s=>`<div class="it"><span>Shot ${s.id}</span><span><a href="#" onclick="act('${s.id}','keep');return false">keep</a> · <a href="#" onclick="act('${s.id}','rec');return false">fits</a> · <a href="#" onclick="act('${s.id}','regen');return false">regen</a></span></div>`).join('')}</div>`).join('')}
+ ${st.length?`<div class="grp"><div class="small">All ${st.length}:</div><div class="acts" style="display:flex;gap:6px;margin-top:5px"><button onclick="bulk('rec')">It all still fits</button><button onclick="bulk('keep')">Keep all</button><button onclick="bulk('regen')">Regenerate all…</button></div></div>`:''}
+ ${dv.map(s=>`<div class="grp"><div class="g">Shot ${s.id} line differs from narrative</div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:5px"><button class="p" onclick="wb('write')">Update narrative</button><button onclick="wb('dev')">Keep for this shot</button><button onclick="wb('later')">Later</button></div></div>`).join('')}
+ </div>`}
+function renderSheet(){
+ if(V!=='B'||!S.pending)return'';const p=S.pending,i=p.i;
+ const by=S.shots.filter(s=>i.ids.includes(s.id));
+ return `<div class="sheet"><h2>Before you edit locked work</h2><b>${p.label}</b>
+ <p class="small">Work made from this. Nothing is deleted or regenerated by editing.</p>
+ ${by.map(s=>`<div class="it" style="display:flex;justify-content:space-between;padding:3px 0"><span>Shot ${s.id}: ${s.line.slice(0,28)}…</span><span class="small">${s.frames} fr · ${s.takes.length} tk · $${s.cost}</span></div>`).join('')}
+ <div class="grp" style="border-top:1px solid #2d2922;margin-top:8px;padding-top:8px">Total <b>${i.shots}</b> shots · ${i.frames} frames · ${i.takes} takes · <b>$${i.cost}</b> spent</div>
+ <div class="acts"><button class="p" onclick="applyPending()">Edit anyway</button><button onclick="S.pending=null;render()">Cancel</button><button onclick="S.narrLocked=false;applyPending()">Unlock</button></div></div>`}
+function render(){
+ const sc=(k,l,sub)=>`<button onclick="startEdit('${k}')" title="${sub}">${l}</button>`;
+ document.getElementById('app').innerHTML=`<div class="${V}">
+ <div class="top sans"><b>Aiuteur</b><span class="t">Project: <b>The Letter</b> · Scene 4: Kitchen, dawn</span><span style="flex:1"></span>
+  <span class="sw ${S.prov?'on':''}" onclick="tog('prov')"><i></i> Highlight AI vs mine</span></div>
+ <div class="try sans"><span>Try:</span>
+  ${sc('narr','1 · Edit the locked narrative (3 shots depend on it)','high impact → confirm with impact')}
+  ${sc('plan','2 · Edit locked shot plan (1 shot)','lower impact')}
+  ${sc('tier0','3 · Edit locked work nobody depends on','zero impact → no step')}
+  ${sc('marcus','4 · Change Marcus’s description (unlocked)','markers appear')}
+  ${sc('line','5 · Rewrite shot 4.3’s line in place','write-back vs deviation')}
+  <button onclick="S=init();render()">Reset</button>
+  <span style="flex:1"></span><span>Take ✓ = your selection. “mark final” = optional lock. AI-chosen tags are clickable.</span></div>
+ ${S.toast?`<div class="try sans" style="color:#c9d6c9;background:#14180f">${S.toast}</div>`:''}
+ <div class="wrap"><div class="col">${renderNarr()}</div><div class="col">${renderShots()}</div>${V==='B'?renderTray():''}</div>
+ ${renderSheet()}
+ ${V!=='B'&&V!=='A'&&V!=='C'?'':''}
+ ${V!=='B'&&staleShots().length>1?`<div style="position:fixed;left:20px;bottom:16px" class="sans small">${staleShots().length} items may be out of date · <a href="#" onclick="bulk('rec');return false" style="color:#c9a05a">it all fits</a> · <a href="#" onclick="bulk('keep');return false" style="color:#c9a05a">keep all</a> · <a href="#" onclick="bulk('regen');return false" style="color:#c9a05a">regenerate all…</a></div>`:''}
+ <div class="sw-bar"><button onclick="go(-1)">‹</button><span>${V} · ${NAMES[V]}</span><button onclick="go(1)">›</button></div></div>`}
+function go(d){const k=['A','B','C'];const n=k[(k.indexOf(V)+d+3)%3];const u=new URL(location);u.searchParams.set('variant',n);location=u}
+addEventListener('keydown',e=>{if(/input|textarea/i.test(e.target.tagName))return;if(e.key==='ArrowLeft')go(-1);if(e.key==='ArrowRight')go(1)});
+render();
+</script></body></html>
