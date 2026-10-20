@@ -1,6 +1,6 @@
 # Aiuteur V2: Object Classes, Lineage, Staleness, Write-back, Locks, Duplication
 
-Resolution of Wayfinder ticket #54. It builds on [`DOMAIN-MODEL.md`](DOMAIN-MODEL.md) (#50: Revision, Attempt, Slot, Generation, Job, one owner per truth, retire not delete) and [`GLOSSARY.md`](../../GLOSSARY.md). The two hard-to-reverse choices are recorded in [ADR 0002](../adr/0002-possibly-out-of-date-is-derived-from-lineage.md) and [ADR 0003](../adr/0003-locks-are-server-enforced-domain-state.md). The document is conceptual: it names what must be recorded and what must hold, never tables, fields or screens.
+Resolution of Wayfinder ticket #54. It builds on [`DOMAIN-MODEL.md`](DOMAIN-MODEL.md) (#50: Revision, Attempt, Slot, Generation, Job, one owner per truth, retire not delete) and [`GLOSSARY.md`](../../GLOSSARY.md). The two hard-to-reverse choices are recorded in [ADR 0004](../adr/0004-possibly-out-of-date-is-derived-from-lineage.md) and [ADR 0005](../adr/0005-locks-are-server-enforced-domain-state.md). The document is conceptual: it names what must be recorded and what must hold, never tables, fields or screens.
 
 Constitutional anchors: §4.4 (all eight clauses), §6.5, §9.2, §10.3, §13.2–13.6, §16 principles 3, 4, 9, 10, 11, and §17.5. No constitutional requirement was found unworkable; **no `CONSTITUTION AMENDMENT REQUIRED` is raised.** One honest limit is stated in §5.5 (free-text overrides), and it is a design limit, not an amendment.
 
@@ -70,7 +70,7 @@ Lineage is the set of recorded facts "this was made from those". It has exactly 
 | Noise | A change marks every consumer of that slice; mitigated by slicing and content fingerprints, never by a judgement call | Same, plus mismatches |
 | Failure mode | Slow to answer on big projects (150–250 shots); fixable with a cache without changing meaning | Silently wrong (the V1 failure mode) |
 
-**Decision: A.** Marker state is a function `markers = drift(captured, current) − acknowledgements`; only the creator's Acknowledgements are stored. This is ADR 0002. A cache or materialized view of markers is legal as an optimisation if it is rebuildable and every write path updates it in the same transaction as the append that caused it, but it is never the source of truth (#71/#72 decide whether it is needed).
+**Decision: A.** Marker state is a function `markers = drift(captured, current) − acknowledgements`; only the creator's Acknowledgements are stored. This is ADR 0004. A cache or materialized view of markers is legal as an optimisation if it is rebuildable and every write path updates it in the same transaction as the append that caused it, but it is never the source of truth (#71/#72 decide whether it is needed).
 
 ### 2.3 The marker, precisely
 
