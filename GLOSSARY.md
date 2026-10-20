@@ -268,6 +268,22 @@ Generation cost significant enough that the creator must initiate it and see the
 To take an object out of active use while keeping it, and everything attached to it, recoverable. V2 retires; it does not delete creative work.
 _Avoid_: Delete, remove (for creative objects)
 
+**Protected span**:
+Text the AI must not alter in an operation: everything outside a targeted rewrite's selection, and creator-written or imported dialogue inside a regenerated region. Preserved by construction (the AI refers to it, code restores it), not by instruction. Defined in `docs/ai/AI-RESPONSIBILITY-MAP.md`.
+_Avoid_: Locked text (Lock is protection on committed work)
+
+**Held result**:
+An AI output withheld from the project because it conflicts with an Established Fact, its base text changed during the call, or its target is in a locked scope. It is kept recoverable as an Option on its Generation, nothing is applied, and the creator decides to use it anyway, adjust the Fact, regenerate or discard.
+_Avoid_: Rejected (a rejected output failed a guard and is not offered)
+
+**Fact check**:
+An independent AI check of new content against Established Facts, whose verdict must quote the content it objects to. It is the enforcement point for "no generation contradicts an Established Fact".
+_Avoid_: Validation (alone; validations are deterministic)
+
+**Open question**:
+One item the Interview still needs the creator to resolve, with its evidence and the AI-made choice that would result if skipped. "Sufficiently informed" means no material open question remains; it is advisory, and only the creator moves the project on.
+_Avoid_: Clarification
+
 ## Reference
 
 **Design reference**:
