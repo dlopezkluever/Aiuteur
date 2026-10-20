@@ -17,7 +17,7 @@ Resolution of Wayfinder ticket #50. Vocabulary is defined in [`GLOSSARY.md`](../
 
 ## 2. The object classes
 
-Four classes carry the model. Ticket #54 owns the full taxonomy (including derived representations and commitment or lock state); the first three are what the vocabulary needs.
+Four classes carry the model. The full seven-class taxonomy (adding Decisions, derived representations and commitment/lock state) is in [`LINEAGE-AND-STALENESS.md`](LINEAGE-AND-STALENESS.md) §1.
 
 | Class | Behaviour | Members |
 |---|---|---|

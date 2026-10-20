@@ -210,6 +210,30 @@ _Avoid_: Authorship tag, attribution
 A material decision the AI made where the creator specified nothing; visible and overridable.
 _Avoid_: Assumption
 
+**Lineage** **(Wayfinder)**:
+The recorded facts of what a piece of work was made from: the exact input slices a Generation captured at dispatch, and the Basis of an editable object drafted from upstream. Possibly out of date is derived from it.
+_Avoid_: Dependency flag, invalidation
+
+**Basis** **(Wayfinder)**:
+The upstream slices an editable object (such as a Shot) was drafted or last reconciled against. The creator's own edits do not change it.
+_Avoid_: Source, parent
+
+**Acknowledgement** **(Wayfinder)**:
+The creator's recorded decision to Keep or Reconcile work marked possibly out of date, at the content it was decided against. Clears the marker until that content changes again.
+_Avoid_: Dismiss, resolve flag
+
+**Decision** **(Wayfinder)**:
+An append-only creator event such as choosing an Attempt, approving, accepting, locking, keeping or recording a deviation. Current state is the latest event; nothing is edited or removed.
+_Avoid_: Setting, flag
+
+**Action group** **(Wayfinder)**:
+The correlation of every Revision and Decision written by one creator action (a bulk keep, an AI rewrite, a write-back), so the action can be reversed in one step.
+_Avoid_: Transaction (for the creator-facing concept), batch
+
+**Edit-through** **(Wayfinder)**:
+Making an edit to locked work with a confirmation that carries the server-computed impact, without unlocking.
+_Avoid_: Override, force
+
 **Possibly out of date**:
 A quiet, non-blocking marker, with a reason, on work an upstream change may have affected.
 _Avoid_: Stale (in the UI), invalidated, broken, outdated
