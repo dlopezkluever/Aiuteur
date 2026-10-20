@@ -1,0 +1,258 @@
+<!doctype html>
+<!--
+PROTOTYPE — THROWAWAY (Wayfinder ticket #57). Not production code. Mocked classification & AI; no backend; state in memory only.
+Question: how should project intake + the Interview feel?  Three Interview presentations over ONE shared intake/state model:
+  A = Conversation   B = Question cards   C = Living brief (gaps in a document)
+URL params: ?variant=A|B|C  &scenario=bundle|idea|script  &step=material|interview|handoff
+-->
+<html lang="en"><head><meta charset="utf-8"><title>PROTOTYPE · Aiuteur intake + Interview</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+:root{--bg:#f6f4ef;--panel:#fff;--ink:#1d1b18;--mute:#76716a;--line:#e4dfd5;--acc:#2b4a7a;--accbg:#e8eef8;--ai:#a8641a;--aibg:#fbf0de;--ok:#2f7a4d;--okbg:#e5f3ea;--warn:#a23b2a;--warnbg:#fbe9e5}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 -apple-system,Segoe UI,Inter,sans-serif;padding-bottom:70px}
+h1,h2,h3{font-family:Georgia,serif;margin:0 0 6px}h2{font-size:20px}h3{font-size:15px}
+button,select,input,textarea{font:inherit}button{cursor:pointer;border:1px solid var(--line);background:#fff;border-radius:7px;padding:5px 10px;color:var(--ink)}button:hover{border-color:var(--acc)}
+button.pri{background:var(--acc);color:#fff;border-color:var(--acc)}button.ghost{border-color:transparent;color:var(--mute)}button.sm{padding:2px 7px;font-size:12px}
+input[type=text],textarea,select{border:1px solid var(--line);border-radius:7px;padding:6px 8px;background:#fff;width:100%}textarea{resize:vertical}
+.top{display:flex;align-items:center;gap:14px;padding:10px 20px;background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
+.logo{font-family:Georgia,serif;font-weight:700;font-size:18px}.proj{color:var(--mute)}
+.steps{display:flex;gap:6px;margin-left:auto}.step{padding:4px 12px;border-radius:99px;border:1px solid var(--line);background:#fff;font-size:13px}.step.on{background:var(--acc);color:#fff;border-color:var(--acc)}
+.proto{background:#222;color:#ffd24a;font-size:11px;padding:2px 8px;border-radius:4px;letter-spacing:.5px}
+main{max-width:1180px;margin:18px auto;padding:0 20px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:12px}
+.grid2{display:grid;grid-template-columns:1.35fr 1fr;gap:16px}
+.chip{display:inline-block;padding:1px 8px;border-radius:99px;font-size:12px;border:1px solid var(--line);background:#fff;margin:0 4px 4px 0}
+.chip.me{background:var(--accbg);border-color:#c4d3ec;color:var(--acc)}.chip.ai{background:var(--aibg);border-color:#ecd2a6;color:var(--ai)}.chip.ok{background:var(--okbg);border-color:#bfe0cb;color:var(--ok)}.chip.warn{background:var(--warnbg);border-color:#efc4bb;color:var(--warn)}
+.mute{color:var(--mute)}.small{font-size:12px}.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.sp{flex:1}
+.drop{border:2px dashed #cfc8ba;border-radius:12px;padding:12px;background:#fcfbf8}
+.item{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-top:10px;background:#fff}.item.primary{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc) inset}
+.interp{background:#faf8f3;border-radius:8px;padding:8px 10px;margin-top:8px;font-size:13px}
+.route{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}.ph{flex:1;min-width:110px;border:1px solid var(--line);border-radius:9px;padding:6px 8px;background:#fff}.ph b{display:block;font-size:12px}.ph.imp{background:var(--okbg);border-color:#bfe0cb}.ph.conv{background:var(--okbg);border-color:#bfe0cb}.ph.byp{background:#f1efe9;color:var(--mute);border-style:dashed}.ph.gen{background:#fff}
+.set{display:grid;grid-template-columns:110px 1fr;gap:6px 10px;align-items:center}
+.seg button{border-radius:0;margin:0 -1px 0 0}.seg button.on{background:var(--acc);color:#fff;border-color:var(--acc)}
+.bar{position:fixed;bottom:12px;left:50%;transform:translateX(-50%);background:#1d1b18;color:#fff;padding:8px 14px;border-radius:99px;display:flex;gap:10px;align-items:center;z-index:20;box-shadow:0 6px 24px #0005;font-size:13px}
+.bar button{background:#333;color:#fff;border-color:#555}.bar button.on{background:#ffd24a;color:#000;border-color:#ffd24a}.bar select{width:auto;background:#333;color:#fff;border-color:#555;padding:3px}
+.ready{border-left:4px solid var(--line);padding:8px 12px;background:#fff;border-radius:8px;margin-bottom:12px}.ready.go{border-color:var(--ok);background:var(--okbg)}.ready.mid{border-color:var(--ai);background:var(--aibg)}
+/* A chat */
+.chat{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px;min-height:420px}
+.msg{max-width:88%;margin:10px 0;padding:9px 12px;border-radius:12px}.msg.ai{background:#f2efe8;border-top-left-radius:3px}.msg.me{background:var(--acc);color:#fff;margin-left:auto;border-top-right-radius:3px}
+.msg.conf{background:var(--warnbg);border:1px solid #efc4bb}.why{font-size:12px;color:var(--mute);margin-top:4px}
+.qr{margin:6px 0 0}.qr button{margin:0 6px 6px 0;border-radius:99px}
+/* B cards */
+.cols{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.qcard{border:1px solid var(--line);border-radius:12px;background:#fff;padding:12px}.qcard.done{background:var(--okbg);border-color:#bfe0cb}.qcard.aim{background:var(--aibg);border-color:#ecd2a6}.qcard.conf{background:var(--warnbg);border-color:#e4a79a}
+.opt{display:block;padding:5px 8px;border:1px solid var(--line);border-radius:8px;margin:5px 0;cursor:pointer}.opt:hover{border-color:var(--acc)}
+.meter{height:8px;background:#ece8de;border-radius:9px;overflow:hidden}.meter i{display:block;height:100%;background:var(--acc)}
+/* C brief */
+.brief{background:#fffefb;border:1px solid var(--line);border-radius:6px;padding:26px 34px;font-family:Georgia,serif;font-size:16px;line-height:1.7}
+.brief h3{font-family:-apple-system,sans-serif;font-size:11px;letter-spacing:1.2px;text-transform:uppercase;color:var(--mute);margin:18px 0 4px}
+.fld{border-bottom:2px solid var(--acc)}.fld.ai{border-bottom:2px dotted var(--ai);background:var(--aibg)}.gap{white-space:nowrap;background:#fff3b8;border-bottom:2px solid #d9b400;padding:0 4px;cursor:pointer}
+.gapbox{font-family:-apple-system,sans-serif;font-size:13px;background:#fff;border:1px solid #e3c866;border-radius:9px;padding:8px 10px;margin:6px 0 10px}
+.ledger li{margin:6px 0;list-style:none}.ledger{padding:0;margin:0}
+.note{background:#fff8d6;border:1px solid #e3c866;border-radius:8px;padding:6px 10px;font-size:12px;margin-bottom:10px}
+</style></head><body>
+<div id="app"></div>
+<script>
+/* ============ MOCK DATA ============ */
+const TYPES={idea:'Rough idea',notes:'Notes',chars:'Character notes',transcript:'Voice-note transcript',research:'Research / context',story:'Existing story',treatment:'Treatment',beats:'Beat sheet / outline',script:'Screenplay',shots:'Storyboard / shot list',image:'Reference image'};
+const ENTRY={story:'treatment',treatment:'treatment',beats:'beats',script:'script',shots:'shots'};
+const SAMPLES={
+ idea:{name:'Typed: your idea',source:'typed',size:'2 sentences',typeKey:'idea',conf:.9,summary:'A ghost haunts a coworking office, but nobody notices — everyone is wearing headphones. Dark comedy, ~3 minutes.',evidence:['No scene headings, no dialogue','Short premise (2 sentences)'],role:'primary'},
+ notes:{name:'dolores-notes.md',source:'upload',size:'1.2 KB',typeKey:'chars',conf:.78,summary:'Notes on one character, Dolores: a ghost who “died in 1994” at her desk. Sardonic, chews pens.',evidence:['1 named character','Says “died in 1994”'],role:'supporting'},
+ treatment:{name:'office-ghost-treatment.docx',source:'upload',size:'6 KB · 2 pages',typeKey:'treatment',conf:.84,summary:'A 3-act treatment. Dolores (here an ex-intern from 2008) tries to get Brent, a manager, to notice her. Ending left open.',evidence:['Prose, 3 act labels','No scene headings','Characters: Dolores, Brent'],role:'primary'},
+ research:{name:'coworking-culture-research.pdf',source:'upload',size:'380 KB · 14 pages',typeKey:'research',conf:.7,summary:'Background reading on open-plan offices and headphone culture. No story content.',evidence:['No characters','Article-style prose'],role:'supporting'},
+ transcript:{name:'voice-memo-transcript.txt',source:'upload',size:'9 KB',typeKey:'transcript',conf:.8,summary:'Rambling spoken notes: tone ideas (“deadpan, like The Office”), a possible punchline about calendar invites.',evidence:['Filler words, run-on speech','Tone + joke ideas'],role:'supporting'},
+ image:{name:'dolores-ref.png',source:'upload',size:'210 KB',typeKey:'image',conf:.88,summary:'Looks like a character reference: 90s office worker, cardigan, translucent. Held for World Definition — not used in the story text.',evidence:['Single figure','Matches “Dolores” in your notes'],role:'supporting'},
+ script:{name:'the-office-ghost.pdf',source:'upload',size:'88 KB · 11 pages',typeKey:'script',conf:.96,summary:'A complete screenplay: 7 scenes, 3 characters. Dialogue will be kept verbatim.',evidence:['7 scene headings (INT./EXT.)','212 dialogue lines'],role:'primary'},
+ style:{name:'style-notes.txt',source:'upload',size:'0.5 KB',typeKey:'notes',conf:.6,summary:'Short notes on look: fluorescent greens, flat deadpan framing.',evidence:['Visual vocabulary only'],role:'supporting'}
+};
+const SCEN={
+ bundle:{label:'Mixed bundle (treatment + notes + research)',items:['treatment','notes','research','image'],settings:{runtime:3,aspect:'16:9',tone:['Deadpan','Satire'],rating:'PG-13',genre:'Comedy'},
+   Q:[
+  {id:'c1',topic:'Story',crit:1,kind:'contradiction',q:'Your notes say Dolores died in 1994. The treatment makes her a 2008 intern. Which is true?',why:'Conflict between dolores-notes.md and office-ghost-treatment.docx',opts:['1994 — old-school ghost','2008 — recent ex-intern','Both: she’s been haunting since 1994, but was an intern in 2008 (time loop joke)'],def:0,label:'When Dolores died'},
+  {id:'e1',topic:'Story',crit:1,kind:'missing',q:'How does it end? Does anyone finally notice Dolores?',why:'The treatment’s ending is left open',opts:['Brent notices — and immediately schedules a meeting','Nobody ever notices (bleak laugh)','She gives up and joins the company Slack'],def:0,label:'Ending'},
+  {id:'m1',topic:'Characters',crit:1,kind:'missing',q:'Why is Dolores haunting this office?',why:'Her motive isn’t stated anywhere',opts:['Unfinished expense report','She wants her old chair back','She wants credit for an idea'],def:0,label:'Dolores’s motive'},
+  {id:'b1',topic:'Characters',crit:0,kind:'ambiguous',q:'Does Brent know he’s talking to a ghost?',why:'Treatment p.2 is ambiguous',opts:['No — he thinks she’s a new hire','Yes, and he’s unbothered','He finds out at the end'],def:0,label:'Brent’s awareness'},
+  {id:'v1',topic:'Look & tone',crit:0,kind:'missing',q:'How should Dolores look on screen?',why:'You attached a reference image — I only see a cardigan and translucency',opts:['Faint translucent glow (as in image)','Fully solid, only coworkers ignore her','Black-and-white, rest in colour'],def:0,label:'Dolores’s look'},
+  {id:'d1',topic:'Format',crit:0,kind:'missing',q:'Dialogue, voice-over, or mostly silent?',why:'No dialogue in the material yet',opts:['Mostly dialogue','Dolores narrates','Mostly silent, deadpan visuals'],def:0,label:'Dialogue approach'}]},
+ idea:{label:'Rough idea (two sentences)',items:['idea'],settings:{runtime:3,aspect:'',tone:[],rating:'',genre:''},
+   Q:[
+  {id:'p1',topic:'Story',crit:1,kind:'missing',q:'Who is the ghost, and why is she here?',why:'Your idea names no characters',opts:['Dolores, died at her desk — unfinished expense report','A recently laid-off employee','The building’s original janitor'],def:0,label:'Ghost & motive'},
+  {id:'e1',topic:'Story',crit:1,kind:'missing',q:'How does it end?',why:'Idea has a premise, not an ending',opts:['A manager notices and schedules a meeting','Nobody ever notices','She joins the company Slack'],def:0,label:'Ending'},
+  {id:'t1',topic:'Look & tone',crit:1,kind:'missing',q:'What’s the comic voice?',why:'“Dark comedy” can mean several things',opts:['Deadpan workplace mockumentary','Absurd and surreal','Warm and bittersweet'],def:0,label:'Tone'},
+  {id:'c2',topic:'Characters',crit:0,kind:'missing',q:'Who tries to notice her?',why:'No other characters yet',opts:['Brent, a middle manager','The new intern','Nobody — it’s a solo piece'],def:0,label:'Second character'},
+  {id:'v1',topic:'Look & tone',crit:0,kind:'missing',q:'What does the ghost look like?',why:'Nothing about look supplied',opts:['90s office worker, translucent','Classic sheet ghost','Fully solid; only ignored'],def:0,label:'Ghost look'},
+  {id:'a1',topic:'Format',crit:0,kind:'missing',q:'Where will this live?',why:'Aspect ratio and pacing depend on it',opts:['YouTube (16:9)','Shorts/Reels (9:16)','Festival / film (2.39:1)'],def:0,label:'Platform'},
+  {id:'d1',topic:'Format',crit:0,kind:'missing',q:'Dialogue, voice-over, or mostly silent?',why:'Idea doesn’t say',opts:['Mostly dialogue','Dolores narrates','Mostly silent'],def:0,label:'Dialogue approach'}]},
+ script:{label:'Finished screenplay',items:['script','style'],settings:{runtime:4,aspect:'16:9',tone:['Deadpan'],rating:'PG-13',genre:'Comedy'},
+   Q:[
+  {id:'s1',topic:'Story',crit:1,kind:'ambiguous',q:'Scene 6 says “she’s gone.” Does Dolores vanish for good, or just leave the frame?',why:'Page 9, ambiguous stage direction',opts:['Gone for good','Just leaves the frame; she’s back at the end','Leave it to the director (me) — ambiguous on purpose'],def:0,label:'Scene 6: “she’s gone”'},
+  {id:'s2',topic:'Format',crit:0,kind:'missing',q:'The script has almost no description of the office. May I propose descriptive detail for the Master Narrative? You can review every line.',why:'Missing descriptive detail is added by AI and reviewable (conversion rule)',opts:['Yes, propose it','Light touch only','No, keep only what’s written'],def:0,label:'Added scene description'},
+  {id:'s3',topic:'Look & tone',crit:0,kind:'missing',q:'Brent appears at two ages in the script. Same actor/look, or two looks?',why:'Scene 2 vs scene 7',opts:['Same look, aged slightly','Two distinct looks','Same, no ageing'],def:0,label:'Brent’s ages'}]}
+};
+const PHASES=[['input','Input'],['interview','Interview'],['treatment','Treatment'],['beats','Beat Sheet'],['script','Master Narrative'],['world','World → … Export']];
+
+/* ============ STATE ============ */
+const qs=new URLSearchParams(location.search);
+const S={variant:qs.get('variant')||'A',scenario:qs.get('scenario')||'bundle',step:qs.get('step')||'material',items:[],settings:{},answers:{},conflict:null,openGap:null,finishAsk:false,editing:null,nid:1,note:''};
+function loadScenario(k){const sc=SCEN[k];S.scenario=k;S.items=sc.items.map(i=>({...SAMPLES[i],id:S.nid++,evidence:SAMPLES[i].evidence}));S.settings=JSON.parse(JSON.stringify(sc.settings));S.answers={};S.conflict=null;S.finishAsk=false;S.openGap=null;}
+function Qs(){return SCEN[S.scenario].Q}
+function qById(id){return Qs().find(q=>q.id===id)}
+const eff=i=>i.override||i.typeKey;
+/* answers[qid]={value,src:'creator'|'ai'|'edited'}  */
+function answer(id,v,src='creator'){S.answers[id]={value:v,src};S.openGap=null;S.finishAsk=false;rerender()}
+function skip(id){const q=qById(id);answer(id,q.opts[q.def],'ai')}
+function reopen(id){delete S.answers[id];rerender()}
+const open=()=>Qs().filter(q=>!S.answers[q.id]);
+const critOpen=()=>open().filter(q=>q.crit);
+function routing(){const prim=S.items.filter(i=>i.role==='primary');let rank={treatment:1,story:1,beats:2,script:3,shots:4};let best=null;prim.forEach(i=>{const e=ENTRY[eff(i)];if(e&&(!best||rank[e]>rank[best]))best=e});
+ const has=k=>prim.some(i=>ENTRY[eff(i)]===k||(k==='treatment'&&eff(i)==='story'));
+ const st={input:['done','Your material kept as originals'],interview:['rec',best==='script'?'Recommended — about gaps in the script':'Recommended — skippable']};
+ const t=has('treatment'),b=has('beats'),s=has('script'),sh=has('shots');
+ st.treatment=t?['imp','Your document becomes the treatment']:(s||sh||b&&false)?['byp','Intentionally skipped — can be generated from the Master Narrative later']:['gen','Aiuteur drafts options for you'];
+ st.beats=b?['imp','Your outline becomes the beat sheet']:(s||sh)?['byp','Intentionally skipped — fill later on request']:['gen','Aiuteur drafts beats'];
+ st.script=s?['conv','Screenplay converted to Master Narrative: dialogue verbatim; description added by AI, reviewable']:['gen','Master Narrative — never bypassed; you accept it'];
+ st.world=sh?['imp','Storyboard matched to scenes & shots']:['gen','Follows the Master Narrative'];
+ return{best,st,prim:prim.length}}
+function facts(){const out=[];const s=S.settings;
+ if(s.runtime)out.push({id:'set-runtime',label:'Runtime',value:'~'+s.runtime+' min',src:'settings'});
+ if(s.tone&&s.tone.length)out.push({id:'set-tone',label:'Tone (settings)',value:s.tone.join(', '),src:'settings'});
+ Qs().forEach(q=>{const a=S.answers[q.id];if(a)out.push({id:q.id,label:q.label,value:a.value,src:a.src,q})});return out}
+const srcChip=s=>s==='ai'?'<span class="chip ai" title="You skipped this; Aiuteur chose. Override any time.">Aiuteur chose</span>':s==='edited'?'<span class="chip me">You edited</span>':s==='settings'?'<span class="chip ok">From settings</span>':'<span class="chip me">You decided</span>';
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* ============ STEP 1: MATERIAL ============ */
+function viewMaterial(){const r=routing();const sc=SCEN[S.scenario];
+ return `<div class="grid2"><div>
+ <div class="card"><div class="row"><h2>1 · What do you have?</h2><span class="sp"></span><span class="small mute">Try:</span>
+ ${Object.entries(SCEN).map(([k,v])=>`<button class="sm" onclick="loadScenario('${k}');rerender()">${v.label}</button>`).join('')}</div>
+ <p class="mute small" style="margin:2px 0 8px">Drop anything — an idea, notes, a treatment, a screenplay. Even two sentences is enough. Your originals are always kept exactly as supplied.</p>
+ <div class="drop"><textarea id="typed" rows="2" placeholder="Type or paste your idea, notes, or story here…"></textarea>
+ <div class="row" style="margin-top:6px"><button onclick="addTyped()">Add typed text</button>
+ <label class="small mute">or <input type="file" multiple onchange="addFiles(this.files)" style="width:auto;border:0;padding:0"> (txt, md, docx, pdf…)</label><span class="sp"></span>
+ <span class="small mute">Sample files:</span> ${['treatment','script','notes','research','transcript','image'].map(k=>`<button class="sm" onclick="addSample('${k}')">+ ${TYPES[SAMPLES[k].typeKey]}</button>`).join('')}</div></div>
+ ${S.items.map(itemHtml).join('')||'<p class="mute">Nothing staged yet.</p>'}
+ ${S.note?`<div class="note">${S.note}</div>`:''}</div></div>
+ <div>
+ <div class="card"><h3>2 · Where this starts in the workflow</h3><div class="small mute">Aiuteur’s proposal — primary material can enter later phases; supporting material only informs. Nothing is generated or spent yet.</div>
+ <div class="route">${PHASES.map(([k,n])=>{const [c,t]=r.st[k]||['gen','Follows'];const lab={done:'Done',rec:'Recommended',imp:'Imported',conv:'Converted',byp:'Skipped on purpose',gen:'Aiuteur drafts'}[c];return `<div class="ph ${c}"><b>${n}</b><span class="small">${lab}</span></div>`}).join('')}</div>
+ <ul class="small" style="margin:6px 0 0;padding-left:18px">${PHASES.slice(1,5).map(([k,n])=>`<li><b>${n}:</b> ${r.st[k][1]}</li>`).join('')}</ul>
+ ${r.best==='script'?'<div class="note" style="margin-top:8px">A screenplay never bypasses the Master Narrative — it is converted into one, and you review/accept it.</div>':''}
+ ${!r.prim?'<div class="note" style="margin-top:8px">Mark one item as <b>Primary</b>.</div>':''}</div>
+ <div class="card"><h3>3 · Project basics <span class="chip">optional — each can be left to Aiuteur</span></h3>${settingsHtml()}</div>
+ <div class="card row"><div class="small mute sp">Next: Aiuteur interviews you about what’s missing or unclear. ~${Qs().length} questions queued · skippable.</div>
+ <button onclick="go('handoff',true)">Skip interview</button><button class="pri" onclick="go('interview')">Start interview →</button></div>
+ </div></div>`}
+function itemHtml(i){const t=eff(i);const e=ENTRY[t];const conf=Math.round(i.conf*100);
+ return `<div class="item ${i.role==='primary'?'primary':''}"><div class="row"><b>${esc(i.name)}</b><span class="mute small">${i.size}</span><span class="sp"></span>
+ <span class="seg"><button class="${i.role==='primary'?'on':''}" onclick="setRole(${i.id},'primary')">Primary</button><button class="${i.role==='supporting'?'on':''}" onclick="setRole(${i.id},'supporting')">Supporting</button></span>
+ <button class="ghost sm" onclick="rm(${i.id})">remove</button></div>
+ <div class="interp"><div class="row"><span>Aiuteur read this as</span>
+ <select style="width:auto;padding:2px" onchange="setType(${i.id},this.value)">${Object.entries(TYPES).map(([k,v])=>`<option value="${k}" ${k===t?'selected':''}>${v}</option>`).join('')}</select>
+ <span class="chip ${i.conf<.75&&!i.override?'warn':'ok'}">${i.override?'you set this':conf+'% sure'}</span>
+ ${i.role==='primary'&&e?`<span class="chip ok">enters at ${({treatment:'Treatment',beats:'Beat Sheet',script:'Master Narrative',shots:'Scenes & Shots'})[e]}</span>`:i.role==='supporting'&&e?'<span class="chip">context only (supporting)</span>':''}</div>
+ <div style="margin-top:4px">${esc(i.summary)}</div>
+ <details class="small mute" style="margin-top:4px"><summary>Why / what Aiuteur did</summary><div>Signals: ${i.evidence.map(esc).join(' · ')}.<br>✔ Original kept &nbsp; ✔ Text extracted &nbsp; ✔ Nothing rewritten or deleted — if Aiuteur ever proposes a change to your material it will ask first.</div></details></div></div>`}
+function settingsHtml(){const s=S.settings;const sug=SCEN[S.scenario].settings;const seg=(k,vals)=>`<span class="seg">${vals.map(v=>`<button class="${s[k]===v?'on':''}" onclick="S.settings['${k}']='${v}';rerender()">${v}</button>`).join('')}<button class="${!s[k]?'on':''}" onclick="S.settings['${k}']='';rerender()">Aiuteur picks</button></span>`;
+ const prov=k=>{const v=s[k];if(!v||(Array.isArray(v)&&!v.length))return '<span class="chip ai">AI will choose — recorded</span>';return JSON.stringify(v)===JSON.stringify(sug[k])&&S.scenario!=='idea'?'<span class="chip ok">suggested from your material</span>':'<span class="chip me">you set</span>'};
+ return `<div class="set"><label>Runtime</label><div class="row"><input type="range" min="1" max="20" value="${s.runtime||3}" style="width:150px" oninput="S.settings.runtime=+this.value;document.getElementById('rt').textContent=this.value"><span><b id="rt">${s.runtime||3}</b> min</span>${prov('runtime')}</div>
+ <label>Format</label><div class="row">${seg('aspect',['16:9','9:16','1:1'])} ${prov('aspect')}</div>
+ <label>Tone</label><div class="row">${['Deadpan','Satire','Absurd','Warm'].map(t=>`<button class="sm ${s.tone.includes(t)?'on':''}" style="${s.tone.includes(t)?'background:var(--acc);color:#fff':''}" onclick="togTone('${t}')">${t}</button>`).join('')} ${prov('tone')}</div>
+ <label>Rating</label><div class="row">${seg('rating',['G','PG','PG-13','R'])} ${prov('rating')}</div>
+ <label>Genre</label><div class="row">${seg('genre',['Comedy','Drama','Thriller'])} ${prov('genre')}</div></div>`}
+function togTone(t){const a=S.settings.tone;const i=a.indexOf(t);i<0?a.push(t):a.splice(i,1);rerender()}
+function setRole(id,r){S.items.find(i=>i.id===id).role=r;rerender()}
+function setType(id,t){const i=S.items.find(x=>x.id===id);i.override=t;rerender()}
+function rm(id){S.items=S.items.filter(i=>i.id!==id);rerender()}
+function addSample(k){S.items.push({...SAMPLES[k],id:S.nid++,role:S.items.some(i=>i.role==='primary')?'supporting':SAMPLES[k].role});rerender()}
+function addTyped(){const t=document.getElementById('typed').value.trim();if(!t)return;const script=/(INT\.|EXT\.)/.test(t);S.items.push({id:S.nid++,name:'Typed text',source:'typed',size:t.split(/\s+/).length+' words',typeKey:script?'script':t.length>600?'story':'idea',conf:script?.7:.75,summary:t.slice(0,140)+(t.length>140?'…':''),evidence:['Mock classifier: '+(script?'found scene headings':'no scene headings')],role:S.items.some(i=>i.role==='primary')?'supporting':'primary'});rerender()}
+function addFiles(fl){[...fl].forEach(f=>{const n=f.name.toLowerCase();const k=/script|screenplay/.test(n)?'script':/treatment/.test(n)?'treatment':/beat|outline/.test(n)?'beats':/transcript|voice/.test(n)?'transcript':/png|jpe?g|webp/.test(n)?'image':/research|pdf/.test(n)?'research':'notes';
+ S.items.push({id:S.nid++,name:f.name,source:'upload',size:(f.size/1024).toFixed(1)+' KB',typeKey:k,conf:.65,summary:'(Prototype: real extraction not implemented — type guessed from filename.)',evidence:['Filename only (mock)'],role:S.items.some(i=>i.role==='primary')?'supporting':'primary'})});rerender()}
+
+/* ============ STEP 2: INTERVIEW (shared pieces) ============ */
+function readiness(){const c=critOpen(),o=open();
+ if(!o.length)return `<div class="ready go"><b>I have what I need.</b> Everything material is decided. <button class="pri sm" onclick="go('handoff')">Continue →</button></div>`;
+ if(!c.length)return `<div class="ready go"><b>I think I understand enough to start.</b> ${o.length} smaller thing${o.length>1?'s':''} remain — if you stop now I’ll choose ${o.length>1?'those':'it'} and show you which. <button class="sm" onclick="go('handoff')">Stop here & continue</button> <span class="mute small">or keep answering.</span></div>`;
+ return `<div class="ready mid"><b>Not there yet:</b> I’d still be guessing ${c.length} important thing${c.length>1?'s':''}: ${c.map(q=>'<i>'+q.label+'</i>').join(', ')}. <button class="sm" onclick="S.finishAsk=true;rerender()">Finish anyway…</button></div>`}
+function finishDlg(){if(!S.finishAsk)return '';const o=open();return `<div class="card" style="border-color:var(--ai)"><h3>If you finish now, I’ll choose these myself</h3><ul class="small">${o.map(q=>`<li><b>${q.label}:</b> ${esc(q.opts[q.def])}${q.crit?' <span class="chip warn">important</span>':''}</li>`).join('')}</ul><div class="small mute">Each is recorded as an <b>AI-made choice</b>, visible and overridable any time.</div><div class="row"><button onclick="S.finishAsk=false;rerender()">Keep answering</button><button class="pri" onclick="o_all()">Finish & let Aiuteur choose</button></div></div>`}
+function o_all(){open().forEach(q=>S.answers[q.id]={value:q.opts[q.def],src:'ai'});go('handoff')}
+function conflictInfo(){if(!S.conflict)return null;const f=facts().find(x=>x.id===S.conflict.fid);return f?{f,why:S.conflict.why}:null}
+function resolveConflict(how){const c=S.conflict;const q=qById(c.fid);if(how==='keep'){S.note='';}else if(how==='update'){const a=S.answers[c.fid];a.value=c.newValue;a.src='edited'}else{S.answers[c.fid].exception='Deliberate exception in scene 4'}S.conflict={...c,resolved:how};rerender()}
+function conflictBlock(style){const c=conflictInfo();if(!c||S.conflict.resolved){return S.conflict&&S.conflict.resolved?`<div class="note">Conflict resolved: ${{keep:'fact kept; the new scene text is flagged for you to revise',update:'fact updated to match the new scene',exc:'recorded as a deliberate exception — the fact still stands elsewhere'}[S.conflict.resolved]}. Nothing was overwritten silently.</div>`:''}
+ const b=`<b>New material conflicts with something you established.</b><br>Established: “${esc(c.f.label)}: ${esc(c.f.value)}” · New (Master Narrative, scene 4, pasted a moment ago): “${esc(S.conflict.newValue)}”.<div class="small mute">Aiuteur has not changed either one.</div>
+ <div class="row" style="margin-top:6px"><button onclick="resolveConflict('keep')">Keep the fact (flag the scene)</button><button onclick="resolveConflict('update')">Update the fact to the new version</button><button onclick="resolveConflict('exc')">Deliberate exception</button></div>`;
+ return style==='chat'?`<div class="msg ai conf">${b}</div>`:`<div class="qcard conf" style="margin-bottom:12px">${b}</div>`}
+function ledger(){const fs=facts();const mine=fs.filter(f=>f.src!=='ai'),ai=fs.filter(f=>f.src==='ai');
+ const row=f=>`<li>${S.editing===f.id?`<input type="text" id="ed" value="${esc(f.value)}" onkeydown="if(event.key==='Enter')saveEdit('${f.id}')"> <button class="sm" onclick="saveEdit('${f.id}')">save</button>`:`<b>${esc(f.label)}</b> ${srcChip(f.src)}${S.answers[f.id]&&S.answers[f.id].exception?'<span class="chip warn">exception</span>':''}<br><span>${esc(f.value)}</span> ${f.q?`<button class="ghost sm" onclick="S.editing='${f.id}';rerender()">edit</button> ${f.src==='ai'?`<button class="ghost sm" onclick="S.editing='${f.id}';rerender()">override</button>`:''}`:''}`}</li>`;
+ return `<div class="card"><h3>Established Facts <span class="chip">${mine.length}</span></h3><div class="small mute">Binding: nothing Aiuteur makes later may contradict these.</div><ul class="ledger">${mine.map(row).join('')||'<li class="mute small">None yet</li>'}</ul></div>
+ ${ai.length?`<div class="card" style="background:var(--aibg)"><h3>Aiuteur chose <span class="chip ai">${ai.length}</span></h3><div class="small mute">You skipped these. They stand until you override.</div><ul class="ledger">${ai.map(row).join('')}</ul></div>`:''}`}
+function saveEdit(id){const v=document.getElementById('ed').value.trim();if(v){S.answers[id]={value:v,src:'edited'}}S.editing=null;rerender()}
+
+/* ---- Variant A: conversation ---- */
+function viewA(){const o=open();const cur=o[0];const done=Qs().filter(q=>S.answers[q.id]);
+ const hist=done.map(q=>{const a=S.answers[q.id];return `<div class="msg ai">${esc(q.q)}<div class="why">${esc(q.why)}</div></div><div class="msg me">${a.src==='ai'?'<i>Skipped — you decide</i>':esc(a.value)}</div><div class="msg ai small">${a.src==='ai'?`Okay — I’ll go with “${esc(a.value)}” and mark it as <span class="chip ai">my choice</span>.`:`Got it. Recorded: <span class="chip me">${esc(q.label)}</span>`} <button class="ghost sm" onclick="reopen('${q.id}')">undo</button></div>`}).join('');
+ const now=cur?`<div class="msg ai">${esc(cur.q)}<div class="why">Why I’m asking: ${esc(cur.why)}</div></div><div class="qr">${cur.opts.map((x,i)=>`<button onclick="answer('${cur.id}',qById('${cur.id}').opts[${i}])">${esc(x)}</button>`).join('')}</div>
+ <div class="row" style="margin-top:6px"><input type="text" id="ta" placeholder="Or say it your way…" onkeydown="if(event.key==='Enter'&&this.value)answer('${cur.id}',this.value)"><button class="sm" onclick="skip('${cur.id}')">Skip — you decide</button></div>`:'';
+ return `<div class="grid2" style="grid-template-columns:1.5fr 1fr"><div>${readiness()}${finishDlg()}<div class="chat">
+ <div class="msg ai">I’ve read your ${S.items.length} item${S.items.length>1?'s':''}. I’ll ask only about things I’d otherwise have to invent — one at a time. Answer, skip, or tell me to stop whenever you like.</div>${hist}${conflictBlock('chat')}${now}${!cur&&!conflictInfo()?'<div class="msg ai">That’s everything I wanted to ask.</div>':''}</div></div>
+ <div>${ledger()}</div></div>`}
+
+/* ---- Variant B: question cards ---- */
+function viewB(){const topics=['Story','Characters','Look & tone','Format'];
+ const cov=topics.map(t=>{const qq=Qs().filter(q=>q.topic===t);if(!qq.length)return null;const n=qq.filter(q=>S.answers[q.id]).length;return{t,n,tot:qq.length}}).filter(Boolean);
+ const card=q=>{const a=S.answers[q.id];if(a)return `<div class="qcard ${a.src==='ai'?'aim':'done'}"><div class="small mute">${q.topic}</div><b>${esc(q.label)}</b> ${srcChip(a.src)}<div>${esc(a.value)}</div><button class="ghost sm" onclick="reopen('${q.id}')">change</button></div>`;
+  return `<div class="qcard"><div class="row"><span class="small mute">${q.topic}</span>${q.crit?'<span class="chip warn">important</span>':''}</div><b>${esc(q.q)}</b><div class="why">${esc(q.why)}</div>
+  ${q.opts.map((x,i)=>`<label class="opt" onclick="answer('${q.id}',qById('${q.id}').opts[${i}])">${esc(x)}</label>`).join('')}
+  <input type="text" placeholder="Your own answer ⏎" onkeydown="if(event.key==='Enter'&&this.value)answer('${q.id}',this.value)"><div class="row" style="margin-top:4px"><button class="sm" onclick="skip('${q.id}')">Leave to Aiuteur</button><span class="small mute">→ “${esc(q.opts[q.def]).slice(0,40)}…”</span></div></div>`};
+ return `${readiness()}${finishDlg()}<div class="card"><div class="row"><h3 style="margin:0">What I understand so far</h3>${cov.map(c=>`<div style="min-width:110px"><div class="small">${c.t} ${c.n}/${c.tot}</div><div class="meter"><i style="width:${100*c.n/c.tot}%"></i></div></div>`).join('')}</div></div>
+ ${conflictBlock('card')}<div class="grid2" style="grid-template-columns:2fr 1fr"><div><div class="cols">${Qs().map(card).join('')}</div></div><div>${ledger()}</div></div>`}
+
+/* ---- Variant C: living brief ---- */
+function viewC(){const A=S.answers;const g=(id,fallbackLabel)=>{const q=qById(id);if(!q)return '';const a=A[id];if(a)return `<span class="fld ${a.src==='ai'?'ai':''}" title="${a.src==='ai'?'Aiuteur chose — click to override':'You decided'}" onclick="reopen('${id}')">${esc(a.value)}</span>`;
+   return `<span class="gap" onclick="S.openGap='${id}';rerender()">[ ${esc(q.label)}? ]</span>`+(S.openGap===id?gapBox(q):'')};
+ const sc=S.scenario;const set=S.settings;
+ const body=sc==='bundle'?`<h3>Premise</h3>A ghost haunts a coworking office; nobody notices because everyone wears headphones. <span class="mute small">(from your treatment)</span>
+ <h3>Characters</h3>Dolores — died in ${g('c1')}; her unfinished business is ${g('m1')}. Look: ${g('v1')}.<br>Brent — a middle manager. Does he know she’s a ghost? ${g('b1')}
+ <h3>Story</h3>Ending: ${g('e1')}
+ <h3>Tone & format</h3>${esc((set.tone||[]).join(', ')||'tone not set')}, ~${set.runtime} min, ${set.aspect||'format open'}. Delivery: ${g('d1')}`
+ :sc==='idea'?`<h3>Premise</h3>A ghost haunts a coworking office; nobody notices because everyone wears headphones. <span class="mute small">(from your idea)</span>
+ <h3>Characters</h3>The ghost: ${g('p1')}. Look: ${g('v1')}. Who tries to notice her: ${g('c2')}
+ <h3>Story</h3>Ending: ${g('e1')}
+ <h3>Tone & format</h3>Voice: ${g('t1')}. ~${set.runtime} min. Where it lives: ${g('a1')}. Delivery: ${g('d1')}`
+ :`<h3>Screenplay (kept verbatim)</h3>The Office Ghost — 7 scenes, 3 characters.
+ <h3>Open points</h3>Scene 6 “she’s gone”: ${g('s1')}<br>Added scene description: ${g('s2')}<br>Brent at two ages: ${g('s3')}`;
+ const c=conflictInfo();
+ return `${readiness()}${finishDlg()}<div class="grid2" style="grid-template-columns:1.8fr 1fr"><div><div class="note">This is your project brief. Yellow gaps are what I’d otherwise have to invent — click one to answer. <span class="fld" style="border:0;padding:0 4px">Solid blue</span> = you decided; <span class="fld ai">dotted amber</span> = Aiuteur chose (click to override).</div>
+ ${S.conflict&&!S.conflict.resolved&&c?conflictBlock('card'):conflictBlock('card')}<div class="brief">${body}</div></div>
+ <div><div class="card"><h3>Gaps</h3><div class="small mute">${open().length} open · ${Object.values(A).filter(a=>a.src==='ai').length} Aiuteur-chosen · ${Object.values(A).filter(a=>a.src!=='ai').length} yours</div><div class="row" style="margin-top:6px"><button class="sm" onclick="const q=open()[0];if(q){S.openGap=q.id;rerender()}">Next gap</button><button class="sm" onclick="S.finishAsk=true;rerender()">Fill the rest for me…</button></div></div>${ledger()}</div></div>`}
+function gapBox(q){return `<div class="gapbox"><b>${esc(q.q)}</b><div class="why">${esc(q.why)}</div>${q.opts.map((x,i)=>`<button class="sm" style="margin:3px 4px 0 0" onclick="answer('${q.id}',qById('${q.id}').opts[${i}])">${esc(x)}</button>`).join('')}<div class="row" style="margin-top:6px"><input type="text" placeholder="Write it in…" onkeydown="if(event.key==='Enter'&&this.value)answer('${q.id}',this.value)"><button class="sm" onclick="skip('${q.id}')">You decide</button></div></div>`}
+
+/* ============ STEP 3: HANDOFF ============ */
+function viewHandoff(){const r=routing();const fs=facts();const ai=fs.filter(f=>f.src==='ai');const mine=fs.filter(f=>f.src!=='ai');const skippedAll=!Object.keys(S.answers).length;
+ const next={treatment:'Treatment (your document is imported)',beats:'Beat Sheet (your outline is imported)',script:'Master Narrative (screenplay converted — you review & accept)',shots:'Scenes & Shots'}[r.best]||'Treatment (Aiuteur drafts options)';
+ return `<div class="grid2"><div><div class="card"><h2>${skippedAll?'Interview skipped':'Interview complete'}</h2>
+ <p>${skippedAll?'No problem. Aiuteur will make the story decisions it needs — each one will be listed here and wherever it matters, and you can override any of them.':'Your answers are now binding project knowledge — later drafts and regenerations may not contradict them. If new material ever does, Aiuteur will ask you instead of choosing.'}</p>
+ <div class="row"><span class="chip me">${mine.length} Established Facts</span><span class="chip ai">${ai.length} Aiuteur choices</span><span class="chip">${S.items.length} originals kept</span></div>
+ <p style="margin-top:10px"><b>Next:</b> ${next}</p>
+ <div class="row"><button onclick="go('interview')">← Back to interview</button><button class="pri" onclick="alert('PROTOTYPE: would open the next phase. Nothing is generated or spent until you ask.')">Continue to ${next.split(' (')[0]} →</button></div></div>
+ ${ai.length?`<div class="card" style="background:var(--aibg)"><h3>Things Aiuteur decided because you skipped</h3><div class="small mute">Not hidden — also marked wherever they appear later. Override now or any time.</div><ul class="ledger">${ai.map(f=>`<li><b>${esc(f.label)}:</b> ${esc(f.value)} <button class="sm" onclick="S.editing='${f.id}';rerender()">override</button>${S.editing===f.id?` <input type="text" id="ed" value="${esc(f.value)}" onkeydown="if(event.key==='Enter')saveEdit('${f.id}')"> <button class="sm" onclick="saveEdit('${f.id}')">save</button>`:''}</li>`).join('')}</ul></div>`:''}
+ <div class="card"><h3>Simulate: a later conflict</h3><div class="small mute">Later, while editing the Master Narrative, you paste a scene that contradicts an Established Fact. Aiuteur must not overwrite either; it returns to the interview as a new question.</div><button onclick="simConflict()">Paste conflicting scene →</button></div></div>
+ <div>${ledger()}</div></div>`}
+function simConflict(){const t=Object.keys(S.answers).filter(id=>S.answers[id].src!=='ai');if(!t.length){Qs().slice(0,2).forEach(q=>S.answers[q.id]={value:q.opts[q.def],src:'creator'})}
+ const id=Object.keys(S.answers)[0];const q=qById(id);S.conflict={fid:id,newValue:id==='c1'?'Dolores died in 2008':'a different answer to “'+q.label+'”',why:'scene 4',resolved:null};go('interview')}
+function fastForward(){Qs().forEach(q=>{if(!S.answers[q.id])S.answers[q.id]={value:q.opts[0],src:'creator'}});rerender()}
+
+/* ============ SHELL ============ */
+function go(step){S.step=step;S.finishAsk=false;rerender();window.scrollTo(0,0)}
+function rerender(){const V={A:viewA,B:viewB,C:viewC};const names={A:'Conversation',B:'Question cards',C:'Living brief'};
+ const body=S.step==='material'?viewMaterial():S.step==='interview'?V[S.variant]():viewHandoff();
+ document.getElementById('app').innerHTML=`<div class="top"><span class="logo">Aiuteur</span><span class="proj">/ The Office Ghost · new project</span><span class="proto">PROTOTYPE · THROWAWAY</span>
+ <div class="steps">${[['material','1 Material'],['interview','2 Interview'],['handoff','3 Handoff']].map(([k,n])=>`<span class="step ${S.step===k?'on':''}" style="cursor:pointer" onclick="go('${k}')">${n}</span>`).join('')}</div></div><main>${body}</main>
+ <div class="bar"><span>Interview presentation:</span>${['A','B','C'].map(k=>`<button class="${S.variant===k?'on':''}" onclick="S.variant='${k}';S.step='interview';rerender()">${k} ${names[k]}</button>`).join('')}<span>|</span>
+ <select onchange="loadScenario(this.value);rerender()">${Object.entries(SCEN).map(([k,v])=>`<option value="${k}" ${S.scenario===k?'selected':''}>${v.label}</option>`).join('')}</select>
+ <button onclick="fastForward()" title="answer all remaining">⏩ fill</button><button onclick="simConflict()" title="later conflict with a fact">⚡ conflict</button></div>`}
+document.addEventListener('keydown',e=>{if(/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName))return;const v=['A','B','C'];if(e.key==='ArrowRight'||e.key==='ArrowLeft'){const d=e.key==='ArrowRight'?1:-1;S.variant=v[(v.indexOf(S.variant)+d+3)%3];rerender()}});
+if(qs.get("nobar"))document.head.insertAdjacentHTML("beforeend","<style>.bar{display:none}</style>");loadScenario(S.scenario);if(qs.get('fill')){Qs().slice(0,+qs.get('fill')).forEach(q=>S.answers[q.id]={value:q.opts[0],src:'creator'})}
+if(qs.get('skip')){Qs().slice(+qs.get('fill')||0,+qs.get('skip')).forEach(q=>S.answers[q.id]={value:q.opts[q.def],src:'ai'})}
+if(qs.get('conflict'))setTimeout(simConflict,0);
+rerender();
+</script></body></html>
