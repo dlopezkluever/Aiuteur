@@ -143,7 +143,7 @@ Entity images and style reference images belong to the entity or style (canonica
 |---|---|---|---|---|
 | Is | A recorded state of an editable object | A generated or uploaded artifact competing for a Slot | The record of one AI request and what it produced | One run of the background work executing it |
 | Applies to | Editable objects | Frames, Takes, entity images, Views, Options | Any AI content production | Generations and other long work |
-| Mutable? | No, but a new one can be added | No, ever | No, once it has ended | Yes, while running |
+| Mutable? | No, but a new one can be added | No, ever | Its request never; its outcome may gain outputs once by adoption of a late result (#67) | Yes, while running |
 | Count per thing | Many per object, in a line | Many per Slot, one chosen | One per request | One or more per Generation |
 | Restoring | Add a new Revision copying an old one | Choose a different Attempt | n/a | n/a |
 | Owns creative truth | Yes | The artifact itself | The inputs and cost | None |
