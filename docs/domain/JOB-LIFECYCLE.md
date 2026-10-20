@@ -1,6 +1,6 @@
 # Aiuteur V2: Generation Job Lifecycle
 
-Resolution of Wayfinder ticket #67. Vocabulary is in [`GLOSSARY.md`](../../GLOSSARY.md); Generation, Job, Attempt, Slot and Media come from the [domain model](DOMAIN-MODEL.md) and [ADR 0001](../adr/0001-revisions-attempts-generations-jobs.md); the trade-offs decided here are in [ADR 0004](../adr/0004-job-lifecycle-durable-runs-and-bounded-spend.md). This document is provider-neutral and substrate-neutral: it says what states exist and what must hold, not which queue, workflow engine or database carries them (Runtime platform, #74; module boundaries, #71). It contains no tables, columns or endpoints.
+Resolution of Wayfinder ticket #67. Vocabulary is in [`GLOSSARY.md`](../../GLOSSARY.md); Generation, Job, Attempt, Slot and Media come from the [domain model](DOMAIN-MODEL.md) and [ADR 0001](../adr/0001-revisions-attempts-generations-jobs.md); the trade-offs decided here are in [ADR 0006](../adr/0006-job-lifecycle-durable-runs-and-bounded-spend.md). This document is provider-neutral and substrate-neutral: it says what states exist and what must hold, not which queue, workflow engine or database carries them (Runtime platform, #74; module boundaries, #71). It contains no tables, columns or endpoints.
 
 ## 1. Rules
 
