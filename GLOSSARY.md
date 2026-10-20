@@ -87,18 +87,36 @@ _Avoid_: Extra archetype, background character
 **Canonical identity**:
 An entity's single creator-approved description plus its reference images. It is the one source of what the entity is.
 
+**Lightweight entity**:
+An entity defined by a text description alone, with no identity image required; generated from its text. Chosen by the creator and promotable to a detailed entity without changing identity.
+
+**Deferred entity**:
+An entity the creator chose not to define yet. It affects only the scenes and shots where it is needed and never blocks unrelated work.
+
 **Look**:
 A named, story-driven appearance of an entity (for example "Marcus, muddy suit"), anchored to its canonical identity and carried forward until the story changes it. The canonical identity is the base appearance; a Look specializes it.
 _Avoid_: State, variant, costume, asset instance
 
+**Look assignment**:
+The stored statement that an entity takes a Look (or returns to its base) from a narrative position, either from there on or only for a bounded range such as a flashback. The Look in effect elsewhere is derived from these, never recorded per scene.
+_Avoid_: Look state, scene Look
+
 **Carry-forward**:
-A Look staying in effect into later scenes until the story changes it.
+A Look staying in effect into later scenes until the story changes it. Derived from narrative position and Look assignments.
+
+**Mention**:
+A derived link between an entity and a passage of the Master Narrative (on-screen, referenced only, or setting). Rebuilt from the narrative; only the creator's confirmations and rejections are stored.
+_Avoid_: Tag, appearance record
 
 **Location coverage**:
 A Location's set of directional views (walls or angles). Multi-direction by default; a single establishing image by choice.
 
+**Direction**:
+A named place to look from within a Location's coverage (for example "toward the window"), with a View Slot for each Look of the Location. A shot refers to a Direction, never to one particular View.
+_Avoid_: Angle, camera direction
+
 **View**:
-One directional image in a Location's coverage.
+One image (an Attempt) filling a Direction's Slot for a given Look or the base appearance of a Location; one is active.
 _Avoid_: Angle, camera direction
 
 **Presence**:
@@ -115,6 +133,9 @@ _Avoid_: Style capsule (for writing)
 
 **Voice**:
 A Character's persistent voice identity.
+
+**Subject mapping**:
+For Reference Media attached to a shot, the assignment of each subject in the media to a project entity (and Look), to removal, or to a generic extra. The media contributes composition, staging, motion or style, never identity.
 
 **Reference Media**:
 Creator-supplied images or video used for inspiration, parody or shot recreation. Subjects in it are replaced by project entities.
