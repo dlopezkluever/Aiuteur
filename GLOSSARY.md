@@ -156,7 +156,14 @@ _Avoid_: Reference image (of an entity; that belongs to canonical identity)
 ## Production
 
 **Scene**:
-A narrative unit with stable identity, defined as a division of the Master Narrative; the organizing unit of production. It owns no narrative text of its own.
+A narrative unit with stable identity, defined as a division of the Master Narrative; the organizing unit of production. Its identity is the id of its container block in the Master Narrative. It owns no narrative text of its own. It is active while the current Master Narrative contains it and retired otherwise; either way its production work stays attached.
+
+**Scene mapping**:
+The pre-commit step that decides which incoming scenes continue which existing scenes when a Master Narrative is regenerated or a revised screenplay is imported. Deterministic signals first, AI assistance only for ambiguity, and the creator confirms ambiguous or work-affecting items. Position is never identity.
+_Avoid_: Scene matching by number, re-extraction
+
+**Re-homing**:
+A recorded Decision that changes which Scene a Shot belongs to, because its anchored text moved or the creator adopted work from a retired scene. Automatic only for the creator's own structural edits.
 
 **Shot**:
 One continuous camera moment that becomes one clip; the unit of generation. Every take comes from an explicit shot.
