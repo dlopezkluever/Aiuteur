@@ -308,7 +308,7 @@ A duplicate is a **new project, born complete and independent**. The original is
 |---|---|
 | Identity | Every object, Revision, Attempt, Decision and Generation gets a **new id**; a `duplicated-from` map (old id → new id, plus source project id) is kept as informational history. No shared mutable state, no live link. |
 | Content | All Revisions (full history), all Attempts (including unchosen and rejected), Source Material, Reference Media, Performances, retired objects (still retired), Interview turns, Established Facts. |
-| Media | Immutable blobs shared by reference; purge semantics (when the last reference goes) are #72's. Provider-held resources (e.g. a cloned voice) need a copy-or-share rule from #69/#72. |
+| Media | Immutable blobs, **physically copied** to the new project's prefix so nothing is shared across projects ([`PERSISTENCE-AND-MEDIA.md`](../architecture/PERSISTENCE-AND-MEDIA.md) §8, ADR 0020). Provider-held resources (e.g. a cloned voice) are Account-owned handles shared on duplicate and released on purge (§7.5). |
 | Lineage | Captured inputs, Basis stamps, Acknowledgements and Deviation records are remapped to the copied ids, so every marker, deviation and "kept" status reproduces exactly. Because markers are derived, nothing needs repair. |
 | Decisions | Slot choices, approvals, Accept, locks, Phase dispositions are copied as events with the same state; always unlockable in the copy. |
 | Generations | Copied as immutable records with provenance intact. Cost is flagged **inherited** and excluded from the new project's new-spend total (#68). Generations still in flight are **not** copied and their results land only in the original; Jobs are not copied. |

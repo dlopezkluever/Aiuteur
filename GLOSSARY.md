@@ -536,11 +536,35 @@ _Avoid_: Security review
 The backup of database and media held at a second vendor under credentials that cannot delete, so loss or compromise of the primary vendors or of our own code cannot erase it.
 _Avoid_: Mirror, replica (as a product term)
 
+## Persistence (Wayfinder #72)
+
+Terms for stored history and media. Defined in `docs/architecture/PERSISTENCE-AND-MEDIA.md` and ADRs 0017 to 0021.
+
+**Committed Media** **(Wayfinder)**:
+A piece of media that a Frame, Take, entity image, View, Supplied item or Performance refers to, stored privately under exactly one project. It never changes, never has zero referrers, and is deleted only by a project or account Purge. Identical bytes inside one project are the same Media.
+_Avoid_: Asset, file, upload (for the stored object)
+
+**Staging** **(Wayfinder)**:
+The temporary holding place for bytes that are being fetched from a provider or uploaded and have not yet been verified. Nothing in staging is creative truth, and it expires on its own.
+_Avoid_: Draft media, temp file
+
+**Rendition** **(Wayfinder)**:
+A rebuildable derivative of Committed Media made for viewing or delivery (thumbnail, poster, playback copy, export build). It holds no truth, is never referenced by creative work and may be discarded and regenerated.
+_Avoid_: Transcode (unless bytes are actually re-encoded), proxy
+
+**Frozen fingerprint** **(Wayfinder)**:
+The content fingerprint recorded for a unit of an object at the moment a Revision was written, which later captures compare against. Its meaning never changes: if what a unit covers must change, a new unit is defined.
+_Avoid_: Checksum, version hash
+
+**Global reference data** **(Wayfinder)**:
+Platform-wide data that belongs to no Account and holds no creator content, such as the model Catalogue snapshots and the price registry. Everything else Aiuteur stores belongs to exactly one Account.
+_Avoid_: Shared data, system data
+
 ## Reference
 
 **Design reference**:
 A legacy idea that design may adopt, adapt or replace; neither mandated nor banned.
 
 **Media**:
-The stored image, video or audio content itself, distinct from the object that gives it meaning. Media is immutable; reusing it shares it.
+The stored image, video or audio content itself, distinct from the object that gives it meaning. Media is immutable; reusing it inside a project shares it, while a duplicated project or a copy-on-use gets its own copy.
 _Avoid_: File, asset
