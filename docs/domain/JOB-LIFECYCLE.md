@@ -153,7 +153,7 @@ Rules:
 
 - When cancelling is not free, the control says so beforehand: "This provider cannot stop a started run; you may still be charged up to about $X". It is information, not a second confirmation; cancelling saves spend.
 - **A cancelled Generation is never retried automatically.**
-- **Late output after cancel.** If the provider completes anyway, the output is already paid for and Constitution §14.3 forbids silently destroying takes. Reconciliation fetches it and attaches it as an unselected Attempt labelled "arrived after cancel". No notification is sent.
+- **Late output after cancel.** If the provider completes anyway, the output is already paid for and Constitution §14.3 forbids silently destroying takes. Reconciliation fetches it and attaches it as an unselected Attempt labelled "arrived after cancel". The creator gets a quiet notice (ratification M2); it never interrupts.
 - **Reconciliation.** Every Job that ended `timed_out` or `cancelled` with a provider operation outstanding keeps being checked, at a low backed-off rate, until the adapter's retention deadline passes or the provider reports a terminal status. Its outcome decides the final `billing`. A `timed_out` Job whose operation later *succeeds* is **adopted** into the same Generation: the Generation moves failed → succeeded, outputs attach as unselected Attempts, and the creator is told. This is the single exception to "a Generation is immutable once ended": the request never changes; only its outcome may gain outputs (hand-off to #54).
 - Cancelling a Batch cancels waiting and queued members free and each started member by the table above. Finished members keep their results.
 
@@ -238,7 +238,7 @@ Events are written to a **transactional outbox** in the same commit as the trans
 | `generation.failed` | Settled failed | **Always** (Constitution §10.3) | Generation, target, class, plain reason, billed, whether Retry is offered and its estimate |
 | `generation.cancelled` | Settled cancelled | No | billing |
 | `generation.retrying` | Automatic retry scheduled | No; status only | attempt number, class |
-| `generation.late_result` | Adoption after timeout, or output after cancel | Yes for timeout adoption; no after cancel | Generation, new Attempts |
+| `generation.late_result` | Adoption after timeout, or output after cancel | Yes, a quiet notice for both timeout adoption and output after cancel | Generation, new Attempts |
 | `batch.settled` | Batch settles | Yes: one summary instead of one per member | counts per outcome, total cost |
 | `job.state_changed` | Every transition | No; progress only | Job, from, to, at |
 
