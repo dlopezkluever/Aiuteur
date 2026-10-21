@@ -1,6 +1,6 @@
 # Aiuteur V2: Persistence, Version History and Private Media
 
-Resolution of Wayfinder ticket #72. Vocabulary is in [`GLOSSARY.md`](../../GLOSSARY.md). The hard-to-reverse choices are recorded in ADRs [0017](../adr/0017-one-relational-store-with-a-generic-append-only-spine-and-derived-indexes-kept-in-the-committing-transaction.md) (persistence approach), [0018](../adr/0018-a-revision-is-a-self-contained-snapshot-with-frozen-fingerprints.md) (versioning), [0019](../adr/0019-tenant-isolation-is-enforced-by-the-database-and-the-object-store-not-by-handlers.md) (isolation), [0020](../adr/0020-media-is-private-project-owned-and-copied-never-shared-across-projects.md) (media, access, retention, purge) and [0021](../adr/0021-the-schema-is-forward-only-sql-with-machine-checked-drift-and-isolation-rules.md) (migrations and drift). Creator decisions come from the [Creator Ratification Record](../product/CREATOR-RATIFICATION-RECORD.md) (M4 to M7), which controls.
+Resolution of Wayfinder ticket #72. Vocabulary is in [`GLOSSARY.md`](../../GLOSSARY.md). The hard-to-reverse choices are recorded in ADRs [0019](../adr/0019-one-relational-store-with-a-generic-append-only-spine-and-derived-indexes-kept-in-the-committing-transaction.md) (persistence approach), [0018](../adr/0020-a-revision-is-a-self-contained-snapshot-with-frozen-fingerprints.md) (versioning), [0019](../adr/0021-tenant-isolation-is-enforced-by-the-database-and-the-object-store-not-by-handlers.md) (isolation), [0020](../adr/0022-media-is-private-project-owned-and-copied-never-shared-across-projects.md) (media, access, retention, purge) and [0021](../adr/0023-the-schema-is-forward-only-sql-with-machine-checked-drift-and-isolation-rules.md) (migrations and drift). Creator decisions come from the [Creator Ratification Record](../product/CREATOR-RATIFICATION-RECORD.md) (M4 to M7), which controls.
 
 This document turns the `Store` and `BlobStore` ports of [`MODULE-ARCHITECTURE.md`](MODULE-ARCHITECTURE.md) into decisions: what is stored and how, how history is versioned, how one Account is kept out of another's data, how media is stored and delivered privately, how a project is duplicated and later purged, and how the schema is kept honest. It names a database *engine* and an object-store *contract*, not a hosting vendor (that is #74, with the checklist in §13). It gives table families and the columns that matter, not DDL: exact column lists belong to the spec. No implementation is started here. One throwaway spike (§12) was run to check the numbers the design leans on.
 
@@ -205,22 +205,23 @@ The **Board** is a single query: one row per shot with its realization state, se
 
 1. **Row-level security on every tenant table**, `FORCE`d so even the owner is subject to it, with a policy `account_id = current account`. The current Account is a transaction-local setting written by the Store adapter when it opens a transaction from a `Scope`; an unset value matches no rows.
 2. **Composite keys.** The identity table has a unique key `(account, project, id)`; every project-scoped table references it with a composite foreign key. A row cannot name another Account's or another project's object, whatever the application sends.
-3. **Roles.** The runtime has no DDL and no `BYPASSRLS`:
+3. **Roles.** The identities are the set fixed by [RUNTIME-PLATFORM §5](RUNTIME-PLATFORM.md) and [OPERATIONAL-BASELINE §5](OPERATIONAL-BASELINE.md) (#74, #75), here with their data-layer meaning. Nothing on a request, worker or webhook path has DDL or `BYPASSRLS`. **Creating them:** roles are created by SQL `CREATE ROLE` in a migration, **never through the hosting console, API or CLI**: on Neon a role made that way is silently a member of `neon_superuser` and has `BYPASSRLS`, which would make every policy inert (checked against Neon's role documentation, 2026-10-21). The role-posture test (D4) reads `rolbypassrls`, `rolsuper` and membership from the catalogue in every environment, and the app refuses to boot if its own role fails the same check.
 
    | Role | May | May not |
    |---|---|---|
-   | `migrator` | Own the schema and run migrations (deploy step only) | Be used by a running process |
+   | `owner` | Own the schema and run migrations (the pipeline's migration step only) | Be present in any running process |
    | `app` (request and worker transactions) | Read and insert tenant tables under RLS; update only the closed list of mutable cells | Update or delete history; read another Account |
-   | `dispatch` (claim, sweep, outbox relay) | Call three definer functions that return **ids and times only** (`claim_job`, `claim_expired`, `claim_events`); then the worker opens a normal scoped transaction from the returned Account | Select any tenant table |
-   | `operator_reader` | Read an **allowlist of non-content columns** (Account, provider, model, cost, state, time) with a narrow policy | Read prompts, documents, media keys or any creative payload; the allowlist is reviewed and tested |
-   | `purge` | Run the purge function (§9), which sets the one flag the append-only trigger honours | Be used outside the purge job |
-   | `auth` | Own its identity and session tables; resolve a sign-in to an Account through one definer function | Read tenant tables |
+   | `scheduler` (claim, wake, outbox relay) | Call the narrow definer functions (`claim`, `wake`, event relay) that return **ids and times only**; then the worker opens a normal scoped transaction from the returned Account | Select any tenant table |
+   | `operator_read` | Select from a fixed set of **content-free views** (Accounts, usage, spend totals, Job states and ages, alerts) | Select from any table or any view not on the list; the list is reviewed and tested |
+   | `identity` | Own the auth schema (Better Auth users, sessions, invitations); call `accounts.map_subject`; redeem an invitation, which creates the Account in one transaction | Touch tenant tables |
+   | `purge` (an `app`-side grant used only by the purge job) | Run the purge function (§9), which sets the one flag the append-only trigger honours | Be used outside the purge job |
+   | `backup` | Read everything for a logical dump, **past row rules** (the single deliberate bypass, OPERATIONAL-BASELINE §5) | Exist on any request, worker or webhook path, or write to production; its DSN lives only in the separate backup app |
 
-   The platform's own admin or "service" credential (for example a hosted database's service key that bypasses RLS) may exist only in the `migrator` and operator tooling. **A design that needs it for an ordinary request is rejected**; this is V1's failure.
+   The platform's own admin or "service" credential (for example a hosted database's service key that bypasses RLS) may exist only in the `owner` step and operator tooling. **A design that needs it for an ordinary request is rejected**; this is V1's failure.
 4. **Sub-resource ids are never trusted.** A command naming a shot is resolved through the identity table under the Scope; the composite key makes a mismatch impossible even if `history` forgot to check.
-5. **Background work.** A Job, webhook handler, sweeper pass and outbox consumer rebuild the Scope from the Account on the Job or event. The `dispatch` role sees only ids; no process ever runs "as the system" over creative rows.
-6. **Auth tables are outside tenant RLS** and behind the `auth` role. The mapping from a sign-in to an Account is read only inside a definer function, so no request-path role can enumerate Accounts. An invitation is stored as a token hash with expiry and single use, redeemed through one definer function that creates the Account atomically.
-7. **Credentials (BYOK seam).** Provider keys are stored as ciphertext, encrypted with a per-Account data key that is itself wrapped by a master key held outside the database (a key service or the operator's secret store). Authenticated encryption binds Account, provider and credential id, so a ciphertext copied to another Account fails to decrypt. They are write-only: no read path returns plaintext to a browser, log, Generation or error. Decryption happens only in the dispatch process role. Purging an Account destroys its wrapped data key as well as the rows.
+5. **Background work.** A Job, webhook handler, sweeper pass and outbox consumer rebuild the Scope from the Account on the Job or event. The `scheduler` role sees only ids; no process ever runs "as the system" over creative rows.
+6. **Auth tables** (Better Auth, in our database per #75) live in their own schema behind the `identity` role, outside tenant row rules because they precede an Account. They are nonetheless **Account data for purge and for backup**: a sign-in maps to exactly one Account, and Account purge deletes the auth user, sessions and invitations by that mapping (§9.2). The mapping is read only inside `accounts.map_subject`, so no request-path role can enumerate Accounts. An invitation is a token hash with expiry, single use and a bound email; redemption creates the auth user and the Account in one transaction.
+7. **Credentials (BYOK seam), as fixed by #75.** **Operator provider keys are Fly secrets and are never in the database.** Creator-supplied keys are **envelope ciphertext rows**: a random data key per credential encrypts the key, and the key-wrapping key (versioned, held as a Fly secret of `web` and `worker` plus an offline copy) wraps the data key. Account id, provider surface and credential id are authenticated associated data, so a ciphertext copied to another Account or provider fails to open. Write-only: no read path returns plaintext to a browser, log, Generation or error; it opens only in `web` and `worker`. Because backups hold ciphertext but not the wrapping key, a database dump alone exposes no key. Purging an Account deletes its ciphertext rows; the wrapping key is platform-wide, not per Account, so there is no per-Account key to destroy.
 
 ### 6.3 Object-store isolation
 
@@ -346,12 +347,12 @@ Purge is an addition, not a rewrite, because every row has `(account_id, project
 2. Release `external_resource` references.
 3. If the operator keeps anonymised spend totals (open, decided with the feature; BUSINESS §1.7), write content-free per-period, per-provider, per-model rollups to an Account-level table first. The design supports either answer.
 4. Delete the project's rows in dependency order through the `purge` function, which sets the one flag the append-only trigger honours for that project id.
-5. Delete the prefix `a/<account>/p/<project>/` and list it to confirm it is empty.
-6. Write a content-free `purge_record` (ids, time, counts, byte totals) to a durable operator-controlled log.
+5. Delete the prefix `a/<account>/p/<project>/` and list it to confirm it is empty; remove the same prefix from the independent replica or let it age out (§13).
+6. Write a content-free `purge_record` (ids, time, counts, byte totals) to the **purge log** that #75 requires, held outside the database being restored (OPERATIONAL-BASELINE §8.2), so a restore can replay it.
 
-**Account purge** is every project purge, then the Account-level rows, the identity link and the destruction of the wrapped credential data key, then the prefix `a/<account>/`, then a catalog-driven verification: for every tenant table, a count by `account_id` is zero.
+**Account purge** is every project purge, then the Account-level rows, the credential ciphertext rows, the auth user, sessions and invitations mapped to the Account, then the prefix `a/<account>/`, then a catalog-driven verification: for every tenant table, a count by `account_id` is zero.
 
-**Completeness is testable:** the verification above runs in tests on the golden project, and the same catalog that enforces isolation is the list of tables to purge, so a new table cannot be forgotten. **Backups** retain purged data until they age out, and a restore must replay the `purge_record` log; both are stated windows for #75. The spike purged a 150,000-edge project's rows in 4.1 s.
+**Completeness is testable:** the verification above runs in tests on the golden project, and the same catalog that enforces isolation is the list of tables to purge, so a new table cannot be forgotten. **Backups** retain purged data until they age out, and a restore must replay the purge log; #75 states the dump retention window and the replay rule, which this design makes executable because every row and key carries the project id. The spike purged a 150,000-edge project's rows in 4.1 s.
 
 ## 10. Schema authority, migrations, drift and types
 
@@ -366,7 +367,7 @@ Purge is an addition, not a rewrite, because every row has `(account_id, project
 
 ### 10.2 Migration policy
 
-One linear, forward-only chain of SQL files, applied by the `migrator` role as a **deploy step before new code starts**, recorded with checksums. Changes follow **expand, then contract**: add (nullable column, new table, new vocabulary value) in one release, switch code, remove in a later release. A running old version must work against the expanded schema. Rollback is expand/contract plus restore from backup, never a down migration. A migration that touches a tenant table must state, in the file, its isolation (the catalog test enforces the result). The migration tool is spec-level; the policy is not. V1's dead runner and by-hand production setup (legacy 05 §1) are the counter-example: the chain must be the *only* way production is built.
+One linear, forward-only chain of SQL files, applied under the `owner` identity by the pipeline's migration step (OPERATIONAL-BASELINE §4.2) **before new code starts**, recorded with checksums. Changes follow **expand, then contract**: add (nullable column, new table, new vocabulary value) in one release, switch code, remove in a later release. A running old version must work against the expanded schema. Rollback is expand/contract plus restore from backup, never a down migration. A migration that touches a tenant table must state, in the file, its isolation (the catalog test enforces the result). The migration tool is spec-level; the policy is not. V1's dead runner and by-hand production setup (legacy 05 §1) are the counter-example: the chain must be the *only* way production is built.
 
 ### 10.3 Drift checks (all fail the build or readiness)
 
@@ -411,7 +412,7 @@ A throwaway Postgres 16.2 spike (schema plus a Python harness; branch [`research
 | A inserts an object into B's project under A's Account; A captures a B unit | refused by composite foreign keys |
 | A updates a revision; A deletes an attempt | refused by missing privilege; the blocking trigger also stops a superuser, except under the purge flag |
 | Transaction with no Account set | sees 0 rows |
-| `dispatch` role reads the job table; calls `claim_job()` | refused; the function returns `(job id, account id)` only |
+| `dispatch` role (the `scheduler` identity of #74) reads the job table; calls `claim_job()` | refused; the function returns `(job id, account id)` only |
 | Gate: an exclusive request arriving while an edit holds the shared gate | waits, then proceeds after the edit commits |
 | Board, 250 shots, 3,000 attempts, 30,000 capture edges | 8–20 ms |
 | Board, 250 shots, 15,000 attempts, 150,000 capture edges, 17,730 Revisions, all marked | 22 ms |
@@ -423,27 +424,29 @@ A throwaway Postgres 16.2 spike (schema plus a Python harness; branch [`research
 
 **Limits.** One machine, a local socket (no network round trip), a warm cache, synthetic uniform data with 200-byte payloads, one reader, a simplified Board (no phase, lock or Job joins, no transitive "via" reasons). The numbers show headroom of an order of magnitude, not a promise. The design does not depend on them being exact: §5.1 names the fallback, and the spec's golden project re-measures. Object-store behaviour (copy throughput, lifecycle rules, checksum headers, delete permissions) was not run; those items are on the #74 checklist.
 
-## 13. Requirements this places on the platform (for #74 and #75)
+## 13. The chosen platform checked against this design
 
-The platform choice is theirs. A candidate must offer:
+#74 chose Neon (Postgres), Cloudflare R2 and Fly.io; #75 chose Better Auth in our database, Fly secrets for keys and a second-vendor backup. This section checks them against what this design needs and records the changes the check forced. Facts are dated 2026-10-21; unverified items are marked.
 
-| # | Requirement | Why |
-|---|---|---|
-| P1 | PostgreSQL 15 or later (16 preferred) with custom roles, `FORCE ROW LEVEL SECURITY`, `SECURITY DEFINER` functions, advisory locks, `FOR UPDATE SKIP LOCKED`, and a **non-superuser connection for the app** | §6 |
-| P2 | Works with a transaction-mode pooler *or* a direct connection: the design uses only transaction-scoped settings and locks, never session state, and does not rely on `LISTEN/NOTIFY` | #73 §2.2 pooler finding |
-| P3 | **No runtime use of a platform service, admin or RLS-bypassing credential or of an HTTP data API in front of the database**; such a credential may exist only for migrations and operator tooling | V1's failure; #73 §3 |
-| P4 | Point-in-time recovery with a stated window, encrypted backups | #75 |
-| P5 | Object store with an S3-compatible API: private buckets, signed `GET`, `PUT` (and multipart or a form policy), **server-side copy**, prefix listing and batch delete, lifecycle expiry by prefix, checksum on upload, range reads, CORS for browser playback and upload | §7 |
-| P6 | Storage egress that does not make playback or export cost-sensitive at the scenario scale (the #73 shortlist is under $17 a month) | #73 §2.4 |
-| P7 | A place for the credential master key outside the database | §6.2 item 7 |
+| # | Need | Chosen platform | Result |
+|---|---|---|---|
+| P1 | Custom roles, `FORCE ROW LEVEL SECURITY`, definer functions, advisory locks, `SKIP LOCKED`, non-superuser app connection | Neon | Standard Postgres features. **Forced change:** roles made through Neon's console, API or CLI get `neon_superuser` and `BYPASSRLS` (Neon's role documentation and an open Neon issue), so every role is created with SQL in a migration, and the role-posture test and a boot check assert no bypass (§6.2). The project's default owner role is `owner`, used only by the migration step |
+| P2 | Only transaction-scoped settings and locks | RUNTIME-PLATFORM RT2 | Matches; `web` may use a pooler, `worker`, stream tail and migrations use direct connections |
+| P3 | No runtime RLS-bypassing credential or HTTP data API | Neon without its Data API; no Supabase | Holds. The Neon Data API must stay unused (it requires its own RLS and an auth function we do not use); add to RT5's list. The one bypass is `backup`, in its own app |
+| P4 | Point-in-time recovery, encrypted backups | Neon history window plus #75's independent copy | Holds; purge replays the purge log on restore, and dumps age out within the stated retention window |
+| P5 | Private bucket, signed GET and PUT, server-side copy, prefix list and batch delete, lifecycle expiry by prefix, checksums, range reads, CORS | R2 | Presigned GET and PUT, range reads, CORS, prefix listing and batch delete (free), per-prefix lifecycle expiry (at most 1,000 rules), conditional writes and server-side copy are in the #73 report. **No object versioning or object lock** (inferred), so a deletion by our own code is permanent: this is why committed-media deletion has one caller (R16) and why #75 keeps a copy-only-new replica. Presigned URLs work only on the storage host, not a custom domain (accepted in #74). A signed PUT cannot cap size on R2: verification and HEAD after upload, as §7.2 already says. Prefix-scoped temporary credentials exist; whether presigned URLs can be built from them is **not verified**, so `media.access` signs with the app credential and the key is built only by `media` from a Scope (R17) |
+| P6 | Egress not cost-sensitive | R2 (free egress) | Holds |
+| P7 | Master key outside the database | Fly secrets plus an offline copy (#75) | Holds; see §6.2 item 7 |
 
-The #73 research did not test its Postgres shortlist (Neon, Supabase used as a plain database, PlanetScale Postgres, Railway Postgres, Fly Managed Postgres) against P1 to P4; #74 must. P3 is the one most likely to bite, especially on a platform that bundles auth, storage and a data API. If a platform bundles storage with RLS on its own storage table, this design still signs keys from the server and does not use that RLS as the boundary. Auth (Better Auth, Clerk, WorkOS, Supabase Auth) is #75's within the `auth` role boundary of §6.2.
+**Backup replica and purge.** #75 copies new objects to a second vendor without deleting. The replica and the dumps are therefore the places a purged project can linger. The design supplies: replica keys that use the **same project-separable prefix** as the primary (`a/<account>/p/<project>/…`), so the replica job can remove a purged project's prefix with the same project id; dumps stay bounded by their retention window; and the purge log (§9.2) is what every restore replays. The replica's credentials cannot delete (#75), so removal on purge is a separate, narrowly credentialed purge step (the backup app's delete capability is used only by that step), or, if the vendor cannot scope delete, the replica prefix simply ages out with a lifecycle rule: either way the promise is stated as "a purged project leaves the primary immediately and every backup within the dump retention window".
+
+**Runtime tables this design now lists.** To implement #74 without a second store: `job` carries one `due_at`, a lease token and holder, state, state deadline and attempt counts; `event` has a per-Account counter row assigned as the last write before commit; `webhook_receipt` is unique on (provider, delivery id) and stores Account and Job ids only; the circuit-breaker and price rows are global reference data with no creator content. None of them holds prompts, media or keys.
 
 ## 14. Not decided here, and when to revisit
 
 **Spec-level values:** autosave debounce and idle-settle time, signed-URL lifetimes, staging and export expiry, operational retention windows (Jobs, events, receipts), edit-session idle expiry, exact column lists, the migration tool, the id format variant, the schema language for `contract`, the allowlist of operator columns.
 
-**Open, owned elsewhere:** whether purge keeps anonymised spend totals (decided with the deletion feature, M7); whether to add a storage quota (operations); the backup window and restore-replay of `purge_record` (#75); the provider-resource copy-or-re-create rule per provider (#69, #66); object-store delete-permission and lifecycle details (#74).
+**Open, owned elsewhere:** whether purge keeps anonymised spend totals (decided with the deletion feature, M7); whether to add a storage quota (operations); the provider-resource copy-or-re-create rule per provider (#69, #66); whether R2 presigned URLs can be built from prefix-scoped temporary credentials (unverified); whether the replica vendor can scope delete for purge (#75's backup vendor check). The backup window and purge-log replay are settled in #75 §§8–9.
 
 **Revisit if:** the Board or impact query misses its budget on the spec's golden project (use the rebuildable `shot_summary`); a measured project's Revision bodies exceed about 1 GB (adopt block-level sharing behind `history.read`); duplication copy time becomes a product problem (then, and only then, consider the account-wide content-addressed option C of §8.1 with its purge risk, as a new ADR); an Account needs physical separation (move it to its own database along the `(account, project)` key); the per-Account event-sequence row becomes a contention point (move to a commit-order-safe allocation per Account).
 
@@ -451,8 +454,8 @@ The #73 research did not test its Postgres shortlist (Neon, Supabase used as a p
 
 | Ticket | Receives |
 |---|---|
-| **Runtime platform** (#74) | Checklist P1 to P7; the three definer functions the `dispatch` role needs; the lock order of §5.2; Job, Batch and outbox rows live in Postgres with Account ids so any engine of #73 shape A to C can run beside them with ids-only payloads; the process roles map to database roles |
-| **Operational baseline** (#75) | Roles and their credentials as secrets; the credential master key; backups, PITR window and purge replay; the operator allowlist and content-free telemetry; D1 to D9 and R14 to R18 as CI checks; storage-growth alerts |
+| **Runtime platform** (#74, closed) | Reconciled in §13: the `scheduler` identity's definer functions, the lock order of §5.2 (the claim's admission lock sits with the Account spend lock at the top of the order), the job, event and receipt rows, and Neon's role caveat. Amendment for #74: add the Neon Data API and console-created roles to the RT5 list of unused vendor features |
+| **Operational baseline** (#75, closed) | Reconciled in §§6.2, 9.2, 13: its six identities with their data-layer meaning, auth schema inside Account purge, envelope credentials, the purge log replayed on restore, project-separable replica keys, and D1 to D9 and R14 to R18 as additional CI gates beside its G1 to G11 |
 | **Verification** (#76) | The Store conformance suite on real and in-memory adapters; the two-Account harness; the derived-table verifier; a golden project with 250 shots for the budgets; fault injection between fetch, promote and settle; purge and duplicate completeness tests |
 | **Build sequence** (#77) | Build order for persistence: the spine, the gate and `unit_head` first (every slice depends on them); media ingest with the first generated take; duplication and purge last |
 | **Contract freeze** (#78) | Freeze: the `Store` and `BlobStore` interfaces, the kind-declaration shape (slices, extracted columns, remap paths, closure rule, separability rule), `media.access`, the vocabulary-to-CHECK generation, the event envelope. Table and column names are not frozen |

@@ -241,7 +241,7 @@ For the LATER personal library to make a copy cheaply and safely, **an Entity (a
 4. **Copy gets new ids** plus an informational "copied from" note. There is never a live link between projects, so editing one cannot change another.
 5. **Scope.** Entity records are owned by a scope (today, a Project) so a scope above Project can own library items later. Identity ids are globally unique, never project-local counters.
 6. **Provenance is preserved** on copied content; the copy adds "copied from" and does not relabel AI content as creator-written.
-7. **Media is immutable**, so a copy may share the stored object. Within a project a copy may share it; across projects Media is physically copied, and purge follows the project prefix ([`PERSISTENCE-AND-MEDIA.md`](../architecture/PERSISTENCE-AND-MEDIA.md) §§7–9, ADR 0020).
+7. **Media is immutable**, so a copy may share the stored object. Within a project a copy may share it; across projects Media is physically copied, and purge follows the project prefix ([`PERSISTENCE-AND-MEDIA.md`](../architecture/PERSISTENCE-AND-MEDIA.md) §§7–9, ADR 0022).
 
 ## 11. Constitutional check and rejected designs
 

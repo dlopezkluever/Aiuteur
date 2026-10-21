@@ -538,7 +538,7 @@ _Avoid_: Mirror, replica (as a product term)
 
 ## Persistence (Wayfinder #72)
 
-Terms for stored history and media. Defined in `docs/architecture/PERSISTENCE-AND-MEDIA.md` and ADRs 0017 to 0021.
+Terms for stored history and media. Defined in `docs/architecture/PERSISTENCE-AND-MEDIA.md` and ADRs 0019 to 0023.
 
 **Committed Media** **(Wayfinder)**:
 A piece of media that a Frame, Take, entity image, View, Supplied item or Performance refers to, stored privately under exactly one project. It never changes, never has zero referrers, and is deleted only by a project or account Purge. Identical bytes inside one project are the same Media.
