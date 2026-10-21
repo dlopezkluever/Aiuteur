@@ -762,7 +762,7 @@ So "a cheaper path that occasionally loses work" or "a richer feature that is fr
 
 1. **The creator is the author.** AI translates, organizes, drafts and assists. It never takes creative ownership or acts on its own initiative.
 2. **Respect and provenance.** AI never changes the creator's accepted work unasked. Requested AI edits apply directly and are marked as AI-made. Who made what is always knowable.
-3. **Nothing is lost.** Every document version, entity version, frame and take is recoverable. Regenerating never destroys.
+3. **Nothing is lost inside a project.** Every document version, entity version, frame and take is recoverable. Regenerating never destroys. The only exception is a deliberate, creator-initiated purge of a whole project or account (a later requirement); it is never a way to remove part of a project.
 4. **No silent destruction.** Synchronization is allowed where it is reliable and transparent (e.g. treatment ↔ beat sheet before the Master Narrative is accepted), but accepted work is never silently overwritten. Work that may be out of date gets **quiet, non-alarming markers with a reason**, and the creator decides what to do.
 5. **One canonical narrative.** The Master Narrative is narrative truth. Scenes, entities and shots derive from it; deviations are explicit.
 6. **Identity holds.** Characters, locations, props and style stay recognizably themselves. Identity references outrank style.
