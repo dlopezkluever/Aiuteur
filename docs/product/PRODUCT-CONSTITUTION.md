@@ -571,7 +571,7 @@ The **export package** includes:
 
 Additional:
 
-- **NLE timeline export** (a sequence file for Resolve/Premiere/CapCut that arrives pre-assembled) is **IMPORTANT**.
+- **NLE timeline export** (a pre-assembled sequence file for Resolve and Premiere; CapCut Desktop cannot import one, so it receives ordered, uniquely named clips) is **IMPORTANT**.
 - **Success test:** a creator (or an editor) can import the export and start cutting within minutes, without renaming, relinking or reorganizing.
 - **Deterministic packaging:** the same selected material always produces the same organized export.
 
@@ -703,7 +703,7 @@ Classification at capability-family level. **IMPORTANT items must be supported b
 | Screenplay export (AI condensation of the Master Narrative, identical dialogue) |
 | Writing style |
 | Provenance highlight toggle (AI vs creator content) |
-| NLE timeline export (Resolve / Premiere / CapCut sequence) |
+| NLE timeline export (Resolve / Premiere sequence; CapCut: ordered clips) |
 | Consistent character voices |
 | Recorded / uploaded performances driving takes |
 | Voice transformation preserving delivery |
