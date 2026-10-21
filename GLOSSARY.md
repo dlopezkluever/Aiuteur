@@ -322,6 +322,37 @@ _Avoid_: Drawer, inspector
 **Skipped by you** / **Bypassed** **(Wayfinder)**:
 Two honest, intentional phase states. Skipped: the creator declined a recommended phase. Bypassed: supplied material already covers it. Neither means missing or broken.
 
+## Story documents (Wayfinder #51)
+
+**Block**:
+An addressable unit of a story document (paragraph, beat, scene, action, dialogue) with a permanent opaque id that survives edits, moves, splits, merges and rewrites.
+_Avoid_: Node, section, line (as an identity)
+
+**Run**:
+A maximal stretch of text in a block field with one provenance. Provenance lives on runs, so it is exact to the character.
+_Avoid_: Span (as the stored unit), annotation
+
+**Working copy**:
+The continuously, durably saved current content of a document. It is not a Revision.
+_Avoid_: Draft version, autosave version
+
+**Correspondence**:
+The links between beats and the chosen Treatment's paragraphs, with a base recording what each side said when they last agreed.
+_Avoid_: Sync flag, outdated flag
+
+**Drift**:
+The computed, quiet difference between a linked beat and its passage relative to the base. Never a stored flag; never blocks.
+_Avoid_: Out of sync (as a stored state)
+
+**Sync**:
+Before Master Narrative acceptance, the creator-pressed action that brings a beat and its passage back into agreement without deleting or overwriting protected spans. One Generation, one undoable Revision per target.
+
+**Disagreement check**:
+Before drafting or accepting the Master Narrative, if Treatment and Beat Sheet disagree, Aiuteur shows it and asks which to follow; it never guesses.
+
+**Reverse generation**:
+An explicit AI generation of a bypassed or development-history document (for example beats) from the Master Narrative.
+
 ## Reference
 
 **Design reference**:
