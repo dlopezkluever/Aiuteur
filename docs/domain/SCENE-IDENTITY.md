@@ -173,7 +173,7 @@ Golden fixtures: renamed headings; a scene split in the revision; two scenes mer
 
 ## 9. Hand-offs
 
-**Shot model (#55).** A Shot's parent is a Scene id (the container block id). Shot anchors reference block ids. Re-homing is a Decision with the rules of §3. Shot split and merge are #55's own and independent. Shots of retired scenes stay valid.
+**Shot model (#55).** A Shot's parent is a Scene id (the container block id). Shot anchors reference block ids. Re-homing is a Decision with the rules of §3. Shot split and merge are resolved in [`SHOT-MODEL.md`](SHOT-MODEL.md) §5 and are independent of scene structure. Shots of retired scenes stay valid.
 
 **Writing experience (#58).** Scene operations in the editor (insert, split at cursor, merge, move, delete) and their whispers; the mapping review as one surface; the "Not in the story now" group; Bring back and Adopt work; duration field presentation; in-app cut and paste must be a move. Quiet by default (M1).
 

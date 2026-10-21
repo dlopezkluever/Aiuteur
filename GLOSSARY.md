@@ -177,11 +177,39 @@ _Avoid_: Line (alone), caption
 A blocking capture, sketch, storyboard frame or reference image or video attached to a shot to control its framing and staging.
 
 **Frame**:
-A still image for a shot, in a role such as opening or ending. A frame is an Attempt: every frame is kept, and the creator approves which one stands.
+A still image for a shot, in a role such as opening or ending. A frame is an Attempt: every frame is kept, and the creator approves which one stands. It records its source (generated, uploaded, reused, edited, extracted from a Take, or captured from a composition reference) and, for reuse and editing, the Frame it was derived from.
 _Avoid_: Anchor, keyframe, frame attempt (a frame is the attempt)
 
+**Frame plan**:
+A shot's list of Frame roles the creator or AI wants (typically an opening; an ending optional; keyframes and other structures allowed), or an explicit skip. The skip is a creator Decision, and is different from not having decided yet. Defined in `docs/domain/SHOT-MODEL.md`.
+_Avoid_: Frame structure, anchors
+
+**Frame role**:
+One entry of a Frame plan (opening, ending, or a keyframe with a position), each a Slot with its own approved Frame.
+_Avoid_: Anchor
+
+**Shot plan**:
+A scene's ordered list of Shot ids, changed by Revisions, which also holds the plan-accepted Decision. The scope a shot-plan lock covers.
+_Avoid_: Shot list (as an object), storyboard
+
+**Continuity link**:
+A shot's declared relation to the previous shot (cut, continues, or same place with a new view), with an optionally pinned source Frame or Take end. Resolved by one rule for single and batch generation, and for the first shot of a scene against the previous scene's last shot.
+_Avoid_: Start continuity, chain
+
+**Segment**:
+One generator output, an immutable artifact made by one Generation and used to build a Take. A shot that fits one generator call has one Segment; a longer shot has several. Segments are kept and can be reused by a later Take.
+_Avoid_: Clip, part (as a model term), shot (a Segment is never a Shot)
+
+**Realization plan**:
+The code-computed plan, from a shot's target duration and the chosen model's limits, of how many Segments make the Take and how (native extension or stitching). Recorded on the Generations, never on the Shot.
+_Avoid_: Shot splitting (for a generator's limit)
+
+**Unanchored shot**:
+A shot with no anchor in the Master Narrative, such as an insert the creator adds. It gets the write-back or deviation choice once and never blocks.
+_Avoid_: Orphan shot
+
 **Take**:
-One generated video attempt for a shot. Takes accumulate and are never overwritten.
+One generated video attempt for a shot: one clip in the edit, built from one or more Segments. Takes accumulate and are never overwritten.
 _Avoid_: Video, render, generation (a take is a result, not the request)
 
 **Selected take**:
