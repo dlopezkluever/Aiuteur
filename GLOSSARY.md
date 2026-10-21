@@ -261,6 +261,18 @@ A moment requiring explicit creator action: accepting the Master Narrative, or i
 Non-blocking, always-unlockable protection on committed work, with friction proportional to the downstream work at risk. Locking is protection only; it is not approval, acceptance or selection.
 _Avoid_: Finalize, freeze
 
+**Mark final**:
+An optional, voluntary lock on a shot's chosen Take, for organization. It is not a commitment point: choosing a Take is a reversible selection, and a final Take can always be changed by unlocking, with nothing cascading. Defined in `docs/ux/TRUST-SIGNALS-AND-LOCKS.md`.
+_Avoid_: Approve take, finalize
+
+**Whisper**:
+The default way Aiuteur shows trust signals: a small, low-contrast indicator beside the affected work, with the reason and the creator's options revealed on demand. It never fades or restyles the work and never blocks.
+_Avoid_: Banner, alert, warning badge
+
+**Review-all tray**:
+An on-demand panel, opened from the quiet footer line, listing everything possibly out of date or awaiting a write-back or deviation choice, grouped by reason, with per-item and bulk Regenerate, It still fits and Keep. Never shown by default.
+_Avoid_: Dashboard, inbox
+
 **Meaningful spend**:
 Generation cost significant enough that the creator must initiate it and see the estimate first.
 
