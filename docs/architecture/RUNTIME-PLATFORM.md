@@ -200,7 +200,7 @@ Tools (error tracker, log sink, dashboards) are #75's. The runtime guarantees th
 | RT2 | No code depends on session state: tenant context is transaction-local, no session advisory locks, no `SET` without `LOCAL`, no reliance on prepared statements, `LISTEN` only in the wake adapter on a direct connection | Lint on `pg_advisory_lock(`, bare `SET`, `LISTEN` |
 | RT3 | Background work rebuilds Scope from the Account on the Job or event; the `scheduler` identity reads ids only; no superuser or service-role identity at runtime | Role grants checked in CI; the two-Account harness (#76) run through the worker and webhook paths |
 | RT4 | Events carry ids and statuses, not content | Schema test on the event type |
-| RT5 | No vendor-specific database or host feature (branching, pg_cron, pgmq, platform queues) at runtime; vendor SDKs live only in platform adapters (`BlobStore`, host configuration) | Import-boundary check |
+| RT5 | No vendor-specific database or host feature (branching, pg_cron, pgmq, platform queues, the Neon Data API, and roles created through the console, API or CLI, which Neon gives BYPASSRLS; roles are created only by SQL migration, see PERSISTENCE-AND-MEDIA.md) at runtime; vendor SDKs live only in platform adapters (`BlobStore`, host configuration) | Import-boundary check |
 | RT6 | A commit's correctness never depends on the worker being up; only liveness does | Conformance test: stop the worker, run commands, restart, assert state |
 
 ## 9. Reversal triggers
