@@ -284,6 +284,12 @@ _Avoid_: Validation (alone; validations are deterministic)
 One item the Interview still needs the creator to resolve, with its evidence and the AI-made choice that would result if skipped. "Sufficiently informed" means no material open question remains; it is advisory, and only the creator moves the project on.
 _Avoid_: Clarification
 
+**Ledger**:
+The side panel of the Interview listing Established Facts and AI-made choices, grouped by topic and editable in place. Defined in `docs/ux/INTAKE-AND-INTERVIEW.md`.
+
+**Interview topic**:
+A grouping of open questions (for example story, characters and locations, visual and audio style) that the creator can answer personally or delegate to Aiuteur. A guiding label, not a fixed schema; later decisions may supersede the list.
+
 ## Reference
 
 **Design reference**:
