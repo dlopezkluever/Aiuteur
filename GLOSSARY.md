@@ -302,6 +302,26 @@ The side panel of the Interview listing Established Facts and AI-made choices, g
 **Interview topic**:
 A grouping of open questions (for example story, characters and locations, visual and audio style) that the creator can answer personally or delegate to Aiuteur. A guiding label, not a fixed schema; later decisions may supersede the list.
 
+## Navigation
+
+**Outline** **(Wayfinder)**:
+The persistent left sidebar inside a project: the film as a document, listing every phase and every scene in one tree, with each phase's honest status. Opens whatever is selected in the centre workspace.
+_Avoid_: Phase rail, wizard, stage list
+
+**Board** **(Wayfinder)**:
+The whole-film centre view: every shot as one mark, one row per scene, coloured by derived status. Where scope is selected for batch actions.
+_Avoid_: Script Hub, dashboard
+
+**Scene workspace** **(Wayfinder)**:
+The main centre workspace for one scene, where the creator preps and makes its shots: shot list, plan, optional direction, frames, takes, optional audio. Shot work is never confined to a side drawer.
+
+**Peek** **(Wayfinder)**:
+A lightweight side preview of a shot or scene. It shows and links; it is never the only way to do anything and never initiates spend.
+_Avoid_: Drawer, inspector
+
+**Skipped by you** / **Bypassed** **(Wayfinder)**:
+Two honest, intentional phase states. Skipped: the creator declined a recommended phase. Bypassed: supplied material already covers it. Neither means missing or broken.
+
 ## Reference
 
 **Design reference**:
