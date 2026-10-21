@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>PROTOTYPE #61 · import matching rules (throwaway logic demo)</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!-- PROTOTYPE, THROWAWAY. Wayfinder #61. Question: do the storyboard / shot-list / previs matching rules behave sensibly
+     on cases that are hard to reason about on paper? Pure in-memory; the matcher below is the rule set being tested. -->
+<style>
+:root{--bg:#14161a;--panel:#1b1e24;--panel2:#22262e;--line:#2d323c;--tx:#d9dde4;--mut:#8a93a3;--acc:#e0b15a;--grn:#5fb98a;--red:#e0645c;--blue:#5b8def}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:13px/1.45 system-ui,sans-serif;padding:16px 22px 60px;max-width:1180px}
+h1{font-size:16px;margin:0 0 4px}h2{font-size:13px;margin:16px 0 6px;color:var(--acc)}.mut{color:var(--mut)}.small{font-size:12px}
+button{font:inherit;color:var(--tx);background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:5px 10px;cursor:pointer}button.on{border-color:var(--acc);color:#f3d9a0}button.pri{background:#3a2f17;border-color:var(--acc)}
+select{font:inherit;background:var(--bg);color:var(--tx);border:1px solid var(--line);border-radius:5px;padding:3px}
+.cases{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}.cols{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+table{width:100%;border-collapse:collapse;font-size:12px}td,th{border-bottom:1px solid var(--line);padding:4px 6px;text-align:left;vertical-align:top}th{color:var(--mut);font-weight:500}
+.k{display:inline-block;border-radius:10px;padding:0 8px;font-size:11px;border:1px solid}.k.exact{color:var(--grn);border-color:var(--grn)}.k.strong{color:#8fd0a8;border-color:#5a8f72}.k.ambiguous{color:var(--acc);border-color:var(--acc)}.k.none{color:var(--red);border-color:var(--red)}.k.unchanged{color:var(--mut);border-color:var(--line)}
+.ev{color:var(--mut);font-size:11px}pre{background:#0e0f12;border:1px solid var(--line);border-radius:6px;padding:8px;font-size:11px;white-space:pre-wrap}
+.sh{padding:2px 0}.fr{color:var(--acc)}
+</style></head><body>
+<h1>Import matching · rules playground <span class="mut small">(PROTOTYPE, throwaway)</span></h1>
+<div class="mut small">Left: what the project has. Right: what arrived. The matcher is deterministic (the AI-assist step is only simulated by the “Ask AI to propose” button on ambiguous rows). Pick a case, read the evidence, change an ambiguous row, press Apply.</div>
+<div class="cases" id="cases"></div>
+<div id="story" class="small" style="margin:4px 0 10px"></div>
+<div class="cols"><div class="card"><div class="small mut">PROJECT (shots as they are now)</div><div id="proj"></div></div>
+<div class="card"><div class="small mut">ARRIVED</div><div id="incoming"></div></div></div>
+<h2>Import review <span class="mut small">· one list; only what you could not already have intended is asked</span></h2>
+<div class="card"><div id="review"></div><div id="applybar" style="margin-top:8px"></div></div>
+<h2>If applied</h2><div class="card"><pre id="result">Press Apply.</pre></div>
+
+<script>
+const SCENES=[
+ {id:'scn_a',n:1,heading:'INT. BRIDGE – DAWN'},
+ {id:'scn_b',n:2,heading:'INT. KITCHEN – NIGHT'},
+ {id:'scn_c',n:3,heading:'INT. STAIRS – NIGHT'}];
+const SHOTS=()=>[
+ {id:'sh_11',scene:'scn_a',action:'Marcus walks onto the bridge, fog rolling in.',dlg:[]},
+ {id:'sh_12',scene:'scn_a',action:'Close on Marcus’s boots on wet planks.',dlg:[]},
+ {id:'sh_21',scene:'scn_b',action:'Marcus enters the kitchen, shaking rain from his coat.',dlg:['Sorry.']},
+ {id:'sh_22',scene:'scn_b',action:'Elena looks up from the table.',dlg:['You’re late.'],frames:true},
+ {id:'sh_23',scene:'scn_b',action:'Close on the letter between them.',dlg:[]},
+ {id:'sh_31',scene:'scn_c',action:'Marcus climbs the stairs, hand on the rail.',dlg:[]},
+ {id:'sh_32',scene:'scn_c',action:'Marcus pauses at the landing and listens.',dlg:[],splitFrom:'sh_31'},
+ {id:'sh_33',scene:'scn_c',action:'Elena’s shadow crosses the door.',dlg:[]}];
+const label=(s,shots)=>{const sc=SCENES.find(x=>x.id===s.scene);const sib=shots.filter(x=>x.scene===s.scene);return sc.n+String.fromCharCode(65+sib.indexOf(s))};
+const CASES={
+ roundtrip:{t:'1 · CineBlock round trip',kind:'previs package',story:'Shot brief carried Aiuteur shot ids; CineBlock echoed them. Panel “B” of the package is for a shot that was merged into another after the brief was exported.',
+  items:[{k:'p1',label:'2B',pid:'sh_22',text:'Elena at table, medium'},{k:'p2',label:'2C',pid:'sh_23',text:'Letter close'},{k:'p3',label:'x',pid:'sh_ZZ',text:'?' }]},
+ clean:{t:'2 · Clean storyboard',kind:'storyboard',story:'Panels are named 1A, 1B, 2A…; each carries its scene heading and a caption. Everything lines up.',
+  items:[{k:'1A',label:'1A',heading:'INT. BRIDGE – DAWN',text:'Marcus walks onto bridge, fog'},{k:'1B',label:'1B',heading:'INT. BRIDGE – DAWN',text:'Close on boots, wet planks'},{k:'2A',label:'2A',heading:'INT. KITCHEN – NIGHT',text:'Marcus enters kitchen shaking rain from coat',dlg:['Sorry.']},{k:'2B',label:'2B',heading:'INT. KITCHEN – NIGHT',text:'Elena looks up from table',dlg:['You’re late.']},{k:'2C',label:'2C',heading:'INT. KITCHEN – NIGHT',text:'Close on the letter'}]},
+ shifted:{t:'3 · Labels have drifted',kind:'storyboard',story:'The storyboard was drawn when the kitchen was scene 1. A scene has since been inserted before it, so “1A” now names a bridge shot. Labels are derived from order, never identity.',
+  items:[{k:'1A',label:'1A',heading:'INT. KITCHEN – NIGHT',text:'Marcus enters, shaking rain off coat',dlg:['Sorry.']},{k:'1B',label:'1B',heading:'INT. KITCHEN – NIGHT',text:'Elena looks up',dlg:['You’re late.']},{k:'1C',label:'1C',heading:'INT. KITCHEN – NIGHT',text:'Close on letter'}]},
+ manyone:{t:'4 · Two panels, one shot',kind:'storyboard',story:'The storyboard has a start panel and an end panel (2B, 2C) for what the project treats as one continuous moment: the letter close-up and the table.',
+  items:[{k:'2B',label:'2B',heading:'INT. KITCHEN – NIGHT',text:'Close on the letter between them'},{k:'2C',label:'2C',heading:'INT. KITCHEN – NIGHT',text:'Close on the letter, Elena’s hand reaches it'}]},
+ split:{t:'5 · One panel, shot since split',kind:'storyboard',story:'Panel 3A showed the whole staircase beat. The project later split that shot in two (landing pause is the second part).',
+  items:[{k:'3A',label:'3A',heading:'INT. STAIRS – NIGHT',text:'Marcus climbs stairs, pauses at landing, listening'}]},
+ list:{t:'6 · Shot list with extra and missing rows',kind:'shot list',story:'A production shot list (CSV). One row has no counterpart; shot 2C of the project has no row. One row matches a shot that has frames already.',
+  items:[{k:'r1',label:'2/1',heading:'INT. KITCHEN – NIGHT',text:'Marcus enters, shakes rain from coat',dlg:['Sorry.'],cam:'WS, eye level, static',dur:5},{k:'r2',label:'2/2',heading:'INT. KITCHEN – NIGHT',text:'Elena looks up from the table',dlg:['You’re late.'],cam:'MS, eye level',dur:4},{k:'r3',label:'2/3',heading:'INT. KITCHEN – NIGHT',text:'Insert: clock on the wall, 3 a.m.',cam:'CU, insert',dur:2}]},
+ reimport:{t:'7 · Re-import of a revised storyboard',kind:'storyboard',story:'Imported last week (labels 2A, 2B now recorded on the shots). The artist redrew panel 2B only; the file also repeats 2A byte-identical.',
+  pre:{sh_21:{label:'2A',hash:'h1'},sh_22:{label:'2B',hash:'h2'}},
+  items:[{k:'2A',label:'2A',hash:'h1',heading:'INT. KITCHEN – NIGHT',text:'Marcus enters kitchen'},{k:'2B',label:'2B',hash:'h2b',heading:'INT. KITCHEN – NIGHT',text:'Elena looks up from table'}]},
+ vague:{t:'8 · Not enough signal',kind:'storyboard',story:'An unlabelled sketch with no heading and a vague caption, plus a panel whose caption fits three shots equally.',
+  items:[{k:'u1',label:'',text:'hands, close, cut-in'},{k:'u2',label:'',heading:'INT. STAIRS – NIGHT',text:'Marcus, stairs'}]}
+};
+/* ---------- the rule set under test ---------- */
+const STOP=new Set('a an the of on in at and to from with by is her his their it as'.split(' '));
+const toks=s=>new Set((s||'').toLowerCase().replace(/[^a-z0-9’' ]/g,' ').split(/\s+/).filter(w=>w&&!STOP.has(w)));
+const jac=(a,b)=>{if(!a.size||!b.size)return 0;let i=0;a.forEach(x=>b.has(x)&&i++);return i/Math.min(a.size,b.size)};
+function matchAll(items,shots,pre){
+ const out=[];
+ items.forEach(it=>{
+  const r={it,class:'none',cands:[],ev:[],shot:null};
+  /* 1 round-trip id */
+  if(it.pid){const s=shots.find(x=>x.id===it.pid);
+    if(s){r.class='exact';r.shot=s.id;r.ev.push('shot id echoed from the shot brief');out.push(r);return}
+    r.ev.push('echoed id not found among active shots (retired or merged); no guess made');}
+  /* 2 recorded external label from a prior import of this source */
+  const prior=pre&&Object.entries(pre).find(([id,p])=>p.label===it.label);
+  if(prior){r.shot=prior[0];r.class=(prior[1].hash===it.hash)?'unchanged':'exact';r.changed=prior[1].hash!==it.hash;
+    r.ev.push('external label “'+it.label+'” already recorded on this shot by an earlier import');r.ev.push(r.changed?'image changed → new Revision of the reference; old media kept':'identical media → nothing to do');out.push(r);return}
+  /* 3 scored signals */
+  const scn=it.heading&&SCENES.find(s=>s.heading===it.heading);
+  const pool=scn?shots.filter(s=>s.scene===scn.id):shots;
+  const scored=pool.map(s=>{let sc=0,ev=[];
+    const d=(it.dlg||[]).length?(it.dlg.filter(l=>s.dlg.includes(l)).length/it.dlg.length):0;if(d){sc+=5*d;ev.push('dialogue line verbatim ×'+Math.round(d*(it.dlg||[]).length))}
+    const j=jac(toks(it.text),toks(s.action+' '+s.dlg.join(' ')));if(j>0){sc+=3*j;ev.push('text overlap '+j.toFixed(2))}
+    if(scn){sc+=1;ev.push('scene heading')}
+    const lab=label(s,shots);if(it.label&&it.label.replace('/','')===lab){sc+=.5;ev.push('label equals current label “'+lab+'” (weak: labels are derived)')}
+    return{s,sc,ev}}).sort((a,b)=>b.sc-a.sc);
+  r.cands=scored.slice(0,3);const b=scored[0],sec=scored[1];
+  if(b&&b.sc>=3.5&&(!sec||b.sc-sec.sc>=1.5)){r.class='strong';r.shot=b.s.id;r.ev=r.ev.concat(b.ev);
+    const lab=label(b.s,shots);if(it.label&&it.label.replace('/','')!==lab&&it.label)r.ev.push('NOTE: item label “'+it.label+'” ≠ current label “'+lab+'”; content wins, label stored as external label only')}
+  else if(b&&b.sc>=1.6){r.class='ambiguous';r.ev=r.ev.concat(['best candidates are close or weak: '+scored.slice(0,3).map(x=>label(x.s,shots)+' ('+x.sc.toFixed(1)+')').join(', ')]);r.shot=null}
+  else{r.class='none';r.ev.push('no candidate above threshold; nothing guessed')}
+  out.push(r)});
+ /* 4 structure: many-to-one / one-to-many are never auto-resolved */
+ const by={};out.forEach(r=>{if(r.shot&&r.class!=='unchanged'){(by[r.shot]=by[r.shot]||[]).push(r)}});
+ Object.entries(by).forEach(([sid,rs])=>{if(rs.length>1){rs.forEach((r,i)=>{r.class='ambiguous';r.struct='many-to-one';r.ev.push('structure: '+rs.length+' items point at one shot; proposal: first → opening role, last → ending role');r.proposed=i===0?'opening':'ending';})}});
+ out.forEach(r=>{if(r.class==='strong'||r.class==='ambiguous'){const c=r.cands;if(c.length>1){const rel=c.find(x=>x.s.splitFrom===r.shot||(c[0].s.splitFrom===x.s.id));
+   if(rel&&r.class==='strong'&&c[1].sc>=2.5&&r.struct==null){r.class='ambiguous';r.struct='one-to-many';r.ev.push('structure: shot '+c[0].s.id+' and '+c[1].s.id+' are parts of one split; the panel may cover both')}}}});
+ return out}
+/* ---------- UI ---------- */
+let cur='roundtrip',choices={};
+function shotsView(shots,pre){return SCENES.map(sc=>`<div class="sh"><b>${sc.n} · ${sc.heading}</b></div>`+shots.filter(s=>s.scene===sc.id).map(s=>`<div class="small sh">&nbsp;&nbsp;${label(s,shots)} <span class="mut">${s.id}</span> ${s.frames?'<span class="fr">◫ has frames</span> ':''}${s.splitFrom?'<span class="mut">(split from '+s.splitFrom+')</span> ':''}${pre&&pre[s.id]?'<span class="mut">[ext '+pre[s.id].label+']</span> ':''}— ${s.action}${s.dlg.length?' <i>“'+s.dlg.join('” “')+'”</i>':''}</div>`).join('')).join('')}
+function render(){
+ const C=CASES[cur];let shots=SHOTS();
+ if(cur==='roundtrip'){shots=shots.filter(s=>s.id!=='sh_23')}
+ document.getElementById('cases').innerHTML=Object.entries(CASES).map(([k,c])=>`<button class="${k===cur?'on':''}" onclick="cur='${k}';choices={};render()">${c.t}</button>`).join('');
+ document.getElementById('story').innerHTML='<b>'+C.kind+'.</b> '+C.story;
+ document.getElementById('proj').innerHTML=shotsView(shots,C.pre);
+ document.getElementById('incoming').innerHTML='<table><tr><th>item</th><th>label</th><th>content</th></tr>'+C.items.map(i=>`<tr><td>${i.k}</td><td>${i.label||'<span class=mut>none</span>'}</td><td class="small">${i.heading?'<span class=mut>'+i.heading+'</span><br>':''}${i.pid?'<span class=mut>id '+i.pid+'</span><br>':''}${i.text||''}${i.dlg?' <i>“'+i.dlg.join('” “')+'”</i>':''}${i.cam?'<br><span class=mut>'+i.cam+' · '+i.dur+'s</span>':''}</td></tr>`).join('')+'</table>';
+ const res=matchAll(C.items,shots,C.pre);window._res=res;window._shots=shots;
+ const needs=r=>r.class==='ambiguous'||r.class==='none';
+ const opts=r=>{const pool=SHOTS().filter(s=>shots.includes(s)).map(s=>`<option value="${s.id}" ${choices[r.it.k]===s.id?'selected':''}>${label(s,shots)} ${s.id}</option>`).join('');
+   return `<select onchange="choices['${r.it.k}']=this.value;render()"><option value="">— unresolved —</option>${pool}<option value="__new" ${choices[r.it.k]==='__new'?'selected':''}>${cur==='list'||true?'make a new shot (draft)':''}</option><option value="__skip" ${choices[r.it.k]==='__skip'?'selected':''}>leave out</option></select> <button class="small" onclick="ai('${r.it.k}')">Ask AI to propose</button>`};
+ document.getElementById('review').innerHTML='<table><tr><th>item</th><th>certainty</th><th>proposal</th><th>evidence</th></tr>'+res.map(r=>`<tr><td>${r.it.k}<div class="ev">${r.it.label||''}</div></td><td><span class="k ${r.class}">${r.class}</span>${r.struct?'<div class="ev">'+r.struct+'</div>':''}</td>
+  <td>${needs(r)?opts(r):(r.class==='unchanged'?'<span class="mut">skip (unchanged)</span>':'→ '+label(shots.find(s=>s.id===r.shot),shots)+' <span class="mut">'+r.shot+'</span>'+(r.proposed?` as <b>${r.proposed}</b> role`:'')+(shots.find(s=>s.id===r.shot).frames?' <span class="fr">◫ shot has frames</span>':''))}</td>
+  <td class="ev">${r.ev.join('<br>')}</td></tr>`).join('')+'</table>';
+ const unresolved=res.filter(r=>needs(r)&&!choices[r.it.k]).length;
+ document.getElementById('applybar').innerHTML=`<button class="pri" onclick="apply()">Apply${unresolved?` (${unresolved} unresolved stay unmatched)`:''}</button> <span class="mut small">Ambiguity is never auto-picked; leaving it unresolved is allowed and visible.</span>`;
+ document.getElementById('result').textContent='Press Apply.'}
+function ai(k){const r=window._res.find(x=>x.it.k===k);const c=r.cands[0];choices[k]=c&&c.sc>=1.6?c.s.id:'__new';
+ render()}
+function apply(){const C=CASES[cur],shots=window._shots,L=[];
+ window._res.forEach(r=>{const k=r.it.k;let target=r.class==='strong'||r.class==='exact'?r.shot:(r.class==='unchanged'?null:choices[k]);
+  if(r.class==='unchanged'){L.push(`${k}: unchanged → skipped`);return}
+  if(!target||target===''){L.push(`${k}: left UNMATCHED (kept in the import tray; nothing attached, nothing created)`);return}
+  if(target==='__skip'){L.push(`${k}: left out by you`);return}
+  if(target==='__new'){L.push(`${k}: ${C.kind==='shot list'?'NEW draft shot (provenance imported, external label “'+r.it.label+'”, anchor proposed by text, else unanchored)':'NEW shot created only because you chose it; panel attached as its opening reference'}`);return}
+  const s=shots.find(x=>x.id===target);
+  if(C.kind==='shot list'){L.push(`${k}: external label “${r.it.label}” recorded on ${s.id}; camera/duration offered as Options (never overwrite); action text untouched${s.frames?' · ◫ shot has frames: composition not changed by a list, nothing marked':''}`)}
+  else L.push(`${k}: ${r.changed?'NEW Revision of the reference on':'attach as layout composition reference ('+(r.proposed||'opening')+' role) on'} ${label(s,shots)} ${s.id}${r.changed?'; old media kept':''}${s.frames?' · ◫ its frames will get a quiet “possibly out of date” whisper (composition slice changed)':''}${r.it.label?' · external label “'+r.it.label+'” recorded':''}`)});
+ if(C.kind==='shot list'){const used=new Set(window._res.map(r=>r.class==='strong'||r.class==='exact'?r.shot:choices[r.it.k]));shots.filter(s=>!used.has(s.id)&&s.scene==='scn_b').forEach(s=>L.push(`project shot ${label(s,shots)} has no row: listed, NEVER retired`))}
+ L.push('','One action group. Undo retires the attachments and any created shots; the source file stays as Media. No story text changed.');
+ document.getElementById('result').textContent=L.join('\n')}
+render();
+</script></body></html>

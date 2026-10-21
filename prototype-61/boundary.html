@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<title>PROTOTYPE #61 · CineBlock boundary + composition reference (throwaway)</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!--
+ PROTOTYPE, THROWAWAY. Wayfinder #61. Question: how do external shot-planning inputs enter shots?
+ Three variants of the CineBlock integration boundary, switchable with ?variant=A|B|C (or arrows):
+   A  File exchange   (CineBlock stays a separate app; packages move as files)
+   B  Linked app      (CineBlock opens from the shot with a launch token; captures come back to the shot)
+   C  Embedded        (CineBlock stage mounts inside the scene workspace)
+ All three share the same composition-reference round trip. No backend, no persistence, no real generation.
+-->
+<style>
+:root{--bg:#14161a;--panel:#1b1e24;--panel2:#22262e;--line:#2d323c;--tx:#d9dde4;--mut:#8a93a3;--acc:#e0b15a;--blue:#5b8def;--red:#e0645c;--grn:#5fb98a}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:13px/1.45 system-ui,sans-serif;height:100vh;display:flex;flex-direction:column}
+button{font:inherit;color:var(--tx);background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:5px 10px;cursor:pointer}
+button:hover{border-color:#4a5262}button.pri{background:#3a2f17;border-color:var(--acc);color:#f3d9a0}
+button.sm{padding:2px 7px;font-size:12px}select,input[type=text]{font:inherit;background:var(--bg);color:var(--tx);border:1px solid var(--line);border-radius:5px;padding:3px 6px}
+#top{height:34px;border-bottom:1px solid var(--line);display:flex;align-items:center;padding:0 14px;gap:18px;color:var(--mut);font-size:12px}
+#top b{color:var(--tx)}#main{flex:1;display:flex;min-height:0}
+#outline{width:200px;border-right:1px solid var(--line);padding:10px;overflow:auto;color:var(--mut);font-size:12px}
+#outline .h{margin:10px 0 3px;font-size:10px;letter-spacing:.08em;text-transform:uppercase}#outline .i{padding:2px 6px;border-radius:4px}#outline .i.on{background:var(--panel2);color:var(--tx)}
+#centre{flex:1;overflow:auto;padding:16px 336px 80px 22px}
+.tabs{display:flex;gap:6px;margin:8px 0 14px}.tab{padding:5px 12px;border:1px solid var(--line);border-radius:6px;cursor:pointer;color:var(--mut)}.tab.on{background:var(--panel2);color:var(--tx);border-color:#4a5262}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin:0 0 12px}.card h3{margin:0 0 8px;font-size:13px}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.mut{color:var(--mut)}.small{font-size:12px}
+.chip{display:inline-block;border:1px solid var(--line);border-radius:10px;padding:0 8px;font-size:11px;color:var(--mut)}.chip.acc{border-color:var(--acc);color:var(--acc)}.chip.grn{border-color:var(--grn);color:var(--grn)}
+.thumb{width:160px;height:90px;border-radius:5px;border:1px solid var(--line);display:block;background:#0e0f12}
+.refs{display:flex;gap:12px;flex-wrap:wrap}.ref{width:176px}.ref .cap{font-size:11px;color:var(--mut);margin-top:3px}
+.dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#8a7b58;margin-left:6px;cursor:help}
+pre{background:#0e0f12;border:1px solid var(--line);border-radius:6px;padding:8px;overflow:auto;font-size:11px;max-height:220px;margin:6px 0}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}.lbl{font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
+.pkg li{margin:2px 0}.warn{color:#d8b36a}
+#sw{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);background:#fff;color:#111;border-radius:22px;padding:5px 8px;display:flex;gap:10px;align-items:center;box-shadow:0 4px 18px #000a;z-index:50;font-weight:600}
+#sw button{background:#eee;color:#111;border:none;border-radius:14px;padding:3px 10px}
+#note{position:fixed;right:14px;top:44px;width:300px;background:#232018;border:1px solid #5a4c26;border-radius:8px;padding:10px 12px;font-size:12px;z-index:40}
+#note h4{margin:0 0 4px;color:var(--acc);font-size:12px}#note ul{margin:4px 0 0 16px;padding:0}
+.win{border:1px solid #3b4252;border-radius:8px;overflow:hidden;background:#0b0c0f;margin:8px 0}.win .bar{background:#262a33;padding:5px 10px;font-size:11px;color:var(--mut);display:flex;gap:10px}
+.win .bar .url{flex:1;background:#14161a;border-radius:10px;padding:0 10px}.win .body{padding:10px}
+canvas.room{width:100%;max-width:640px;height:auto;background:#0e1014;border-radius:6px;cursor:grab;display:block}
+.toast{position:fixed;left:50%;top:48px;transform:translateX(-50%);background:#1d2a22;border:1px solid var(--grn);padding:6px 14px;border-radius:8px;z-index:60}
+</style></head><body>
+<div id="top"><span><b>Aiuteur</b> · Short film “Rain Letter”</span><span>Scene 7 · runtime 0:34 / target 0:45</span><span id="flagline" class="mut"></span></div>
+<div id="main">
+ <div id="outline">
+  <div class="h">Story</div><div class="i">Input</div><div class="i">Master Narrative</div>
+  <div class="h">World</div><div class="i">World Definition</div>
+  <div class="h">Scenes</div><div class="i">6 · The bridge</div><div class="i on">7 · Kitchen, night</div><div class="i">8 · Stairs</div>
+  <div class="h">Output</div><div class="i">Review &amp; Export</div>
+  <div style="margin-top:20px" class="small">Throwaway prototype. Navigation is the ratified Outline + centre workspace; nothing here is final UI.</div>
+ </div>
+ <div id="centre"></div>
+</div>
+<div id="note"></div>
+<div id="sw"><button id="prev">◀</button><span id="vlabel"></span><button id="next">▶</button></div>
+
+<script>
+const VARIANTS={A:'File exchange',B:'Linked app',C:'Embedded'};
+const NOTES={
+ A:{t:'A · File exchange',l:['CineBlock stays its own app. Aiuteur hands out a “shot brief”, CineBlock hands back a “previs package”.','Works the day the core loop works; nothing to host or secure beyond the import.','The round trip is two manual file steps. Re-opening a blocking means finding the old file.']},
+ B:{t:'B · Linked app',l:['CineBlock opens from the shot with a one-shot launch token naming the shot; captures post straight back.','Same package contract as A underneath; the link only replaces the two manual steps.','Needs CineBlock to learn Aiuteur sign-in and an upload endpoint; Aiuteur hosts nothing of CineBlock.']},
+ C:{t:'C · Embedded',l:['CineBlock’s stage mounts inside the scene workspace; no window switch, captures land instantly.','Aiuteur now ships and maintains the 3D stack, the Marble client and its world-generation spend.','Largest build, and it lands inside the core loop’s most crowded screen.']}
+};
+const S={
+ shots:[
+  {id:'sh_7a1',label:'7A',action:'Marcus enters, shaking rain from his coat.',cam:'Wide',refs:[],frames:[]},
+  {id:'sh_7b2',label:'7B',action:'Elena looks up from the table. “You’re late.”',cam:'Medium',refs:[],frames:[]},
+  {id:'sh_7c3',label:'7C',action:'Close on the letter between them.',cam:'Close-up',refs:[],frames:[]}],
+ cur:1,tab:'plan',editor:null,cb:null,toast:null,
+ presences:['Marcus (Look: rain coat)','Elena (Look: base)','Kitchen (view: north wall)']
+};
+const q=new URLSearchParams(location.search);let V=(q.get('variant')||'A').toUpperCase();if(!VARIANTS[V])V='A';
+const $=s=>document.querySelector(s),el=(h)=>{const d=document.createElement('div');d.innerHTML=h.trim();return d.firstChild};
+const cur=()=>S.shots[S.cur];
+/* ---------- fake imagery ---------- */
+function mk(w,h,fn){const c=document.createElement('canvas');c.width=w;c.height=h;fn(c.getContext('2d'),w,h);return c.toDataURL()}
+function room(ctx,w,h,pl,opts={}){ctx.fillStyle='#161a21';ctx.fillRect(0,0,w,h);ctx.fillStyle='#1d222b';ctx.fillRect(0,0,w,h*.55);ctx.fillStyle='#10131a';ctx.fillRect(0,h*.55,w,h*.45);
+ ctx.strokeStyle='#2c3340';for(let i=0;i<8;i++){ctx.beginPath();ctx.moveTo(w*i/7,h*.55);ctx.lineTo(w/2+(w*i/7-w/2)*2.2,h);ctx.stroke()}
+ ctx.fillStyle='#3a3f4a';ctx.fillRect(w*.38,h*.5,w*.28,h*.08);
+ pl.forEach(p=>{const x=p.x*w,y=p.y*h,s=p.s||1;ctx.fillStyle=p.c;ctx.beginPath();ctx.arc(x,y-34*s,9*s,0,7);ctx.fill();ctx.fillRect(x-8*s,y-24*s,16*s,34*s);if(opts.names){ctx.fillStyle='#cfd3da';ctx.font=(10*s+2)+'px sans-serif';ctx.fillText(p.n,x-12,y+22*s)}})}
+const PL0=()=>[{n:'Marcus',c:'#5b8def',x:.28,y:.78,s:1.4},{n:'Elena',c:'#e0645c',x:.66,y:.62,s:1}];
+function sketchImg(){return mk(320,180,(c,w,h)=>{c.fillStyle='#f1ece0';c.fillRect(0,0,w,h);c.strokeStyle='#333';c.lineWidth=2;c.strokeRect(6,6,w-12,h-12);c.beginPath();c.moveTo(20,120);c.lineTo(300,120);c.stroke();c.fillRect(190,88,80,32);
+ c.beginPath();c.arc(90,70,14,0,7);c.stroke();c.beginPath();c.moveTo(90,84);c.lineTo(90,125);c.moveTo(90,95);c.lineTo(70,115);c.moveTo(90,95);c.lineTo(112,108);c.stroke();
+ c.beginPath();c.arc(232,60,10,0,7);c.stroke();c.beginPath();c.moveTo(232,70);c.lineTo(232,90);c.stroke();c.fillStyle='#777';c.font='11px sans-serif';c.fillText('A',84,150);c.fillText('B',228,150);c.fillText('MED 2-shot, eye level',20,24)})}
+function frameImg(i){return mk(320,180,(c,w,h)=>{const g=c.createLinearGradient(0,0,w,h);g.addColorStop(0,['#2a3140','#31384a','#232a38'][i]);g.addColorStop(1,'#0e1116');c.fillStyle=g;c.fillRect(0,0,w,h);c.fillStyle='#46506a';c.fillRect(190+i*8,100,80,30);c.fillStyle='#c9a37e';c.beginPath();c.arc(96-i*6,66,14,0,7);c.fill();c.fillStyle='#5b6b86';c.fillRect(82-i*6,80,28,60);c.fillStyle='#c9a37e';c.beginPath();c.arc(236,70,11,0,7);c.fill();c.fillStyle='#8c5a5a';c.fillRect(226,82,20,46);c.fillStyle='#ffffff55';c.font='10px sans-serif';c.fillText('stub frame attempt '+(i+1),8,172)})}
+/* ---------- CineBlock stage (shared by A,B,C; this is a stub of the creator's MVP) ---------- */
+function stageHTML(){return `<canvas class="room" id="room" width="640" height="360"></canvas>
+ <div class="row small" style="margin-top:6px"><span class="mut">Drag the mannequins. The framed box is the viewfinder.</span>
+ <button class="sm" data-a="cap" data-ft="start">● Capture start</button><button class="sm" data-a="cap" data-ft="end">● Capture end</button>
+ <span class="mut">captured: <b id="capn">${S.cb.caps.length}</b></span></div>`}
+function stageInit(){const cv=$('#room');if(!cv)return;const ctx=cv.getContext('2d'),W=640,H=360;
+ const vf={x:60,y:34,w:520,h:292};
+ function draw(){room(ctx,W,H,S.cb.pl.map(p=>({...p,x:p.x,y:p.y})),{names:true});ctx.strokeStyle='#e0b15a';ctx.lineWidth=2;ctx.strokeRect(vf.x,vf.y,vf.w,vf.h);ctx.fillStyle='#e0b15a';ctx.font='10px sans-serif';ctx.fillText('16:9 viewfinder',vf.x+4,vf.y-4)}
+ let drag=null;const pos=e=>{const r=cv.getBoundingClientRect();return{x:(e.clientX-r.left)/r.width,y:(e.clientY-r.top)/r.height}};
+ cv.onmousedown=e=>{const m=pos(e);let best=null,bd=.02;S.cb.pl.forEach(p=>{const d=(p.x-m.x)**2+((p.y-.08)-m.y)**2;if(d<bd+.03)best=p;});drag=best};
+ window.onmousemove=e=>{if(!drag)return;const m=pos(e);drag.x=Math.max(.05,Math.min(.95,m.x));drag.y=Math.max(.3,Math.min(.95,m.y+.07));draw()};
+ window.onmouseup=()=>drag=null;draw();S.cb.draw=draw;S.cb.snap=()=>mk(320,180,(c)=>{c.drawImage(cv,vf.x,vf.y,vf.w,vf.h,0,0,320,180)});}
+function newCB(){return{pl:PL0(),caps:[],sent:false,reopened:false}}
+function capture(ft){const i=S.cb.snap();S.cb.caps.push({ft,img:i,pl:JSON.parse(JSON.stringify(S.cb.pl)),hero:!S.cb.caps.some(c=>c.ft===ft)});$('#capn').textContent=S.cb.caps.length;const t=el(`<div class="small mut" style="margin-top:6px">captured ${ft} · hero ${S.cb.caps.filter(c=>c.ft===ft).length===1?'yes':'alternate'}</div>`);$('#centre').querySelector('.win,.stagehost')?.appendChild(t)}
+function packageJSON(){const s=cur();return {format:'aiuteur-previs-package',version:2,source:{tool:'cineblock',version:'0.9'},launch:{project:'proj_rainletter',scene:'scn_07',issued:'2026-10-21T15:02Z'},aspectRatio:'16:9',
+ shots:[{ref:s.id,name:s.label,action:s.action,camera:{type:s.cam,distance:'medium',height:'eye_level',movement:'static'},durationExplicit:false,
+  placeholders:S.cb.pl.map((p,i)=>({id:'ph'+(i+1),kind:'character',name:p.n,color:p.c,placement:{x:+p.x.toFixed(2),y:+p.y.toFixed(2)}})),
+  captures:{start:{hero:S.cb.caps.find(c=>c.ft==='start'&&c.hero)?'captures/'+s.label+'-start-01.png':null,alternates:[]},end:{hero:S.cb.caps.find(c=>c.ft==='end'&&c.hero)?'captures/'+s.label+'-end-01.png':null,alternates:[]}},
+  scene_state:'state/'+s.label+'.json (opaque, for re-open)'}]}}
+/* ---------- importing / attaching ---------- */
+function attachCaptures(){const s=cur();const arrived=S.cb.caps.filter(c=>c.hero);
+ arrived.forEach(c=>s.refs.push({id:'ref'+Math.random().toString(36).slice(2,6),img:c.img,src:'CineBlock capture',kind:'layout',target:c.ft==='start'?'opening':'ending',uses:['framing','staging & pose'],map:S.cb.pl.map(p=>({ph:p.n,to:p.n==='Marcus'?'Marcus':p.n==='Elena'?'Elena':'generic extra',ai:false})),alts:S.cb.caps.filter(x=>x.ft===c.ft&&!x.hero).length,meta:true,imported:true}));
+ S.cb.sent=false;S.toast=arrived.length?`${arrived.length} capture${arrived.length>1?'s':''} attached to ${s.label} as composition references`:'No captures to attach';setTimeout(()=>{S.toast=null;render()},2600);render()}
+/* ---------- renderers ---------- */
+function refCard(r,i){return `<div class="ref"><img class="thumb" src="${r.img}"><div class="cap"><b>${r.target}</b> · ${r.kind} <span class="chip ${r.imported?'acc':''}">${r.src}</span></div>
+ <div class="cap">uses: ${r.uses.join(', ')||'—'}</div><div class="cap">mapping: ${r.map.map(m=>m.ph+'→'+m.to).join('; ')||'—'}</div>${r.alts?`<div class="cap">+${r.alts} alternate capture${r.alts>1?'s':''} kept</div>`:''}
+ <div class="row" style="margin-top:4px"><button class="sm" data-a="retire" data-i="${i}">Retire</button><button class="sm" data-a="replace" data-i="${i}">Replace…</button></div></div>`}
+function refsCard(){const s=cur();return `<div class="card"><h3>Composition references <span class="mut small">· the shot’s CORE slot; layout guides only, never identity</span></h3>
+ <div class="refs">${s.refs.map(refCard).join('')||'<span class="mut">None. A shot never needs one.</span>'}</div>
+ <div class="row" style="margin-top:10px"><button class="pri" data-a="addref">+ Add composition reference</button>${boundaryButtons()}<button data-a="imp" data-t="storyboard">Import storyboard…</button><button data-a="imp" data-t="shot list">Import shot list…</button></div></div>`}
+function boundaryButtons(){
+ if(V==='A')return `<button data-a="brief">Export shot brief for CineBlock</button><button data-a="pkg">Import previs package…</button>`;
+ if(V==='B')return `<button class="pri" data-a="launch">Block this shot in CineBlock ↗</button><button data-a="pkg">Import previs package…</button>`;
+ return `<button class="pri" data-a="embed">Block this shot (CineBlock stage)</button><button data-a="pkg">Import previs package…</button>`}
+function editor(){const e=S.editor;if(!e)return'';const s=cur();
+ const steps=['Media','Role','Subjects','What gets sent','Frame check'];
+ let b='';
+ if(e.step===0)b=`<p>Pick what to attach (stubs for real files):</p><div class="row"><button data-a="ed-media" data-m="sketch">Sketch of 7B (layout)</button><button data-a="ed-media" data-m="clip">Reference clip: “rain entrance” (footage)</button></div>`;
+ if(e.step===1)b=`<div class="row"><img class="thumb" src="${e.img}"><div>
+  <div class="lbl">Used for</div><select id="e-target"><option>whole shot</option><option selected>opening frame</option><option>ending frame</option></select>
+  <div class="lbl" style="margin-top:6px">Kind</div><select id="e-kind"><option value="layout" ${e.kind==='layout'?'selected':''}>layout (made for this shot)</option><option value="footage" ${e.kind==='footage'?'selected':''}>footage (recreate it; subjects replaced)</option></select>
+  <div class="lbl" style="margin-top:6px">Take from it</div>${['framing','staging & pose','camera movement','lighting & style'].map(u=>`<label style="margin-right:10px"><input type="checkbox" class="e-use" value="${u}" ${e.uses.includes(u)?'checked':''}> ${u}</label>`).join('')}
+  </div></div><p class="mut small">Defaults follow the kind. The reference’s background does not replace the Kitchen view unless you pick it here.</p>`;
+ if(e.step===2)b=`<p>Everything drawn in the reference is replaced by your own entities. Aiuteur suggested these:</p>
+  ${e.map.map((m,i)=>`<div class="row" style="margin:3px 0"><span class="chip">${m.ph}</span> →
+   <select data-a="ed-map" data-i="${i}">${['Marcus','Elena','generic extra','remove'].map(o=>`<option ${o===m.to?'selected':''}>${o}</option>`).join('')}</select>${m.ai?'<span class="chip acc">AI chose</span>':''}</div>`).join('')}`;
+ if(e.step===3){const ids=e.map.filter(m=>['Marcus','Elena'].includes(m.to)).map(m=>m.to);
+  b=`<div class="grid2"><div><div class="lbl">Identity inputs (only mapped entities)</div><ul class="pkg">${ids.map(n=>`<li>${n} · canonical identity + Look</li>`).join('')||'<li class="mut">none</li>'}</ul>
+  <div class="lbl">Place</div><ul class="pkg"><li>Kitchen · north wall view</li></ul></div>
+  <div><div class="lbl">Composition input</div><ul class="pkg"><li>${e.kind==='layout'?'Layout image':'Footage clip'} · ${e.uses.join(', ')||'nothing selected'}</li><li>Placeholders replaced: ${e.map.map(m=>m.ph).join(', ')}</li></ul>
+  <div class="lbl">Delivery</div><p class="warn small" style="margin:0">Best effort. Sent as a layout image with “replace the placeholders” instructions. No image model documents faithfully following a whole-frame layout, so check the frame before spending on video.</p></div></div>
+  <p class="mut small">Never blocks. A frame costs about $0.04; video is unaffected until you choose to generate.</p>`}
+ if(e.step===4)b=`<p>Frame attempts (stub, no real generation). Approving one makes the shot ready for video.</p><div class="refs">${e.frames.map((f,i)=>`<div class="ref"><img class="thumb" src="${f}"><div class="row" style="margin-top:4px"><button class="sm" data-a="ed-approve" data-i="${i}">Approve</button><span class="chip ${e.approved===i?'grn':''}">${e.approved===i?'approved':'attempt '+(i+1)}</span></div></div>`).join('')}</div>`;
+ return `<div class="card" style="border-color:#4a5262"><h3>Add composition reference · step ${e.step+1}/5: ${steps[e.step]}</h3>${b}
+  <div class="row" style="margin-top:10px">${e.step>0&&e.step<4?'<button data-a="ed-back">Back</button>':''}${e.step>0&&e.step<3?'<button class="pri" data-a="ed-next">Next</button>':''}${e.step===3?'<button class="pri" data-a="ed-attach">Attach &amp; make 3 opening-frame attempts</button>':''}${e.step===4?'<button class="pri" data-a="ed-done">Done</button>':''}<button data-a="ed-cancel">Cancel</button></div></div>`}
+function importCard(){const m=S.imp;if(!m)return'';return `<div class="card" style="border-color:#4a5262"><h3>Import ${m.t}</h3><p>Drop a file here. Matching to this scene’s shots happens in a review list (see the second prototype: matching rules). Nothing is attached until you apply.</p>
+ <div class="row"><button data-a="imp-demo">Use sample ${m.t} (3 items)</button><button data-a="imp-x">Cancel</button></div></div>`}
+function pkgCard(){if(!S.pkg)return'';return `<div class="card" style="border-color:#4a5262"><h3>Import review · previs package</h3>
+ <p class="small">Matched by <b>shot id echoed from the shot brief</b>: exact. No question to answer.</p>
+ <ul class="pkg"><li>${cur().label}: ${S.cb.caps.filter(c=>c.hero).length} capture(s) → composition references (opening / ending)</li><li>Placeholders → subject mapping: Marcus→Marcus, Elena→Elena</li><li>Camera: type “${cur().cam}”, medium, eye level, static → only into empty camera facets, marked imported</li><li>Duration “8 s”: not imported (CineBlock’s default, not a decision)</li><li>Action line → kept as a note on the reference, never overwrites the shot’s action</li></ul>
+ <details><summary class="small mut">Package contract (illustrative, v2)</summary><pre>${JSON.stringify(packageJSON(),null,1)}</pre></details>
+ <div class="row"><button class="pri" data-a="pkg-apply">Apply</button><button data-a="pkg-x">Cancel</button></div></div>`}
+function cbWindow(kind){ // kind: 'ext' (A,B) or 'emb' (C)
+ const brief=kind==='ext'?`<div class="small mut" style="margin-bottom:6px">${V==='B'?'Launched from Aiuteur with a one-shot token':'Shot brief loaded from file'}: scene 7 · shot ${cur().label} (id ${cur().id}) · “${cur().action}” · 16:9</div>`:'';
+ const send=V==='A'?`<button class="pri" data-a="export">Export previs package (.zip)</button>`:V==='B'?`<button class="pri" data-a="send">Send to Aiuteur</button>`:`<button class="pri" data-a="embed-done">Done: attach captures to ${cur().label}</button>`;
+ const inner=`${brief}<div class="stagehost">${stageHTML()}</div><div class="row" style="margin-top:8px">${send}<button data-a="cb-close">Close</button></div>`;
+ if(kind==='emb')return `<div class="card" style="border-color:#4a5262"><h3>CineBlock stage · embedded in the scene workspace</h3>${inner}</div>`;
+ return `<div class="win"><div class="bar"><span>● ● ●</span><span class="url">${V==='B'?'https://cineblock.example/?launch=lt_9f3c… (separate tab)':'cineblock.example (separate app; you switched windows)'}</span></div><div class="body">${inner}</div></div>`}
+function arrivalCard(){if(!(V==='B'&&S.cb&&S.cb.sent))return'';return `<div class="card" style="border-color:#6a5a2a"><h3>Arrived from CineBlock <span class="chip acc">quiet notice</span></h3>
+ <p class="small">${S.cb.caps.length} capture(s) for ${cur().label} are waiting. Nothing is attached yet.</p><div class="row">${S.cb.caps.map(c=>`<img class="thumb" style="width:110px;height:62px" src="${c.img}">`).join('')}</div>
+ <div class="row" style="margin-top:8px"><button class="pri" data-a="attach">Attach as composition references</button><button data-a="launch">Re-open in CineBlock (state restored)</button></div></div>`}
+function planTab(){const s=cur();
+ return `<div class="card"><h3>Shot ${s.label} <span class="mut small">· ${s.id}</span></h3><div class="small">${s.action}</div>
+  <div class="small mut" style="margin-top:6px">Presence: ${S.presences.join(' · ')} · camera ${s.cam}${s.refs.some(r=>r.stale)?'':''}</div></div>
+  ${refsCard()}${editor()}${importCard()}${pkgCard()}${arrivalCard()}
+  ${S.cb&&S.cb.mode==='win'?cbWindow('ext'):''}${S.cb&&S.cb.mode==='emb'?cbWindow('emb'):''}
+  ${framesCard()}`}
+function framesCard(){const s=cur();if(!s.frames.length)return'';return `<div class="card"><h3>Opening frame <span class="mut small">· made with ${s.refs.length} composition reference(s)</span>${s.staleFrames?'<span class="dot" title="Possibly out of date: the composition reference changed after this frame was made. Regenerate · It still fits · Keep"></span>':''}</h3>
+ <div class="refs">${s.frames.map((f,i)=>`<div class="ref"><img class="thumb" src="${f}"><div class="cap">${s.approvedFrame===i?'<span class="chip grn">approved</span>':'attempt '+(i+1)}</div></div>`).join('')}</div></div>`}
+function render(){
+ const s=cur();
+ $('#flagline').innerHTML=S.shots.some(x=>x.staleFrames)?'<span style="color:#8a7b58">1 item may be out of date</span>':'';
+ $('#centre').innerHTML=`<div class="tabs">${S.shots.map((x,i)=>`<div class="tab ${i===S.cur?'on':''}" data-a="shot" data-i="${i}">${x.label}${x.refs.length?' ◫':''}${x.staleFrames?'<span class="dot"></span>':''}</div>`).join('')}</div>
+  <div class="mut small" style="margin-bottom:8px">Scene workspace · prepping shot ${s.label}. Direction is optional and not needed for any of this.</div>${planTab()}${S.toast?`<div class="toast">${S.toast}</div>`:''}`;
+ if(S.cb&&S.cb.mode){stageInit()}
+ $('#vlabel').textContent=V+' ('+VARIANTS[V]+')';
+ const n=NOTES[V];$('#note').innerHTML=`<h4>${n.t}</h4><ul>${n.l.map(x=>`<li>${x}</li>`).join('')}</ul>`;
+}
+/* ---------- actions ---------- */
+document.addEventListener('click',ev=>{const t=ev.target.closest('[data-a]');if(!t)return;const a=t.dataset.a,s=cur();
+ if(a==='shot'){S.cur=+t.dataset.i;S.editor=S.imp=S.pkg=null;S.cb=null}
+ else if(a==='addref'){S.editor={step:0,kind:'layout',uses:['framing','staging & pose'],map:[],frames:[]}}
+ else if(a==='replace'){S.editor={step:0,kind:'layout',uses:['framing','staging & pose'],map:[],frames:[],replacing:+t.dataset.i}}
+ else if(a==='ed-media'){const e=S.editor;e.img=sketchImg();e.kind=t.dataset.m==='clip'?'footage':'layout';e.uses=e.kind==='footage'?['framing','camera movement']:['framing','staging & pose'];e.map=e.kind==='footage'?[{ph:'man in raincoat',to:'Marcus',ai:true},{ph:'woman at table',to:'Elena',ai:true}]:[{ph:'figure A',to:'Marcus',ai:true},{ph:'figure B',to:'generic extra',ai:true}];e.step=1}
+ else if(a==='ed-next'){const e=S.editor;if(e.step===1){e.uses=[...document.querySelectorAll('.e-use:checked')].map(x=>x.value);e.kind=$('#e-kind').value;e.target=$('#e-target').value}e.step++}
+ else if(a==='ed-back'){S.editor.step--}
+ else if(a==='ed-cancel'){S.editor=null}
+ else if(a==='ed-attach'){const e=S.editor;e.frames=[frameImg(0),frameImg(1),frameImg(2)];e.step=4;
+   const had=s.frames.length>0;s.refs=s.refs.filter((_,i)=>i!==e.replacing);s.refs.push({id:'r'+Date.now(),img:e.img,src:e.kind==='layout'?'uploaded sketch':'reference clip',kind:e.kind,target:(e.target||'opening frame').replace(' frame',''),uses:e.uses,map:e.map,alts:0});
+   if(had)s.staleFrames=true}
+ else if(a==='ed-approve'){const e=S.editor;e.approved=+t.dataset.i;s.frames=e.frames;s.approvedFrame=e.approved;s.staleFrames=false}
+ else if(a==='ed-done'){const e=S.editor;if(!s.frames.length||s.approvedFrame===undefined){} S.editor=null}
+ else if(a==='retire'){s.refs.splice(+t.dataset.i,1);if(s.frames.length)s.staleFrames=true}
+ else if(a==='imp'){S.imp={t:t.dataset.t};S.editor=S.pkg=null}
+ else if(a==='imp-x'){S.imp=null}
+ else if(a==='imp-demo'){S.imp=null;S.toast='Sample import: see the matching prototype for the rules. (Not wired here.)';setTimeout(()=>{S.toast=null;render()},2400)}
+ else if(a==='brief'){S.toast='Downloaded shot-brief-7B.json (shot ids, actions, presences, aspect ratio, scene 7). Open CineBlock and load it.';setTimeout(()=>{S.toast=null;render()},3200);S.cb=newCB();S.cb.mode='win'}
+ else if(a==='launch'){S.cb=S.cb&&S.cb.caps.length?S.cb:newCB();S.cb.mode='win';S.cb.sent=false}
+ else if(a==='embed'){S.cb=newCB();S.cb.mode='emb'}
+ else if(a==='cap'){capture(t.dataset.ft);return}
+ else if(a==='cb-close'){if(S.cb)S.cb.mode=null}
+ else if(a==='export'){S.toast='Downloaded cineblock-export-7B.zip (package v2 + PNGs + scene state). Now import it.';setTimeout(()=>{S.toast=null;render()},3200);S.cb.mode=null;S.cb.exported=true}
+ else if(a==='send'){S.cb.sent=true;S.cb.mode=null;S.toast='Sent. In the real flow this tab closes and Aiuteur shows a quiet notice.';setTimeout(()=>{S.toast=null;render()},2600)}
+ else if(a==='embed-done'){S.cb.mode=null;attachCaptures();return}
+ else if(a==='pkg'){if(V==='A'&&!(S.cb&&S.cb.exported&&S.cb.caps.length)){S.toast='Pretend: no file chosen. Run “Export shot brief”, capture in the CineBlock window, export, then import.';setTimeout(()=>{S.toast=null;render()},3200)}else if(V!=='A'&&!(S.cb&&S.cb.caps.length)){S.toast='No package yet in this prototype. Capture something first.';setTimeout(()=>{S.toast=null;render()},2400)}else{S.pkg=true;S.imp=S.editor=null}}
+ else if(a==='pkg-x'){S.pkg=null}
+ else if(a==='pkg-apply'){S.pkg=null;attachCaptures();return}
+ else if(a==='attach'){attachCaptures();return}
+ render()});
+document.addEventListener('change',ev=>{const t=ev.target;if(t.dataset&&t.dataset.a==='ed-map'){const m=S.editor.map[+t.dataset.i];m.to=t.value;m.ai=false}});
+function go(d){const k=Object.keys(VARIANTS);V=k[(k.indexOf(V)+d+k.length)%k.length];history.replaceState(null,'','?variant='+V);S.cb=null;S.editor=S.imp=S.pkg=null;render()}
+$('#prev').onclick=()=>go(-1);$('#next').onclick=()=>go(1);
+addEventListener('keydown',e=>{if(/INPUT|TEXTAREA|SELECT/.test(e.target.tagName))return;if(e.key==='ArrowLeft')go(-1);if(e.key==='ArrowRight')go(1)});
+render();
+</script></body></html>
