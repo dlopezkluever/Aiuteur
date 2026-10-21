@@ -52,7 +52,7 @@ The shell is **Model C: an outline tree plus a production board**, as chosen by 
 | Recommended, optional, skipped, bypassed phases | Each phase row shows one of: not started, in progress, done, **skipped by you** (Interview, Treatment, Beat Sheet when declined), **bypassed** (covered by supplied material, e.g. "your screenplay became the Master Narrative"), optional (Visual Direction, Audio, shown as available, never as missing). Skipped and bypassed read as intentional (dashed or italic, with a reason on hover and in the phase page), never as errors. A bypassed phase offers "fill it from the Master Narrative" on request only; nothing is backfilled or spent automatically (§4.3). |
 | Progress at a glance | Derived, never stored in screens: a whole-film bar and runtime-vs-target in the top strip, a per-scene bar on each board row and Outline scene, per-phase status in the Outline. The same derivation feeds all of them (§17.2: the UI shows workflow truth and never owns it). |
 | Moving backward | Free. Clicking any earlier phase or scene opens it, editable, with no unlock, no re-lock, no save step, no confirmation for viewing. Locks follow the Locks rules in `docs/domain/LINEAGE-AND-STALENESS.md` §6 and the ratified lock behaviour; navigation never triggers one. Reading never writes. |
-| Effect of editing upstream | The editing surface shows a small inline note of what will be marked possibly out of date. Markers are **whispers**: subtle, low-contrast, near the affected work, never a banner or modal, never blocking (Ratification M1). An on-demand review-all tray is opened from the Ledger, not from the shell chrome. |
+| Effect of editing upstream | The editing surface shows a small inline note of what will be marked possibly out of date. Markers are **whispers**: subtle, low-contrast, near the affected work, never a banner or modal, never blocking (Ratification M1). An on-demand review-all tray opens from the quiet footer line (docs/ux/TRUST-SIGNALS-AND-LOCKS.md), never shown by default. |
 | Resume | Opening a project returns to the last centre view. "Last viewed" is non-creative UI state, kept per creator, never versioned, and never used to decide any gate. |
 
 ## 4. Navigation map
@@ -73,7 +73,7 @@ Projects (account home)
      │                  (plan · direction · frames · takes · audio)
      ├─ Review & Export      (scene or whole-film playback, export package)
      ├─ Cmd/Ctrl-K           (jump to any phase, scene, shot, entity)
-     └─ Cross-cutting, reachable from anywhere: Ledger / review-all tray,
+     └─ Cross-cutting, reachable from anywhere: review-all tray (on demand),
         spend and usage, project settings
 ```
 
@@ -88,7 +88,7 @@ Moves that must be one step from anywhere: any phase, any scene, any shot (Outli
 
 ## 6. Out of scope here
 
-The content of each surface (#58–#63), the Ledger and review-all tray design (#63), cost presentation (#62, #68), CineBlock entry (#61). This ticket fixes where they live and how the creator moves between them.
+The content of each surface (#58–#63), the review-all tray design (#63) and the Interview Ledger (#57), cost presentation (#62, #68), CineBlock entry (#61). This ticket fixes where they live and how the creator moves between them.
 
 ## 7. First run and onboarding
 
@@ -113,6 +113,6 @@ Each receiving ticket places its surface **inside this shell**.
 | **Scene hub and shot planning** (#60) | The "scene hub" is now **two centre views plus the Outline**: the **Board** (all shots, all scenes, batch scope selection) and the **scene workspace** (shot list and the main shot-making area). Design the accept-the-draft path as scope-then-invoke on board rows and the Outline, and the precise path as the shot work area in the centre. **Do not design a drawer-based shot editor**: the Peek is preview only. Define what the Board marks show, the batch-draft interaction that does not clobber edited shots, runtime awareness in the top strip and scene header, and reorder, split and merge in the scene workspace. 150–250 shots are handled by the Board and the scene-only Outline expansion above. |
 | **Composition and previs entry** (#61) | Previs, storyboard and shot-list imports attach to shots in the scene workspace (Direction is optional and available, never a required step) and may also be offered from Input for bulk routing to Scenes & Shots. They add no new top-level section. |
 | **Candidate review and playback** (#62) | Frames and takes are reviewed in the centre of the scene workspace for a shot, not in the Peek. Sequence playback is the Review & Export centre view and is reachable for one scene from the scene workspace; "jump to the shot" from playback lands in the scene workspace on that shot and can return. Progress and failure state come from the same derivations as the Board. Cost appears at the initiating control; the Peek never initiates spend. |
-| **Trust signals and locks** (#63) | Flags are whispers in the Outline, Board and workspace (M1). The Ledger and the on-demand review-all tray are cross-cutting, reachable from anywhere; their entry belongs to the top strip or Outline footer. Lock indicators sit on the scope they lock and do not interrupt navigation. |
+| **Trust signals and locks** (#63) | Flags are whispers in the Outline, Board and workspace (M1). The on-demand review-all tray is cross-cutting; its entry is the quiet footer line already specified in `docs/ux/TRUST-SIGNALS-AND-LOCKS.md`. The Interview Ledger (`docs/ux/INTAKE-AND-INTERVIEW.md`) lives beside the Interview conversation. Lock indicators sit on the scope they lock and do not interrupt navigation. |
 | **Intake and Interview** (#57) | The first-run path is the normal Input phase (§7). Input must show how each item was understood and propose the entry point; the routing lives there, with no router screen before it. |
 | **Module architecture** (#71) and **persistence** (#72) | Status, progress, runtime totals, needs-attention filters and out-of-date markers shown by the shell are derived reads of server truth. The Board needs a whole-project, shot-level summary read that is cheap at 250 shots, and Outline/Board status must not depend on loading each shot's full record. |
