@@ -86,6 +86,8 @@ Consequences:
 - **Direct reasons** come from (2). A **via reason** (`upstream-pending`) is added when a captured input is itself a marked chosen piece of work that the creator has neither kept nor reconciled, so "the shot is possibly out of date, so the frames made from it are too" is visible but quiet, and clears when the shot is resolved.
 - **Never marked:** Records (Generation, Job, Export package: an export is a dated snapshot, and a view "export differs from current selections" is derivable but is not a marker), the Treatment and Beat Sheet once the Master Narrative is accepted (they are development history and no longer promised in sync; regeneration is the creator's explicit action, §4.4 clause 5), and anything driven by a model-default change (model choice is a recorded fact on the Generation, not content).
 - **Marker is quiet and non-blocking by definition**: it has no authority to prevent any operation, and nothing downstream reads the marker to refuse work (V1: stages blocked by status, legacy 10).
+- **Subtle-flag rule (creator ratification M1).** Flags must be subtle: quiet, low-contrast marks near the affected work. A marker is never a banner, a modal, an alarm colour or a count that demands attention. The review surface for all markers is on demand (the "review all" tray from the Ledger), not pushed at the creator. This binds every surface that renders a marker, a "kept despite change" form, or a to-reconcile entry (§5.2). Locks and heavy-impact confirmations (§6) are a different mechanism and are not governed by this rule.
+- **Late results arrive already flagged.** A result adopted after a timeout (§3.4) is compared against the current inputs at the moment it attaches, exactly like any other work. Nothing special is stored.
 
 ### 2.4 Clearing and keeping (the exits)
 
@@ -150,6 +152,10 @@ Not reasons: "model default changed", "locked/unlocked", "restored" (restore is 
 | **Scene** retired, reordered, split, merged | Only what captured scene structure; nothing is deleted (V1 B8 hard delete) | `input-retired` or `narrative-changed` as applicable | The Scene's Shots, Frames, Takes stay attached and reachable | Reconcile via #52's mapping, keep |
 | **Lock / unlock, Accept** | Nothing: locking and unlocking change no content (V1's unlock cascade marked everything, R1–R3) | none | n/a | n/a |
 
+### 3.2.1 Treatment and Beat Sheet disagreement (R10)
+
+Treatment and Beat Sheet are related by explicit Sync only (creator ratification R10, ticket #51). Lineage records no automatic sync edge between them and raises no marker for their drift. Before the Master Narrative is drafted or accepted, if the two documents disagree, Aiuteur shows the disagreement and asks which to follow; it never guesses, and the choice is a recorded creator Decision. That disagreement check is a derived comparison like a marker (it writes nothing by being shown) but it is not a staleness marker and does not use the reason vocabulary. After acceptance neither document is synchronized again (development history, §2.3 "Never marked"). The sync mechanics are #51's.
+
 ### 3.3 Requirement on every Generation (to #65)
 
 A Generation must record, **at dispatch, before any provider call**, so that a failed or cancelled Generation is still inspectable and a result that lands after upstream changed shows the drift immediately:
@@ -163,6 +169,16 @@ A Generation must record, **at dispatch, before any provider call**, so that a f
 7. **Outcome**: outputs (ids), failure, and the Job runs that executed it.
 
 It must also (a) never re-read inputs at completion, (b) not capture what it did not read, (c) be able to be **re-run with the same captured inputs** because all Revisions are retained, and (d) be remappable on project duplication (§7).
+
+### 3.4 Adoption of a late result after timeout
+
+The domain model (§5) and the job lifecycle (#67) allow one exception to "a Generation is immutable once ended": a Generation whose Job `timed_out` and whose provider operation later **succeeds** is *adopted*. The request never changes; only its outcome may gain outputs, once. For lineage this means:
+
+- The adopted outputs attach as new **unselected Attempts** under the Generation's recorded target Slot. Adoption never changes a Slot choice and never replaces the chosen Attempt, so it can never mark anything on its own.
+- The Generation's **captured inputs were fixed at dispatch** (§3.3 clause 2) and are not re-read at adoption. The new Attempts therefore carry the original fingerprints. If any captured unit has changed since dispatch, the adopted Attempt **arrives already flagged** possibly out of date, with the usual reason (the drift is derived, not stored; nothing is written to flag it). If the creator later chooses it, the marker then shows under the rule in §2.3 clause 4.
+- A late result after **cancel** (creator ratification M2) follows the same lineage rule: it attaches unselected, labelled "arrived after cancel", with the quiet notice owned by #67/#68.
+- Notice and labelling follow the subtle-flag rule (§2.3). Adoption is a Record amendment, not a Decision, and does not clear or create an Acknowledgement.
+
 
 ## 4. State of a piece of work
 

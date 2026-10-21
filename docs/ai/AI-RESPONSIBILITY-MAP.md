@@ -12,7 +12,7 @@ Five rules hold for every AI operation:
 2. **Every operation is `propose → validate → commit`.** The model's output is a proposal. Deterministic validators (§3) decide whether it may be committed. Commit is a single code path that creates a Revision, Option or Attempt only together with its Generation and provenance.
 3. **Preserve by construction before verifying by comparison.** Text that must not change never passes through the model's output channel. The model is shown it, refers to it by handle or span, and code inserts the original (§4). A comparison check then confirms the property, but the guarantee does not rest on the check.
 4. **Deterministic is the default; the model does only what code cannot.** Parsing, formatting, assembling, matching, splitting at known offsets, ordering, packaging and reference resolution are code. A model is used for judgement and language (classify, question, draft, summarise, propose) and for synthesis (media).
-5. **No agentic loops.** Flows are fixed pipelines chosen by code. A model never chooses the next step, never decides to retry, and never decides it is done. The only loops are creator-paced (the Interview) and one bounded repair attempt (§5). Each multi-step flow is justified in §6.
+5. **No agentic loops.** Flows are fixed pipelines chosen by code. A model never chooses the next step, never chooses or widens the scope, never decides to retry, and never decides it is done. The only loops are creator-paced (the Interview) and one bounded repair attempt (§5). Each multi-step flow is justified in §6. This does not forbid code-defined end-to-end batch operations or creative choices made inside a requested operation: see the workflow-operation model in §6 (creator ratification M3).
 
 ```diagram
  creator action (explicit)
@@ -121,11 +121,25 @@ Provenance is written by the single commit path (G7) from the splice and the ope
 | Base Revision changed during the call | **HELD**: "this changed while I was working"; creator may apply to the new text or discard. |
 | Target is in a locked scope when the result arrives | **HELD** as an Option, the rule in [`LINEAGE-AND-STALENESS.md`](../domain/LINEAGE-AND-STALENESS.md) §6; the write gate there, not this document, decides. |
 | Any failure | Existing creator content is unchanged. A failed Generation has no outputs (domain model). No silent fallback to a different model or to raw model text. A different model is a creator-visible change; for M it also changes cost. No empty success. |
+| Mechanical failure inside a creator-triggered operation | The single bounded repair above runs without interrupting the creator, in a batch as in a single action. Only an unresolved consequential conflict (HELD) or a REJECTED item reaches the creator, and partial results survive individual failures. |
 | Repair or text retries and spend | Repair calls and text retries inside one operation are part of its Generation. Whether they fall under "meaningful spend" is #68's; the repair attempt is capped at one so cost is bounded and predictable. M retries follow #67 and #68. |
 | Creator overrides | The creator may always: hand-edit any result; skip the Interview or a question; use a held fact conflict anyway; revise or withdraw a Fact; regenerate; choose a model; edit a compiled prompt (#65). The creator cannot switch guards off: they protect the creator, and each can be sidestepped by editing by hand. |
 | Source Material that contains instructions | It is data, not instructions: delimited in the prompt, and the damage an injected instruction could do is bounded by rule 1 (no tools) plus the guards. |
 
 ## 6. Multi-step AI flows and their justification
+
+### 6.0 Workflow operations (creator ratification M3)
+
+Aiuteur is built from **defined workflow operations**: Generate Master Narrative, Draft all scene plans, Regenerate flagged shots, Auto-block all, Generate missing location views, Rewrite this selection, and others of the same shape. Each is invoked by a creator action: a button, an auto-trigger the creator enabled, a targeted instruction field, or a scope-then-invoke batch action.
+
+- **Code defines the operation and its scope.** The steps, the set of items it touches and the order are fixed by application code before any model is called. The model makes creative choices **inside** the operation (what the scene plan contains, how a passage is rewritten); it never chooses a step, widens the scope, or starts unrelated changes (G10 and rule 1 make this structural).
+- **No repeated permission prompts.** A creator-triggered targeted or batch operation is carried through end to end. The invocation is the permission. Spend rules still apply: a batch is approved as a sum (#68), and bulk operations show scope and price first.
+- **Failures.** Mechanical failures get the one bounded repair (§5) without interruption; only unresolved consequential conflicts reach the creator.
+- **No universal chat agent in V2.** There is no free-form conversational agent that decides what to do. The **project-aware assistant is LATER** (Constitution §14.4) and, when it exists, still proposes reviewable change-sets.
+
+This is the meaning of "no agentic loops" in rule 5: a ban on model-chosen steps and scope, not on end-to-end operations that code defines.
+
+### 6.1 Multi-step flows
 
 | Flow | Steps | Why it is not one call |
 |---|---|---|

@@ -7,8 +7,20 @@ Terms marked **(Wayfinder)** are not constitutional glossary terms; they were pr
 ## People and project
 
 **Creator**:
-The person making the film; the author. Every project has exactly one.
+The person making the film; the author. Every project has exactly one, and every creator has exactly one account.
 _Avoid_: User, director
+
+**Account (studio)**:
+A creator's isolated space: their projects, media, settings, spend caps and usage records. Every project and every record belongs to exactly one account, and one account can never see or change another's data. Aiuteur serves many independent accounts, but there are no teams, shared projects, shared editing or permission roles. A project can later be purged with its media as a unit (see Purge).
+_Avoid_: Workspace, team, organisation, tenant (as a product term), user
+
+**Invite-only**:
+How accounts are created until billing exists: a creator can sign up only with an invitation from the operator. It is an access rule, not a role.
+_Avoid_: Waitlist, private beta (as a model term)
+
+**Purge**:
+Permanent, deliberate, creator-initiated destruction of a whole project or account with its media. A later requirement, not part of V2 core. It is different from Retire, which governs everything inside a project and never destroys.
+_Avoid_: Delete (for a purge), hard delete
 
 **Project**:
 One film in progress, with its settings and everything below it. A duplicated project is a new project.
@@ -279,6 +291,7 @@ Generation cost significant enough that the creator must initiate it and see the
 **Retire**:
 To take an object out of active use while keeping it, and everything attached to it, recoverable. V2 retires; it does not delete creative work.
 _Avoid_: Delete, remove (for creative objects)
+"Never destroyed" applies inside a project. Whole-project and account removal is a Purge, a separate deliberate operation. Each project's data and media must stay separable so a purge can be added later.
 
 **Protected span**:
 Text the AI must not alter in an operation: everything outside a targeted rewrite's selection, and creator-written or imported dialogue inside a regenerated region. Preserved by construction (the AI refers to it, code restores it), not by instruction. Defined in `docs/ai/AI-RESPONSIBILITY-MAP.md`.
@@ -298,6 +311,10 @@ _Avoid_: Clarification
 
 **Ledger**:
 The side panel of the Interview listing Established Facts and AI-made choices, grouped by topic and editable in place. Defined in `docs/ux/INTAKE-AND-INTERVIEW.md`.
+
+**Workflow operation**:
+A defined, code-bounded action the creator invokes: a button, an enabled auto-trigger, a targeted instruction field or a scope-then-invoke batch (for example Generate Master Narrative, Draft all scene plans, Regenerate flagged shots, Auto-block all, Generate missing location views, Rewrite this selection). The application fixes its steps and scope; the model makes creative choices only inside it, and the operation runs end to end without repeated permission prompts. Spend rules still apply to batches. It is not an agent: the model never chooses steps or scope. V2 has no universal chat agent; the project-aware assistant is LATER.
+_Avoid_: Agent, agentic loop, autopilot (a LATER end-to-end mode)
 
 **Interview topic**:
 A grouping of open questions (for example story, characters and locations, visual and audio style) that the creator can answer personally or delegate to Aiuteur. A guiding label, not a fixed schema; later decisions may supersede the list.

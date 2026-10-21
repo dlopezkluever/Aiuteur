@@ -50,6 +50,10 @@ If your output contradicts an existing ADR, surface it explicitly rather than si
 
 > _Contradicts ADR-0007 (event-sourced orders), but worth reopening because…_
 
+## Terms that must not drift
+
+Use the glossary's **Account (studio)**, **Invite-only**, **Purge** and **Workflow operation**. Do not say "user", "tenant" or "agent" for them, and do not write "never deleted" without "inside a project": whole-project and account Purge is a separate, later operation (ratification M7). V2 has multiple isolated creator accounts but no collaboration.
+
 ## Reference corpora (not requirements)
 
 Two compacted input corpora live under `_inputs/`. They are **reference / evidence only**. Neither is an authoritative statement of V2 requirements, and neither is a substitute for `GLOSSARY.md` or ADRs (which don't exist yet; `/domain-modeling` creates them when V2 terms and decisions are settled).

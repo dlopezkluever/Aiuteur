@@ -15,4 +15,6 @@ Every AI call that produces creator-visible content, text or media, is a **Gener
 ## Consequences
 
 - Provenance, inspectability and cost all hang off one record type; the Generation package (#65), lineage (#54) and the job lifecycle (#67) design against it.
-- Nothing creative is ever destroyed: retiring replaces deleting, and artifacts are immutable.
+- Nothing creative is ever destroyed **inside a project**: retiring replaces deleting, and artifacts are immutable.
+- **Carve-out (creator ratification M7, 2026-10-21).** Permanent project-level and account-level purge is accepted as a requirement, scheduled later and not vital to V2 core. It is a deliberate, creator-initiated operation on a whole project or account, never a way to remove part of a project. Retire-only stays in force inside projects. Standing constraint for persistence (#72): each project's data and media must be separable and purge-able as a unit so the feature can be added without a rewrite.
+- Every Generation and Record is owned by an Account through its project (M4), so spend, provenance and purge scope are per account.

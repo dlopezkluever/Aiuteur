@@ -9,11 +9,11 @@ Resolution of Wayfinder ticket #50. Vocabulary is defined in [`GLOSSARY.md`](../
 3. **Two kinds of change.**
    - An **editable object** changes only by gaining a **Revision**. History is append-only; restoring an earlier Revision adds a new one.
    - A **generated or uploaded artifact** never changes. It is an **Attempt** for a **Slot**; Attempts accumulate and one is chosen. "Editing" an artifact makes a new Attempt that records what it came from.
-4. **No hard deletion of creative work.** Objects are **retired**, with everything attached still reachable. Removing a scene or shot never removes its frames, takes or history (Constitution §7.1, §16 principle 3; V1's cascades, legacy 04 §8, are the counter-example).
+4. **No hard deletion of creative work inside a project.** Objects are **retired**, with everything attached still reachable. Removing a scene or shot never removes its frames, takes or history (Constitution §7.1, §16 principle 3; V1's cascades, legacy 04 §8, are the counter-example). *Carve-out (creator ratification M7):* "never destroyed" governs everything inside a project. Permanent **project purge** and **account purge** are a deliberate, creator-initiated operation on a whole project or account, scheduled later and not vital to V2 core. They are never a way to remove a part of a project, and they do not make retire-only optional anywhere else. **Separability constraint:** each project's data and media must be separable and purge-able as a unit (no object, shared Media reference or index entangles two projects, and the account's own data stays enumerable), so purge can be added without a rewrite (#72).
 5. **No hidden layer.** A derived or compiled representation (a screenplay export, a progress view, a compiled prompt) may be rebuilt from owned truth and holds no truth that exists nowhere else (§5.3).
 6. **Reading never writes.** Opening, browsing or refreshing creates no Revision, Attempt or Generation (§16 principle 11).
 7. **Provider-neutral.** No object names a vendor or model as a concept. A Generation records which model was used; that is history, not structure.
-8. **Single creator, project-scoped.** Collaboration is OUT, so there is no model of roles or sharing. Every object belongs to exactly one project and identities are meaningful only inside it.
+8. **Account-owned, project-scoped, isolated.** Aiuteur serves multiple independent creators (creator ratification M4). Every project belongs to exactly one **Account** (the creator's studio), and every object in it, including Records such as Generations, spend records and AI-made choices, carries that account as its owner through its project. One account can never read or write another's data. Collaboration, teams, shared editing and a role or permission model are OUT, so an account has exactly one creator and nothing is shared between accounts. Identities inside a project are meaningful only inside it.
 
 ## 2. The object classes
 
@@ -33,7 +33,7 @@ Scene, Interview, Presence and the pointers that choose an Attempt (selected tak
 Solid nesting means "owned by and retired with the parent's lifetime" (nothing is deleted). `1`, `0..1`, `0..*`, `1..*` are cardinalities. `~>` is a reference without ownership.
 
 ```diagram
-Creator (1)
+Account / studio (1)  ── one creator; invite-only; spend caps and settings
   └─ owns ──────────────────────────────────────────────────────────────┐
                                                                         ▼
 PROJECT ── settings (1) ─ intended runtime, format, tone, rating, genre, model defaults
@@ -87,7 +87,8 @@ Nesting at a glance: **Project ▸ Scene ▸ Shot ▸ (Frame, Take, Dialogue lin
 
 | Object | Cardinality | Class | Owns | Identity rule |
 |---|---|---|---|---|
-| **Project** | the root; one creator | Editable (settings) | Intent: intended runtime, format and aspect, tone, rating, genre, default model choices, which phases were skipped or bypassed (Phase disposition) | Own id. The title is a label. A duplicated project is a different project; every object inside gets a new identity and a "duplicated from" record. |
+| **Account (studio)** | the root; one creator; 1 per creator | Editable (account settings) | The creator's identity and sign-in, the account's own spend caps and settings, usage and spend records, the personal library when it exists (LATER) | Own id, never reused. Every Project, Record and piece of Media is owned by exactly one Account. Nothing is shared across accounts. |
+| **Project** | 0..* per Account; each belongs to exactly one Account | Editable (settings) | Intent: intended runtime, format and aspect, tone, rating, genre, default model choices, which phases were skipped or bypassed (Phase disposition) | Own id. The title is a label. A duplicated project is a different project; every object inside gets a new identity and a "duplicated from" record. |
 | **Source Material** item | 1..* (typed text counts) | Supplied | The original content, untouched, plus a role (primary or supporting) and understood maturity | Own id per supplied item. Content never defines identity (two identical uploads are two items). The role is editable. |
 | **Interview** | 0..1; stays open to take new questions | Record of turns | The conversation: what was asked and answered | One per project; resumed rather than restarted. |
 | **Established Fact** | 0..* | Editable | One binding statement of creator intent | Own id. Wording changes are Revisions. A fact is retired, not deleted, if the creator withdraws it. A conflicting new input raises a question and never overwrites the fact. |
@@ -207,7 +208,7 @@ The model guarantees the following so that LATER capabilities are not precluded.
 | **Autopilot** | Every workflow step is an operation with explicit inputs that does not depend on being performed through a screen. Autopilot output is ordinary Revisions, Options and Attempts with AI provenance, started by a creator action that includes the spend approval. It introduces no new kind of truth. |
 | **Audio-first projects** | Source Material accepts any media type with a role; nothing in the model assumes a Treatment precedes a Master Narrative, or that audio is added after video. Project settings can carry an entry mode. A Performance or audio Source Material can exist before any Shot. |
 | **Features and series** | A container above Scenes (act, sequence, episode) can be inserted because Scenes are ordered members of the narrative, not numbered globally. A group above Project can be added because a Project is already self-contained. Nothing assumes a project is short. |
-| **Collaboration (OUT)** | Not modelled. Nothing precludes adding an actor to Revisions and Generations later, since each already records who initiated it. |
+| **Collaboration (OUT)** | Not modelled: no teams, shared editing or permission hierarchy. Multiple independent creator Accounts are in V2 (M4), each fully isolated. Nothing precludes adding an actor to Revisions and Generations later, since each already records who initiated it. |
 
 ## 10. Hand-offs
 
@@ -222,7 +223,7 @@ The model guarantees the following so that LATER capabilities are not precluded.
 | **Generation package** (#65) | A Generation records the exact inputs; the package definition itself is #65's. |
 | **Job lifecycle** (#67) | A Job carries out a Generation or other long work; retry is a new Job for the same Generation; regeneration is a new Generation; a Job holds no creative truth; whether quick inline AI calls get a Job; states, idempotency, cancellation, batch grouping are all #67's. |
 | **Voice and performance seams** (#69) | Voice owned by Character; Performance as Supplied linked to a Dialogue line; transformed performance as an Attempt. |
-| **Persistence** (#72) | Retire-not-delete, immutability of Attempts and Media, private media, and project duplication as new identities. Project and media purge semantics (true destruction) remain open. |
+| **Persistence** (#72) | Retire-not-delete, immutability of Attempts and Media, private media, and project duplication as new identities. Account and project ownership and isolation (M4), and project/media separability so a later purge (M7) needs no rewrite. Purge semantics themselves (when Media with no remaining reference is destroyed) remain open. |
 | **Workflow-state ownership** (#54, #71) | Phase disposition (done, skipped, bypassed) is server-side project truth; per-scene production progress is derived. |
 | **Spend and cost** (#68) | A Generation records estimated and actual cost; the spend-approval commitment point is attached to creator-initiated Generations (a batch is one creator action). |
 
