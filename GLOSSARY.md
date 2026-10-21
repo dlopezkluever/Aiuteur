@@ -496,6 +496,26 @@ _Avoid_: View state, store, cache (as a source)
 The proof that a creator's action (or a creator-enabled trigger recorded as a Decision) started an operation. Only the application boundary can mint one, and creating a Generation requires one, so no timer, event handler or model output can start AI work.
 _Avoid_: Trigger, permission
 
+## Runtime (Wayfinder #74)
+
+Terms for the execution substrate. Defined in `docs/architecture/RUNTIME-PLATFORM.md` and [ADR 0017](docs/adr/0017-the-job-row-is-the-queue-on-plain-postgres-with-own-sse-progress.md).
+
+**Due time** **(Wayfinder)**:
+The single stored moment at which a non-terminal Job next needs attention: the earliest of its `not_before`, next poll, lease expiry and state deadline. Finding Jobs whose due time has passed is the whole of scheduling, including the deadline sweep.
+_Avoid_: Timer, cron job, schedule
+
+**Lease** **(Wayfinder)**:
+The exclusive, time-limited right of one worker to act on a Job, carried as a row value with a fencing token. A worker that loses its lease cannot change the Job, because every transition is checked against the token. It is never a database session or lock.
+_Avoid_: Lock (a lock is creative-truth protection, ADR 0005), session lock
+
+**Event stream** **(Wayfinder)**:
+The per-Account, gap-free, ordered sequence of content-free events (ids, types, statuses) written in the transaction that causes them, replayed to the browser by server-sent events using the last seen number. It carries hints; read models are the truth.
+_Avoid_: Websocket feed, push notification
+
+**Process role** **(Wayfinder)**:
+A way of starting the one deployable: `web` (API, event stream, webhook ingress) or `worker` (scheduler tick, provider calls, media and local work). Roles share the module graph and hold no workflow state in memory.
+_Avoid_: Service, microservice
+
 ## Reference
 
 **Design reference**:
