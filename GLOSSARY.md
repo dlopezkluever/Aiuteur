@@ -516,6 +516,26 @@ _Avoid_: Websocket feed, push notification
 A way of starting the one deployable: `web` (API, event stream, webhook ingress) or `worker` (scheduler tick, provider calls, media and local work). Roles share the module graph and hold no workflow state in memory.
 _Avoid_: Service, microservice
 
+## Operations (Wayfinder #75)
+
+Terms for the operational baseline. Defined in `docs/architecture/OPERATIONAL-BASELINE.md` and [ADR 0018](docs/adr/0018-own-auth-in-our-database-envelope-held-credentials-and-an-independent-backup-copy.md).
+
+**Invitation** **(Wayfinder)**:
+The single-use, expiring, email-bound token by which the operator lets one person create an Account. Redeeming it creates the sign-in and the Account together; there is no other way in.
+_Avoid_: Signup link, waitlist spot
+
+**Credential handle** **(Wayfinder)**:
+An opaque, unserialisable reference to a provider key resolved for one Account and provider surface. Adapters receive it and never read a key or the environment.
+_Avoid_: API key (in domain code), token
+
+**Isolation gate** **(Wayfinder)**:
+A merge-blocking test that proves one Account cannot read, change or learn of another's data on a given path (operations, stream, worker, webhook, media, operator views).
+_Avoid_: Security review
+
+**Independent copy** **(Wayfinder)**:
+The backup of database and media held at a second vendor under credentials that cannot delete, so loss or compromise of the primary vendors or of our own code cannot erase it.
+_Avoid_: Mirror, replica (as a product term)
+
 ## Reference
 
 **Design reference**:
