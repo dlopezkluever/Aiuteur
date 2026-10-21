@@ -225,7 +225,7 @@ The model guarantees the following so that LATER capabilities are not precluded.
 | **Voice and performance seams** (#69) | Voice owned by Character; Performance as Supplied linked to a Dialogue line; transformed performance as an Attempt. |
 | **Persistence** (#72) | Retire-not-delete, immutability of Attempts and Media, private media, and project duplication as new identities. Account and project ownership and isolation (M4), and project/media separability so a later purge (M7) needs no rewrite. Purge semantics themselves (when Media with no remaining reference is destroyed) remain open. |
 | **Workflow-state ownership** (#54, #71) | Phase disposition (done, skipped, bypassed) is server-side project truth; per-scene production progress is derived. |
-| **Spend and cost** (#68) | A Generation records estimated and actual cost; the spend-approval commitment point is attached to creator-initiated Generations (a batch is one creator action). |
+| **Spend and cost** (#68, resolved) | A Generation records estimated and actual cost, run billing and who paid; the spend-approval commitment point is attached to creator-initiated Generations (a batch is one creator action). Every project and everything under it belongs to one **Account**; no object is shared across Accounts. See [`BUSINESS-AND-OPERATIONS.md`](BUSINESS-AND-OPERATIONS.md). |
 
 ## 11. V1 failures this model answers
 

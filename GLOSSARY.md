@@ -286,7 +286,27 @@ An on-demand panel, opened from the quiet footer line, listing everything possib
 _Avoid_: Dashboard, inbox
 
 **Meaningful spend**:
-Generation cost significant enough that the creator must initiate it and see the estimate first.
+Generation cost the creator must initiate and see the estimate for first: any Generation estimated at $0.05 or more, and all video. A separate confirm step applies at $2.00 or more in total, 10 or more Generations, bulk regenerate by filter, an unknown price, or reaching a cap (`docs/domain/BUSINESS-AND-OPERATIONS.md` §3).
+
+**Trivial spend**:
+A Generation estimated below $0.05. Needs no confirmation and may auto-retry when otherwise safe.
+_Avoid_: Free, cheap
+
+**Account**:
+A creator's identity and isolated studio: its projects, media, settings, caps and usage. Accounts are invite-only and never share data; there are no teams or shared editing.
+_Avoid_: User, tenant, workspace
+
+**Operator**:
+The deployment role that runs the service and pays provider bills with server-held keys. Not a collaborator in creators' projects.
+
+**Spend cap**:
+A limit a creator sets on their own Account's spend (daily, monthly, optionally per action). Reaching one needs the creator's explicit confirmation to proceed.
+
+**Operator ceiling**:
+A small hidden per-Account limit on operator-paid spend that exists only until BYOK. Not creator-adjustable.
+
+**BYOK**:
+Bring your own provider key: a creator pays providers with their own key. A priority follow-on to the core build; the seam exists from the start.
 
 **Retire**:
 To take an object out of active use while keeping it, and everything attached to it, recoverable. V2 retires; it does not delete creative work.
