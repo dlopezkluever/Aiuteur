@@ -158,6 +158,8 @@ Treatment and Beat Sheet are related by explicit Sync only (creator ratification
 
 ### 3.3 Requirement on every Generation (to #65)
 
+Met by the recorded package of [`GENERATION-PACKAGE.md`](GENERATION-PACKAGE.md) §11 (Package, Fit report, Rendered request, call log); layer-to-lineage mapping in its §12.
+
 A Generation must record, **at dispatch, before any provider call**, so that a failed or cancelled Generation is still inspectable and a result that lands after upstream changed shows the drift immediately:
 
 1. **Target**: the Slot (or object) the output is for, and the kind of output (Attempt, Option, AI-made Revision).

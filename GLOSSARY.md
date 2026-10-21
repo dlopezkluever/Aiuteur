@@ -249,6 +249,24 @@ _Avoid_: Take, render, run, job
 One run of the background work that carries out a Generation or other long-running work (such as building an Export package), with its own execution lifecycle. A Generation has one or more Jobs; a retry is a new Job of the same Generation. It is operational, not creative truth, and may be pruned once settled. States, retry and cancellation rules are in `docs/domain/JOB-LIFECYCLE.md`.
 _Avoid_: Task, generation, request
 
+**Generation package** **(Wayfinder)**:
+The single compiled object behind one request to a model: ordered Layers, carried references with roles, and typed parameters, plus the Fit report. It is derived from owned truth by a pure function and recorded on the Generation before the provider is called. Defined in `docs/domain/GENERATION-PACKAGE.md`.
+_Avoid_: Prompt (the package is more than text), context
+
+**Layer** **(Wayfinder)**:
+One part of a Generation package, owned by a single domain (identity, place, composition, style and so on), with the captured inputs it was made from and a limited scope of what it may say.
+
+**Fit report** **(Wayfinder)**:
+The record of how a Generation package met the chosen model's limits: for each layer and reference whether it was carried, carried by another input, demoted, or omitted, and why. Nothing is cut inside a layer; a request that cannot fit is not sent.
+
+**Rendered request**:
+What a provider adapter is given to send: the text parts, media parts, parameters and declared provider rewrites after translation into the model's dialect. It is stored with the Generation and is the object the inspector shows.
+_Avoid_: Final prompt
+
+**Override** **(Wayfinder)**:
+The creator's persistent, layer-addressed edits to what is sent for a shot (replace a layer's text, add a note, turn a layer off, include or exclude a reference). It stays in effect when upstream changes, shows a quiet "base changed" note, and is never rewritten by regeneration.
+_Avoid_: Custom prompt
+
 **Batch** **(Wayfinder)**:
 The record of one creator action that created several Generations at once (a scene's takes, a film's frames), with one approved total estimate and any dependencies between members. Members succeed, fail and are cancelled independently.
 _Avoid_: Bulk job, queue
