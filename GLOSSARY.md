@@ -263,6 +263,31 @@ The record of how a Generation package met the chosen model's limits: for each l
 What a provider adapter is given to send: the text parts, media parts, parameters and declared provider rewrites after translation into the model's dialect. It is stored with the Generation and is the object the inspector shows.
 _Avoid_: Final prompt
 
+**Model** **(Wayfinder)**:
+The product-level identity of a generator ("a video model") that defaults and overrides store. It is reached through one or more Offerings and is never a vendor endpoint. Defined in `docs/domain/PROVIDERS-AND-MODELS.md`.
+_Avoid_: Provider (as a synonym), engine, endpoint
+
+**Offering** **(Wayfinder)**:
+One Model on one provider surface, with its adapter, price entries, lifecycle status and capability profile. The same Model on two surfaces is two Offerings. The creator never chooses an Offering.
+
+**Capability profile** **(Wayfinder)**:
+The reviewed, evidenced, immutable description of an Offering: input modes and the constraints between inputs, reference limits, durations, extension, outputs, audio, controls, limits, cost rule, run behaviour and known limitations. An unknown field means the conservative reading. Identified by a content-hash snapshot id recorded on every Generation.
+
+**Catalogue** **(Wayfinder)**:
+All Offerings, their profile snapshots, the operator's editorial quality ranking and tiers, and the operational overlay (status, enablement). Reviewed data, not code.
+
+**Adapter** **(Wayfinder)**:
+The per-provider-surface component that serialises a Rendered request, submits, observes, cancels, fetches and maps errors. It never chooses a model, builds content, retries or holds a key.
+
+**Effective model** **(Wayfinder)**:
+The Model and Offering that selection resolved for an action (shot override, project choice, or Automatic), with the reason codes, recorded on the Generation and shown on the control.
+
+**Automatic** **(Wayfinder)**:
+The default model setting: a policy over the Catalogue, evaluated per shot, with a quality, balanced or lowest-cost bias. It is a system default, not an AI-made choice.
+
+**Need** **(Wayfinder)**:
+One requirement a shot or operation places on a model, derived by code. Each need ends met, met by a declared fallback, limited, unmet-soft or unmet-blocking; a blocking need creates no Generation and offers exits.
+
 **Override** **(Wayfinder)**:
 The creator's persistent, layer-addressed edits to what is sent for a shot (replace a layer's text, add a note, turn a layer off, include or exclude a reference). It stays in effect when upstream changes, shows a quiet "base changed" note, and is never rewritten by regeneration.
 _Avoid_: Custom prompt

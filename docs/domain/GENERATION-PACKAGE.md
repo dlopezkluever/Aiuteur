@@ -169,7 +169,7 @@ Every layer and reference ends Fit with exactly one outcome, recorded with a rea
 | `carried-by` | Another carried input already provides it (for example the approved opening frame carries Marcus's appearance, so only his handle is in the text). The provider is not told something the request does not hold. |
 | `demoted` | Lighter form: image to text, View to a lower ladder rung, appearance text to handle. |
 | `omitted-optional` | A Tier 2 layer or an optional reference left out for space. |
-| `param-honored`, `param-in-text`, `param-unsupported` | For a typed parameter: sent as a parameter; requested only in prose (not guaranteed, said so); not available on this model. |
+| `param-honored`, `param-adjusted`, `param-in-text`, `param-unsupported` | For a typed parameter: sent as a parameter; sent after normalisation to a supported value (requested and sent values both recorded, for example 7 s sent as 8 s, [`PROVIDERS-AND-MODELS.md`](PROVIDERS-AND-MODELS.md) §5); requested only in prose (not guaranteed, said so); not available on this model. |
 | `blocked` | A Tier 0 element does not fit. The Generation is not dispatched. |
 
 ### 7.2 Tiers and the order of loss
@@ -290,7 +290,7 @@ Render may arrange, wrap and encode. It may not add story, appearance, style or 
 
 Some providers transform the prompt after receiving it: Wan 3.0 documents `prompt_extend`, default true, where a language model rewrites the prompt (fetched 2026-10-21). Rule: the profile declares each rewrite as `controllable` or `always`. A controllable rewrite is **turned off** in the request so the model reads what the creator can see. An `always` rewrite is recorded as `provider_rewrite: always` on the Generation and shown ("this provider may rephrase your prompt"). When the provider echoes the rewritten text, it is stored with the output as `provider_echo`. The record never claims the provider read exactly the sent text when a rewrite applied.
 
-### 10.4 What the compiler needs from the capability profile (hand-off to #66)
+### 10.4 What the compiler needs from the capability profile (hand-off to #66, resolved in [`PROVIDERS-AND-MODELS.md`](PROVIDERS-AND-MODELS.md) §4)
 
 Input modes and which input roles each mode allows together; maximum references in total, per role, and soft "best up to N" figures; whether first, last and keyframes are pinned (count, positions); extension (same-model, input constraints, resolution); duration set, minimum and maximum, step; aspect and resolution sets; audio on or off; negative-prompt support; seed support and its documented guarantee; prompt limit, unit, counter and margin; per-reference constraints (aspect ratio range, size, face policy); declared tunables; declared provider rewrites; whether the provider echoes the effective prompt; how references are bound to prose (positional labels, typed roles, none). Everything the Fit report reasons about must come from here; the compiler holds no per-vendor rule.
 
