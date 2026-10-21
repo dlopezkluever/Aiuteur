@@ -1,6 +1,6 @@
 # Aiuteur V2: Business and Operations Contract
 
-Resolution of Wayfinder ticket #68. Vocabulary is in [`GLOSSARY.md`](../../GLOSSARY.md); the trade-offs are recorded in [ADR 0008](../adr/0008-multi-creator-accounts-operator-paid-bounded-spend.md). Creator decisions come from the [Creator Ratification Record](../product/CREATOR-RATIFICATION-RECORD.md) (M4 to M7 and section 2, #68), which controls; they are marked **[creator]**. Everything else is agent-designed and reviewable. Like the job lifecycle, this document is provider-neutral and substrate-neutral: no tables, columns or endpoints. Values the creator parked, or that are tuning, are listed in §9 as spec-level configuration; they are not invented here.
+Resolution of Wayfinder ticket #68. Vocabulary is in [`GLOSSARY.md`](../../GLOSSARY.md); the trade-offs are recorded in [ADR 0010](../adr/0010-multi-creator-accounts-operator-paid-bounded-spend.md). Creator decisions come from the [Creator Ratification Record](../product/CREATOR-RATIFICATION-RECORD.md) (M4 to M7 and section 2, #68), which controls; they are marked **[creator]**. Everything else is agent-designed and reviewable. Like the job lifecycle, this document is provider-neutral and substrate-neutral: no tables, columns or endpoints. Values the creator parked, or that are tuning, are listed in §9 as spec-level configuration; they are not invented here.
 
 ## 1. Operating model
 
