@@ -468,6 +468,34 @@ Before drafting or accepting the Master Narrative, if Treatment and Beat Sheet d
 **Reverse generation**:
 An explicit AI generation of a bypassed or development-history document (for example beats) from the Master Narrative.
 
+## Architecture (Wayfinder #71)
+
+Terms that cross the module boundaries. Defined in `docs/architecture/MODULE-ARCHITECTURE.md` and [ADR 0016](docs/adr/0016-modules-follow-ownership-of-truth-and-every-write-passes-one-history-gate.md).
+
+**Write gate** **(Wayfinder)**:
+The single commit path of the `history` module through which every Revision, retirement and Slot choice passes. It checks the Account and project, lock state, the base Revision and the kind's invariants, and appends in one transaction. Nothing else can change creative truth.
+_Avoid_: Middleware, validator, save endpoint
+
+**Change** **(Wayfinder)**:
+An ordered set of appends (Revisions, Attempts, Decisions, captured inputs, Acknowledgements) that a domain module plans and the write gate commits together or not at all. One creator action is one Change in one action group.
+_Avoid_: Patch, transaction (for the creator-facing concept)
+
+**Edit session** **(Wayfinder)**:
+The server-held grant created when the creator confirms an edit-through on a locked scope. It carries the impact version the creator saw and ends on unlock, an explicit end, an impact change or idle expiry. It is not a screen flag.
+_Avoid_: Unlock, override
+
+**Scope** **(Wayfinder)**:
+The Account, project and creator on whose behalf a call runs, obtained only from authentication (or, for background work, from the Account recorded on the Job or event). Every data operation takes one.
+_Avoid_: Tenant, permission, role
+
+**Read model** **(Wayfinder)**:
+A derived, read-only representation built for a screen (Outline, Board, shell strip, Ledger, review-all tray, inbox). It is computed on read or maintained in the transaction that changes its inputs, and it holds no truth that exists nowhere else.
+_Avoid_: View state, store, cache (as a source)
+
+**Initiation** **(Wayfinder)**:
+The proof that a creator's action (or a creator-enabled trigger recorded as a Decision) started an operation. Only the application boundary can mint one, and creating a Generation requires one, so no timer, event handler or model output can start AI work.
+_Avoid_: Trigger, permission
+
 ## Reference
 
 **Design reference**:

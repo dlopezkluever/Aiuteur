@@ -72,6 +72,6 @@ Resolves Constitution §13.4 (3). **Choosing a Take is a reversible Slot choice*
 |---|---|
 | **Candidate review and playback** (#62) | The take model above: selection reversible, Mark final voluntary; where the Whisper dot, "arrived after cancel" labels and AI-made tags sit on candidates; the review-all tray as the bulk surface. |
 | **Shot model** (#55), **Entities and Looks** (#53), **Story documents** (#51) | The structured paths that raise the write-back note; the narrative-bearing slices; span-level provenance for the toggle. |
-| **Module architecture** (#71) / **Persistence** (#72) | The impact summary and edit-session confirmation must be server operations (ADR 0005); the confirmation token carries the impact version. |
+| **Module architecture** (#71, resolved in [`MODULE-ARCHITECTURE.md`](../architecture/MODULE-ARCHITECTURE.md)) / **Persistence** (#72) | The impact summary and edit-session confirmation must be server operations (ADR 0005); the confirmation token carries the impact version. |
 | **Spend and cost** (#68) | Money-at-risk reads Generation cost; tier 2 and bulk regenerate use the same estimate display. |
 | **Downstream UX tickets** | Flags are subtle (M1); no typed confirmation anywhere; any new surface that shows state uses the Whisper pattern first. |

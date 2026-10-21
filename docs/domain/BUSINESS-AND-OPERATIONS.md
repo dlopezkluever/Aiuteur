@@ -223,7 +223,7 @@ Not designed here, and where the Constitution excludes them not to be invented w
 | **Providers and models** (#66, resolved in [`PROVIDERS-AND-MODELS.md`](PROVIDERS-AND-MODELS.md) §§7, 14) | Adapter contract additions: price declaration (unit, source, bounds), billed-quantity rule, actual-cost reporting capability, credential interface resolved by (Account, provider), and error mapping that separates operator-funds from content failures |
 | **Generation package** (#65) | The estimate derives from the exact package; its parameters set the billed quantity |
 | **World Definition** (#59), **Candidate review and playback** (#62) | Every generation trigger applies §3: price on the initiating control; confirm-step conditions; Retry with price; the "may have been charged" wording; unknown-price and cap-hit states; money at risk from lineage |
-| **Module architecture** (#71) | A spend module (estimate, cap check, summaries) beside generation; a credential resolver; the price registry; no vendor names in it |
+| **Module architecture** (#71, resolved in [`MODULE-ARCHITECTURE.md`](../architecture/MODULE-ARCHITECTURE.md)) | A spend module (estimate, cap check, summaries) beside generation; a credential resolver; the price registry; no vendor names in it |
 | **Verification** (#76) | Provider fakes need price entries, stale and unknown prices, drift, unavailable actual cost, funds exhausted, key revoked; tests for cap races between concurrent actions and for cross-Account isolation |
 
 ## 13. Constitution check
