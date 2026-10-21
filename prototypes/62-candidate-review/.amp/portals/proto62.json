@@ -1,0 +1,12 @@
+{
+	"links": [
+		{
+			"label": "proto62",
+			"url": "https://t-03h36jwlfrr7qiqy43u44kwzx-p22460.onamp.dev/"
+		}
+	],
+	"amp": {
+		"owner": "amp-orb-service",
+		"service": "proto62"
+	}
+}

@@ -1,0 +1,9 @@
+{
+  "proxies": [
+    {
+      "targetOrigin": "http://localhost:30891",
+      "proxyPort": 22460,
+      "serviceName": "portal-proxy-22460"
+    }
+  ]
+}
