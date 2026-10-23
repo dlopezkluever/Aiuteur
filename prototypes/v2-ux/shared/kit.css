@@ -1,0 +1,46 @@
+/* Aiuteur V2 shared prototype kit. Structural sketch only; dark cinematic feel (V1 WizardDirector reference). */
+:root{
+  --bg:#0c0d10;--panel:#14161b;--panel2:#1a1d24;--line:#262a33;--line2:#323744;
+  --text:#e7e9ee;--dim:#9aa1b0;--faint:#666d7c;
+  --accent:#e0a64a;--accent-d:#8a6420;--ok:#6fb58a;--warn:#c9a45c;--stale:#b88a5a;--fail:#a67c7c;--sel:#7aa7e0;
+  --r:8px;--font:Inter,system-ui,sans-serif;--serif:Georgia,'Iowan Old Style',serif;
+}
+*{box-sizing:border-box}html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:13px/1.45 var(--font)}
+button{font:inherit;color:inherit;background:var(--panel2);border:1px solid var(--line2);border-radius:6px;padding:5px 10px;cursor:pointer}
+button:hover{border-color:var(--faint)}button.primary{background:var(--accent);color:#1a1205;border-color:var(--accent);font-weight:600}
+button.primary:hover{filter:brightness(1.08)}button.ghost{background:transparent;border-color:transparent;color:var(--dim)}button.ghost:hover{color:var(--text);background:var(--panel2)}
+button .price{opacity:.75;font-weight:500;margin-left:4px}
+input,textarea,select{font:inherit;color:var(--text);background:var(--bg);border:1px solid var(--line2);border-radius:6px;padding:5px 8px}
+textarea{width:100%;resize:vertical}
+.app{display:grid;grid-template-columns:232px 1fr;grid-template-rows:40px 1fr;height:100vh}
+.strip{grid-column:1/3;display:flex;align-items:center;gap:16px;padding:0 14px;border-bottom:1px solid var(--line);background:var(--panel)}
+.strip .brand{font-weight:700;letter-spacing:.04em;color:var(--accent)}.strip .sp{flex:1}
+.strip .meter{width:140px;height:5px;background:var(--line);border-radius:3px;overflow:hidden}.strip .meter i{display:block;height:100%;background:var(--accent)}
+.outline{background:var(--panel);border-right:1px solid var(--line);overflow:auto;padding:10px 0}
+.outline h6{margin:12px 14px 4px;font-size:10px;letter-spacing:.12em;color:var(--faint);text-transform:uppercase}
+.outline a{display:flex;align-items:center;gap:8px;padding:4px 14px;color:var(--dim);text-decoration:none;cursor:pointer}
+.outline a:hover{background:var(--panel2);color:var(--text)}.outline a.on{background:var(--panel2);color:var(--text);box-shadow:inset 2px 0 var(--accent)}
+.outline a.sub{padding-left:30px;font-size:12px}.outline a.muted{color:var(--faint);font-style:italic}
+.outline .dot{width:7px;height:7px;border-radius:50%;background:var(--line2);flex:none}.dot.done{background:var(--ok)}.dot.prog{background:var(--accent)}.dot.skip{background:transparent;border:1px dashed var(--faint)}
+.main{overflow:auto;position:relative}
+.pane{padding:20px 26px}
+.row{display:flex;gap:10px;align-items:center}.sp{flex:1}.col{display:flex;flex-direction:column;gap:8px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r)}
+.dim{color:var(--dim)}.faint{color:var(--faint)}.serif{font-family:var(--serif)}
+.chip{display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:1px 7px;border-radius:10px;background:var(--panel2);color:var(--dim);border:1px solid var(--line)}
+.chip.ok{color:var(--ok)}.chip.warn{color:var(--warn)}.chip.sel{color:var(--sel)}
+/* whisper: quiet possibly-out-of-date / failure marks (M1, X7). Never red, never banners. */
+.whisper{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--stale);opacity:.8;vertical-align:middle}
+.quiet{font-size:11.5px;color:var(--stale)}.quiet.fail{color:var(--fail)}
+/* inline spend ticket (X2): sits at the initiating control, never a modal */
+.ticket{display:inline-flex;gap:8px;align-items:center;padding:6px 10px;margin-left:8px;border:1px solid var(--accent-d);background:#1d1810;border-radius:6px;font-size:12px}
+.ticket b{color:var(--accent)}
+/* lock glyph sits on the scope it locks */
+.lock{font-size:11px;color:var(--dim)}
+.toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--panel2);border:1px solid var(--line2);border-radius:8px;padding:8px 14px;display:flex;gap:12px;align-items:center;box-shadow:0 8px 30px #0008;z-index:50}
+.sidebar-r{width:340px;border-left:1px solid var(--line);background:var(--panel);overflow:auto;flex:none}
+.hdr{display:flex;align-items:center;gap:10px;margin:0 0 12px}.hdr h2{margin:0;font-size:18px;font-weight:600}
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin-bottom:14px}.tabs button{border:0;border-bottom:2px solid transparent;border-radius:0;background:none;color:var(--dim)}.tabs button.on{color:var(--text);border-color:var(--accent)}
+.img{background:linear-gradient(135deg,#2a3040,#171a22);border-radius:4px;position:relative;overflow:hidden}
+.img.h1{background:linear-gradient(135deg,#40362a,#1c1712)}.img.h2{background:linear-gradient(135deg,#2a3a40,#12191c)}.img.h3{background:linear-gradient(135deg,#3a2a40,#17121c)}.img.h4{background:linear-gradient(135deg,#2a4034,#121c16)}
+.proto-note{position:fixed;right:10px;bottom:8px;font-size:10px;color:var(--faint);z-index:5}
