@@ -18,4 +18,5 @@ Assignments live in the project, not inside the entity, so an entity stays a sel
 
 - Reordering or inserting scenes changes the derived Look immediately and correctly. Any frame or take whose recorded input Look Revision differs from the newly derived one is marked possibly out of date by lineage (#54); nothing is rewritten.
 - The rule is deterministic and explainable ("Muddy suit, since Scene 4"). Absence of the entity from scenes does not interrupt carry-forward.
+- Derivation needs a narrative position. An ad-hoc shot (Record 2 X5) has none, so the creator picks each entity's Look, and the default is base. A shot in a Removed from Story scene is not re-derived until the scene is brought back or its work is adopted or moved (ENTITIES-AND-LOOKS §4.3).
 - Assignments need anchors that survive Master Narrative edits (Scene ids from #52, passage anchors from #51); when a refined anchor is lost, the assignment degrades to its scene and is flagged.
