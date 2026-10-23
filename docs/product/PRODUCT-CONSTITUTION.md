@@ -387,12 +387,12 @@ Organized into **scenes**, in story order, it contains everything narrative and 
 
 Locations are different from characters and props: a character reference shows the thing that should appear; a location reference shows **one view of a space that shots must depict from many angles**. Location continuity is therefore a first-class concern.
 
-- **Default: multi-direction coverage.** By default, a location has coverage from **multiple directions** (its walls/angles/views), so that shots within a scene look like the same place from different angles (shot/reverse-shot, characters moving through the room).
+- **Default: coverage follows the shots.** A location starts with one canonical reference image that establishes what the place looks like. Once shots are planned, the views they need (e.g. "toward the window" and its reverse) become the location's coverage, generated from the canonical reference and cheap to accept in bulk, so that shots within a scene look like the same place from different angles (shot/reverse-shot, characters moving through the room). The creator may add more views at any time, including before any shots exist.
 - **Per-location simplification.** The creator can choose, **per location**, to use only one establishing/background image instead (e.g. for a location used briefly).
 - **AI-generated coverage.** From a single background image, **AI can generate the other walls/angles** automatically.
 - **Frame reuse is an ordinary continuity path.** Reusing and editing approved frames from earlier shots to hold a background steady is a normal, everyday tool, not an advanced feature.
 - **Shots know their location.** Every shot is associated with its location (and, where coverage exists, the appropriate direction) without the creator having to manage that manually.
-- **Design requirement:** multi-direction coverage must be **designed well**. In V1 the creator found the setup burden too heavy; in V2 it is the default *outcome*, produced largely by AI and cheap to accept in bulk, never a laborious mandatory setup ritual.
+- **Design requirement:** shot-driven multi-direction coverage must be **designed well**. In V1 the creator found the setup burden too heavy; in V2 it is the default *outcome*, produced largely by AI from the views the planned shots need and cheap to accept in bulk, never a laborious mandatory setup ritual.
 
 ### 6.5 Visual style
 
@@ -685,7 +685,7 @@ Classification at capability-family level. **IMPORTANT items must be supported b
 | Treatment: multiple options, manual editing, targeted selection rewrite, regeneration, import |
 | Beat sheet: editing, reordering, targeted rewrite, alternatives, regeneration, import |
 | Master Narrative: generation, editing, targeted rewrite, acceptance; screenplay import → conversion |
-| World definition: characters, locations (multi-direction coverage by default, single-image option, AI-generated angles), props, extra types, named looks; generate/upload with multiple attempts; defer |
+| World definition: characters, locations (canonical reference, then shot-driven multi-direction coverage, single-image option, AI-generated views), props, extra types, named looks; generate/upload with multiple attempts; defer |
 | Visual style (preset / plain-English / reference images) |
 | Scene and shot planning: AI-drafted, editable, split/merge, batch across scenes, runtime awareness, composition-reference support in the shot concept |
 | Frames: generation, approval, reuse/edit of prior frames, continuity across adjacent shots |
@@ -978,4 +978,7 @@ The decisions made in the grilling session that this Constitution encodes. Recor
 
 | Date | Section | Change | Reason |
 |---|---|---|---|
-| | | *(none yet)* | |
+| 2026-10-21 | §12.3 (NLE timeline export line) | CapCut Desktop cannot import a pre-assembled timeline; it receives ordered, uniquely named clips. Resolve and Premiere keep the pre-assembled sequence. | Factual correction from NLE import research (#70); creator-approved (Record 1). |
+| 2026-10-21 | §15.2 (NLE timeline export row) | Same CapCut correction: "Resolve / Premiere sequence; CapCut: ordered clips". | As above. |
+| 2026-10-21 | §16.2 principle 3 | "Nothing is lost inside a project"; the only exception is a deliberate, creator-initiated purge of a whole project or account (a later requirement). | Ratified permanent project/account deletion (M7) contradicted the absolute wording; creator-approved. |
+| 2026-10-22 | §6.4 (two bullets), §15.1 (World definition row) | Location coverage follows the shots: one canonical reference first, shot-driven multi-direction coverage later, extra views any time. | Predicting coverage before any shot exists is a setup ritual; identity first and shot-driven coverage later is cheaper and faster (D59, Record 2). |
