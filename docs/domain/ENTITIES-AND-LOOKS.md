@@ -59,6 +59,10 @@ Mentions are the single basis for four things: scene-level Presence (§6), descr
 - **Base versus Look.** Compile separates what is true of the entity everywhere (canonical identity) from what the story changes (proposed Looks, with their change points). Only story-wide facts enter the base description.
 - **Consistency over time.** When the Master Narrative Revision a description was compiled from changes in a passage that mentions the entity, the entity is marked **possibly out of date** ("the narrative changed since this description was written"), with the choice to recompile as an Option, write the change back to the entity, or leave it. A downstream edit to identity (a shot prompt that contradicts the description) follows Constitution §4.4(7): written back to the entity (new Revision) or recorded as a Deliberate local deviation. The marking mechanism itself is **#54**'s.
 
+### 2.2a Manual add
+
+Extraction accelerates; it never constrains (Record 2 D59.7). The creator can add a Character, Location, Prop or Extra type by hand at any time: it was missed, it is introduced later, or the creator simply wants to define it directly. A manual entity has no Mentions until the narrative names it; it is otherwise an ordinary entity (status `kept`, no extraction provenance).
+
 ### 2.3 Merging duplicates
 
 Merge is within a type and reversible, because nothing is destroyed.
@@ -88,7 +92,7 @@ A **Look** is a named, story-driven appearance of an entity, anchored to its can
 | Aspect | Rule |
 |---|---|
 | Applies to | Character, Prop, Location (a place can burn, flood, be redecorated). Not Extra types. |
-| Base | The canonical identity is the base appearance. It is **not** a Look and needs no assignment; "no assignment in effect" means base. |
+| Base | The **base Look equals the canonical identity** (Record 2 D59.2): it is the default appearance, not a separate stored object, and needs no assignment; "no assignment in effect" means base. Alternate Looks are added only when needed through "Add Look". |
 | Content | A name, a **description of what differs from the base** (not a full copy), and an image Slot (Attempts, one active). Look images are generated with the base identity image as a reference, so identity outranks the Look's styling. The **effective description** of an entity in a Look is *composed at use time* from base plus Look delta; it is never stored. |
 | Identity | Own id, owned by exactly one entity forever. Name is a label. |
 | Boundary | A Look is a story-level appearance that persists across shots. Changes inside a shot (a punch lands, glass shatters) are never modelled as Looks (§6.3); they live in the shot and its frames and takes. Lighting and time of day are likewise shot or scene context, not Looks, unless the creator wants a fixed night-time version of a place (then "Kitchen, night" is an ordinary Look). |
@@ -145,11 +149,14 @@ Resolves:  base base base Muddy Age12 Age12 Muddy Clean Clean
 | Concept | Rule |
 |---|---|
 | **Coverage** | Part of the Location, Editable. A **mode**: *multi-direction* (the default outcome) or *single-image* (creator's per-location choice). In single-image mode there is one Direction, "establishing". |
-| **Direction** | A named Slot-group within coverage: a label ("toward the window", "north wall"), a short description of what is seen, and optionally an **opposite** Direction (for shot / reverse-shot). Own id; label is a label. AI proposes the set from the location description and the Master Narrative (for a room, typically its walls plus an establishing view). |
+| **Direction** | A named Slot-group within coverage: a label ("toward the window", "north wall"), a short description of what is seen, and optionally an **opposite** Direction (for shot / reverse-shot). Own id; label is a label. **Directions are proposed at shot planning, not up front** (Ratification Record 2, D59): the AI derives them from the views the planned shots call for ("toward the window" and its reverse). The creator may also add Directions by hand at any time, including before any shots exist. |
 | **View** | An Attempt (immutable image) for the Slot (Direction × Look-or-base). Sources: AI-generated from the location's identity, uploaded, or **promoted from an approved Frame** (lineage recorded; frame reuse is ordinary). One active per Slot. |
 | **Look × Direction** | Coverage is a sparse matrix. A Location Look ("burned down") needs its own Views only when a shot needs that Direction in that Look; they are generated then, using the base Views as geometry references. Nothing is pre-generated for Looks no shot uses. |
 | **Sub-location** | A sub-location is itself a Location (own identity, description, coverage). Its `parent` link is a project relation. Its generation uses the parent's identity image as a "same building or place" reference. A shot in the sub-location never borrows the parent's Views: a kitchen is not the house's front. |
-| **Bulk acceptance** | AI generates all Directions in one batch; the creator reviews them together and approves them all in one action, or fixes individual ones. This keeps coverage a default outcome, not a setup ritual. |
+| **Canonical reference** | A non-deferred Location starts with **one approved reference image** (generated or uploaded; a broad view, one wall, a photo, a concept image). That image is the Location's identity and its base Look; it need not be an "establishing shot". It is the geometry and identity reference for every later View. |
+| **Bulk acceptance** | The Views the shot plan calls for are generated from the canonical reference as one batch with one estimate; the creator reviews them together as a contact sheet and approves them all in one reversible action ("Accept all N"), then fixes individual tiles. Every View is a draft Attempt. This keeps coverage a default outcome, not a setup ritual. Nothing generates automatically (spend rules, #68; Record 2 X8). |
+| **Opt-in before shots** | "Generate more views" or setting up Views by hand is available at any time, including before any shots exist. It is the optional path, not the default. |
+| **Location variants** | A variant of a place (night, burned, decorated) may be an **alternate Look of the same Location** or a **separate Location entity**; the creator chooses and neither is privileged. Time of day and lighting normally come from the scene and shot, so Looks are mainly for changes to the place itself, because coverage multiplies across Looks (one View per Direction × Look). |
 
 ### 5.2 Capability honesty
 
@@ -185,9 +192,14 @@ Frame reuse is an additional, explicit input a shot may carry (#55); it is not p
 
 **Downstream identity edits.** A creator edit in a shot that changes what an entity is gets one of two outcomes (§4.4(7)): **write-back** (a new Revision of the entity or Look, which then applies everywhere) or a **Deliberate local deviation** attached to that Presence, applying only to that shot. Never a silent local copy.
 
-## 7. Needed versus deferrable
+## 7. Needed versus deferrable, and the two readiness levels
 
 An entity is **needed for a scene** when it has a Presence in that scene that is on-screen or is its setting. A referenced-only Mention never makes an entity needed. "Needed" is derived, never stored.
+
+**Two readiness levels** are derived, quiet and never blocking (Record 2 D59.4, X9):
+
+- **Identity readiness:** is the entity visually defined enough to use? (Canonical description plus an approved identity image, or a lightweight text-only definition.)
+- **Production coverage readiness:** do the Locations have the additional Views the *current shot plan* needs? Shown as, for example, "Hale Kitchen: Identity ✓ · 3 production views needed". When the shot plan changes and reveals new needs, a quiet attention marker reappears ("1 new view needed"). It is derived from the shots' resolved Directions (§5.3) against existing Views, never stored, and it never triggers generation by itself.
 
 **Readiness** is derived per Presence, quietly, from the entity:
 
@@ -196,7 +208,7 @@ An entity is **needed for a scene** when it has a Presence in that scene that is
 | `proposed` / `deferred`, never described | Allowed (the extracted name suffices) | The entity reads **needs a decision**: define it, make it lightweight, or generate with the AI's compiled description as an AI-made choice. One action, offered in bulk. |
 | Lightweight (description, no image) | Allowed | Allowed; generated from text. |
 | Detailed (approved identity image) | Allowed | Allowed. |
-| Location with no Views | Allowed | Allowed through the §5.3 ladder (identity image or text only). |
+| Location with identity, no production Views yet | Allowed | Allowed through the §5.3 ladder (identity image or text only); the missing Views appear as production coverage needs. |
 | Look not yet defined for a position that needs it | Allowed (base is used) | Allowed; the base is used and the missing Look is a quiet suggestion. |
 
 Rules:
@@ -269,7 +281,7 @@ No requirement was found unworkable; no `CONSTITUTION AMENDMENT REQUIRED` is rai
 | Ticket | Receives |
 |---|---|
 | **Shot model** (#55) | Shot Presence is derived from Mentions and Look resolution with explicit overrides; shot location is the §5.3 rule; shot refers to a Direction Slot, never a View; Composition reference carries the Subject mapping (§9); frame promotion to View records lineage. Resolved in [`SHOT-MODEL.md`](SHOT-MODEL.md): Presence overrides stored only as differences (§4), split/merge effect on anchors (§5), frame reuse (§6.3), composition reference (§8). |
-| **World Definition** (#59) | The entity states (`proposed`, `kept`, `deferred`, `retired`), depth, merge/type-change effects (§§2.3–2.4), Look proposal and assignment review, bulk-accept coverage, needed/deferrable readiness (§7), Visual Style default as AI-made choice. |
+| **World Definition** (#59, resolved: [`docs/ux/WORLD-DEFINITION.md`](../ux/WORLD-DEFINITION.md)) | The entity states (`proposed`, `kept`, `deferred`, `retired`), depth, merge/type-change effects (§§2.3–2.4), Look proposal and assignment review, bulk-accept coverage, needed/deferrable readiness (§7), Visual Style default as AI-made choice. |
 | **Lineage and staleness** (#54) | Entities, Looks, Directions, Visual Style, Writing Style are Editable; Views, identity and Look images are Attempts; Look assignments and Mention decisions are creator-truth records; "narrative changed since description compiled" and "Look resolved to a different Revision" as marking reasons; writing-style change does not mark documents; write-back/deviation for identity (§6). |
 | **Story documents** (#51) and **Scene identity** (#52) | Mentions and Look assignments need passage anchors that survive Master Narrative Revisions, and Scene ids as anchor targets; degrade to scene on anchor loss. |
 | **AI responsibility map** (#64) and **Generation package** (#65, resolved in [`GENERATION-PACKAGE.md`](GENERATION-PACKAGE.md)) | Generations introduced: entity extraction and Mention derivation, description compile (Revision or Option), Look proposal, Direction proposal, View generation, Reference Media subject annotation, merge-text Option. Composition order at use time: base + Look delta, identity before style, exact Revisions recorded. |

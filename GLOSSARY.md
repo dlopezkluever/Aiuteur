@@ -123,6 +123,15 @@ _Avoid_: Tag, appearance record
 **Location coverage**:
 A Location's set of directional views (walls or angles). Multi-direction by default; a single establishing image by choice.
 
+**Identity readiness**:
+Whether an entity is visually defined enough to use: an approved canonical description and identity image, or a deliberate lightweight text-only definition. Derived, quiet, never blocks. Distinct from Production coverage readiness.
+
+**Production coverage readiness**:
+Whether a Location has the additional Views the current shot plan needs (for example "3 production views needed"). Derived from the shots' resolved Directions against existing Views; reappears quietly when the plan changes. Never blocks and never triggers generation by itself.
+
+**Base Look**:
+An entity's default appearance. It equals the canonical identity, not a separate object; "no Look assignment in effect" means base. Alternate Looks are added only when needed.
+
 **Direction**:
 A named place to look from within a Location's coverage (for example "toward the window"), with a View Slot for each Look of the Location. A shot refers to a Direction, never to one particular View.
 _Avoid_: Angle, camera direction
