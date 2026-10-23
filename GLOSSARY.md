@@ -184,6 +184,17 @@ _Avoid_: Line (alone), caption
 
 **Composition reference**:
 A blocking capture, sketch, storyboard frame or reference image or video attached to a shot to control its framing and staging.
+A CineBlock capture is auto-linked by shot id on Send back, retired (never deleted) with its ✕, and always passes through image generation; it is never the frame itself.
+
+**CineBlock** **(Wayfinder)**:
+The Aiuteur module, opened in its own tab under the same account, where the creator blocks a scene with mannequins and primitives and captures start and end compositions. Not a separate app.
+_Avoid_: Previs app, external tool
+
+**Previs package** **(Wayfinder)**:
+The versioned, internal handoff from the CineBlock tab to a scene's shots (echoed shot ids, captures, placeholders, camera, opaque scene state). An external package is imported with the same matching rules as storyboards and shot lists.
+
+**Import tray** **(Wayfinder)**:
+The quiet per-scene list of imported or returned items that matched no shot or matched ambiguously. Unresolved items stay there and block nothing.
 
 **Frame**:
 A still image for a shot, in a role such as opening or ending. A frame is an Attempt: every frame is kept, and the creator approves which one stands. It records its source (generated, uploaded, reused, edited, extracted from a Take, or captured from a composition reference) and, for reuse and editing, the Frame it was derived from.

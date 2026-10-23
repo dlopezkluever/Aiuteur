@@ -154,6 +154,22 @@ Each of these was also designed two ways.
 
 `Store` (transactions, the `Scope` on every call, serialisation per Account), `BlobStore`, `Scheduler` (durable timers, leases), `Vault`, `Clock+Ids`, `Stream` (event delivery to clients), `Auth`, `ProviderTransport` (the adapter face of `providers`). Ports are interfaces; a **composition root** per process role is the only place an adapter is chosen and wired. Backing technologies are #72 and #74; the runtime choices are in [`RUNTIME-PLATFORM.md`](RUNTIME-PLATFORM.md) and [ADR 0017](../adr/0017-the-job-row-is-the-queue-on-plain-postgres-with-own-sse-progress.md) (two process roles, `web` and `worker`; the timer role is the worker's tick).
 
+### 3.6 The previs module (CineBlock)
+
+Added by Wayfinder #61 (creator decision D61; [`SHOT-PLANNING-INPUTS.md`](../domain/SHOT-PLANNING-INPUTS.md), [ADR 0024](../adr/0024-cineblock-is-an-aiuteur-module-and-captures-always-go-through-image-generation.md)). CineBlock is part of Aiuteur, not a second app.
+
+| Module | Owns | Interface | Depends on | Must not |
+|---|---|---|---|---|
+| **previs** | Kinds for the per-scene CineBlock **scene state** (opaque, versioned, append-only Attempts) and the **package** shape; the 3D stage client assets. Captures are Media. | Planners: `planSendBack(package) -> Change` (auto-link by shot id into `production` Composition references plus a leftovers list), `planRetireCapture`; Resolve: the shot brief for a scene (shot ids, derived Presence, Direction views); import matching for external packages, storyboards and shot lists (pure, deterministic first; AI proposals arrive as Generations validated by `guards`) | `history`, `production` (read), `world` (read), `media` | Write (only `history.commit` writes); create Frames or Takes; hold identity, location or story truth; call a vendor |
+
+- **Same session, separate tab.** The stage is served by Aiuteur and reaches the server only through the normal `api` with the creator's Scope; there is no second credential, launch token or cross-origin seam. The `client` rule of §3.1 holds: the stage keeps view state only, and every attach, retire and send-back is a server command.
+- **Writes** go through `workflows` and `history.commit`: Send back is one action group (the attached references, the scene-state Attempt, the leftovers list). The Composition reference remains a `production` kind; `previs` only plans it.
+- **World model.** `world.generate` is an operation class in the `providers` catalogue face (PROVIDERS-AND-MODELS §13): an ordinary Generation and Job, creator-initiated, priced on the button, operator-paid until BYOK. The `compiler` is not involved: the output is a stage for blocking, never a frame or a clip.
+- **Capture to Frame** is the ordinary image path of §6: the capture is a layout input to an `image.frame` Generation compiled by `compiler`; `previs` contributes nothing to the package beyond the reference and its subject mapping.
+- **Dependency rules.** `previs` is a planner module under R1 to R13 (no extra rule): it imports `contract`, `history`, domain read APIs and `media`, never `generation`, `jobs` or `providers` adapters; nothing imports `previs` except `workflows` and `views`.
+- **Isolation, duplicate and purge.** Scene state and captures carry (Account, project); project duplicate copies them (ADR 0022); purge (M7) removes them with the project.
+- **Verification seam.** A fake world model and fixtures of SHOT-PLANNING-INPUTS §9; the Two-Account harness covers the stage endpoints.
+
 ## 4. Where workflow truth lives
 
 This is the ticket's critical constraint made concrete. Every row is state V1 kept in screens, URLs, browser storage or by convention.
