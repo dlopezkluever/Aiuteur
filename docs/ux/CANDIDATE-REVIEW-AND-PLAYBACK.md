@@ -1,6 +1,6 @@
 # Aiuteur V2: Candidate Review, Selection, Spend Ticket and Sequence Playback
 
-Resolution of Wayfinder ticket #62. Authority: the Product Constitution, then [Creator Ratification Record 1](../product/CREATOR-RATIFICATION-RECORD.md) (R2, R8, R9, M1, M2, #63, #68) and [Record 2](../product/CREATOR-RATIFICATION-RECORD-2.md) (D62, X1, X2, X7, X8, X10, P3), which control where they differ from the prototype or from any earlier recommendation. The document names surfaces and behaviour, never components, routes or pixel layout. Vocabulary is in [`GLOSSARY.md`](../../GLOSSARY.md). It places its surfaces inside the shell of [`NAVIGATION.md`](NAVIGATION.md) §8, uses the job semantics of [`JOB-LIFECYCLE.md`](../domain/JOB-LIFECYCLE.md), the spend rule of [`BUSINESS-AND-OPERATIONS.md`](../domain/BUSINESS-AND-OPERATIONS.md) §3 and the take-selection rule of [`TRUST-SIGNALS-AND-LOCKS.md`](TRUST-SIGNALS-AND-LOCKS.md) §6, and the Take/Segment model of [`SHOT-MODEL.md`](../domain/SHOT-MODEL.md) §7.
+Resolution of Wayfinder ticket #62. Authority: the Product Constitution, then [Creator Ratification Record 1](../product/CREATOR-RATIFICATION-RECORD.md) (R2, R8, R9, M1, M2, #63, #68) and [Record 2](../product/CREATOR-RATIFICATION-RECORD-2.md) (D62, D52.4, X1, X2, X5, X6, X7, X8, X10, P3), which control where they differ from the prototype or from any earlier recommendation. The document names surfaces and behaviour, never components, routes or pixel layout. Vocabulary is in [`GLOSSARY.md`](../../GLOSSARY.md). It places its surfaces inside the shell of [`NAVIGATION.md`](NAVIGATION.md) §8, uses the job semantics of [`JOB-LIFECYCLE.md`](../domain/JOB-LIFECYCLE.md), the spend rule of [`BUSINESS-AND-OPERATIONS.md`](../domain/BUSINESS-AND-OPERATIONS.md) §3 and the take-selection rule of [`TRUST-SIGNALS-AND-LOCKS.md`](TRUST-SIGNALS-AND-LOCKS.md) §6, and the Take/Segment model of [`SHOT-MODEL.md`](../domain/SHOT-MODEL.md) §7.
 
 Constitutional anchors: §3.1, §9.2, §10.2–10.3, §12.1, §13.4–13.6, §16 principles 7 and 10, §17.2. **No requirement was found unworkable; no `CONSTITUTION AMENDMENT REQUIRED` is raised.**
 
@@ -10,7 +10,7 @@ Three throwaway prototypes compared structures on one scene of six shots (A view
 
 The creator chose **C, sequence-first, with a main viewer** (D62). The agent's recommendation of A as base is replaced.
 
-1. **One surface for review and playback: the scene timeline.** It is the scene's shots in story order, each a cell showing its selected take (or a gap slate, §4). The **main viewer** shows what is under the playhead. The same component serves shot work in the scene workspace and the scene mode of Review & Export (X6).
+1. **One surface for review and playback: the scene timeline.** It is the scene's shots in story order, each a cell showing its selected take (or a gap slate, §4). The **main viewer** shows what is under the playhead. The same timeline and viewer serve review in the scene workspace and the scene mode of Review & Export. That planning's scene runtime view is the same component is an intent carried into the #60 redo (X6), not decided here.
 2. **The selected shot's other takes sit under the timeline.** Each take is a thumbnail with its duration and quiet labels.
 3. **Swapping a take in is selecting it.** Clicking a take under the timeline puts it in the cut, the sequence plays with it, and it is the shot's selected take. There is **no separate preview state**. Selection is reversible, creator-only and recorded (TRUST-SIGNALS §6); another click on another take changes it, and **Unselect** is available.
 4. **Side-by-side compare is optional**, up to **three** takes of one shot, with a Select action on each (X1). It is never mandatory chrome.
@@ -39,11 +39,12 @@ The creator chose **C, sequence-first, with a main viewer** (D62). The agent's r
 ```
 
 - **Shot work and playback are the same surface.** In the scene workspace (centre) the viewer, timeline and the selected shot's takes are the review area of the shot work area. Review & Export shows the same timeline and viewer, larger, with the scene-or-film scope switch and the export package beside it.
-- **Whole-film mode.** The film timeline is one row per scene (scene rows, each a strip of cells), the whole film on one screen as on the Board; choosing a scene row opens that scene's timeline. Playback walks selected takes across scenes in story order.
+- **Whole-film mode.** The film timeline spans every active scene in story order; choosing a scene opens that scene's timeline. Playback walks selected takes across scenes in story order. How it is drawn at 150–250 shots is left to the UX design and stays consistent with the whole-film overview being redone in #60 (Record 2 D60.3); the rejected Board renditions (every shot as a mark, one row per scene, D60.1) are not its model.
 - **Fix this shot** opens the shot in the scene workspace with **Back to review** returning to the same playhead (NAVIGATION §4, §8). Previous and next shot and scene are one key or click.
 - **Play in context** plays the previous shot's selected take, the take under review, then the next shot's selected take. Because a swap is a selection, "in context" is simply the normal playback started a shot earlier; the button is a convenience for starting there. No separate preview state exists.
 - **The Peek** never reviews candidates and never starts spend.
-- **Ad-hoc shots** (Record 2 X5) belong to no scene: they are not in the scene timeline, runtime or sequence playback, and are reviewed from their own section with the same takes area.
+- **Ad-hoc shots** (Record 2 X5) belong to no scene: they are not in the scene timeline, runtime or sequence playback, and their takes are reviewed from their own section with the normal take tools (that section's UX is the #60 redo's).
+- **Removed from Story** scenes (Record 2 D52.4) are not in the story order, so their shots are not in the film timeline, runtime or sequence playback; their takes stay viewable from that group (SCENE-IDENTITY §5.1).
 
 ## 3. Candidates: takes and frames
 
@@ -54,7 +55,7 @@ The creator chose **C, sequence-first, with a main viewer** (D62). The agent's r
 - **Nothing is auto-selected** (JOB-LIFECYCLE §11, Constitution §14.3), even for the first Take of a shot. A new Take arrives unselected with a quiet "ready, not selected" notice.
 - **Changing the pick flags** what was built from the previous one, quietly (R2): a whisper dot with the exits of TRUST-SIGNALS §2. Nothing regenerates.
 - **Take labels** (quiet text, never alarm styling): the model used, "guided" when the Take was regenerated with guidance (hover shows it), **"arrived after cancel"** and **"arrived late"** for late results (M2: quiet notice, attached unselected), "prompt overridden" (R3), the delivered duration when it differs from the plan, and "from the merged shot" (SHOT-MODEL §5.3).
-- **Long shots.** One Shot is one Take whatever its Segments. While a long shot is partly realized the cell reads **"2 of 3 parts made"** with the next part's price on **Make part 3**; no Take exists until assembly succeeds (SHOT-MODEL §7.3). **Regenerate from part k** is offered when the creator reports a problem after the first parts, and states the saving ("reuses 1–2, makes 3: $x").
+- **Long shots.** One Shot is one Take whatever its Segments. It is priced and started as one Take ("about 18 s · 3 parts · $x", SHOT-MODEL §7.2). While a long shot is partly realized the cell reads **"2 of 3 parts made"**; a failed part offers **Retry · $x** with that part's price and the parts after it wait (R8); no Take exists until assembly succeeds (SHOT-MODEL §7.3). **Regenerate from part k** is offered when the creator reports a problem after the first parts, and states the saving ("reuses 1–2, makes 3: $x").
 - **Guidance** when regenerating is one optional text field; **model override** at the trigger is the model picker next to the button, with its price; a model with an unavailable price says "price unavailable" and asks for confirmation (§5).
 - **Prompt and references** (§10.3/§13.5 escape hatch) is a collapsed "▸ Prompt and references" under the Make area: the exact prompt and reference list for the next Take, editable, with a quiet "prompt overridden" mark afterwards. It is never required, and the same view opens read-only for any existing Take.
 
@@ -75,12 +76,13 @@ Frames (images for a Frame plan role) are reviewed in the same centre area, wher
 | Failed | A gap slate | quiet failure text (§6) | **Retry · $x.xx** |
 | Selected Take that is possibly out of date | The Take, normally | a whisper dot on the cell | the dot's exits (TRUST-SIGNALS §2): Regenerate, It still fits, Keep |
 | Retired shot | Not in the cut | not shown | un-retire from the scene workspace |
+| Shot of a Removed from Story scene, or an ad-hoc shot | Not in the cut | not shown | Bring back or Adopt work (SCENE-IDENTITY §5.1); Move to scene (X5) |
 
 - **Gaps are distinguished.** The slate and the cell say which kind of gap it is ("3 takes · none picked · Pick" versus "No take yet · Generate"). Scope filters on the timeline and the Outline's "needs attention" filter likewise separate **needs a pick** from **missing**.
 - **Skip gaps** is a creator toggle; the default plays gaps as short slates so that holes are felt in the rhythm. Skipping changes only playback, never the plan, runtime or export.
 - **Possibly out of date never changes playback.** The take plays as picked; the whisper dot is the only mark (M1). Dots on cells and a quiet scene-header count are the in-sequence signal; the review-all tray (TRUST-SIGNALS §1) remains the bulk surface.
 - **Runtime** (scene header): planned (targets) beside as made (selected Takes' delivered durations, SHOT-MODEL §7.5); both can show; nothing blocks or trims.
-- **Progress** (planned, framed, generated, selected, missing, possibly out of date) is the same derivation as the Board and Outline, never stored (NAVIGATION §3).
+- **Progress** (planned, framed, generated, selected, missing, possibly out of date) is the same derivation as the whole-film overview and Outline, never stored (NAVIGATION §3).
 - **Nothing blocks.** Missing, unselected, failed or out-of-date shots block neither playback nor export; they appear in a quiet list under the timeline ("What's unsettled · 5") with one action each.
 - **Scrubbing, jumping.** Clicking any cell seeks and plays from it; previous and next buttons move by shot. A cell's Fix action opens the shot.
 - **Audio** follows the selected Takes' own audio; joins between Takes are straight cuts. No in-app editing timeline (LATER); this is a viewing and fixing surface, not an editor.
@@ -89,10 +91,10 @@ Frames (images for a Frame plan role) are reviewed in the same centre area, wher
 
 All thresholds are #68's ($0.05 trivial, $2.00, 10 Takes per Record 2 P3, bulk by filter, unknown price, cap). This document decides only how they appear (X2).
 
-1. **Price on the control.** Every Generate, Regenerate, Retry, Make part, Generate missing and batch button carries its estimate (a range's upper bound is shown as a range, "unknown" as "price unavailable"). A long shot reads "$2.52 · 3 parts".
+1. **Price on the control.** Every Generate, Regenerate, Regenerate from part k, Retry, Generate missing and batch button carries its estimate (a range is shown as a range and the confirm rules test its upper bound; "unknown" reads "price unavailable"; BUSINESS §3). A long shot reads "$2.52 · 3 parts".
 2. **One click when no confirm rule fires.** A trivial or meaningful action under every threshold, including a **single video under $2.00**, starts on the click. The click is the approval. A quiet "generating" state replaces the button; the creator keeps working.
-3. **The inline ticket when a confirm rule fires.** The button's own control row expands in place into a **ticket**: the count (in Takes, P3), the total or range, the largest item, one line per reason it appeared ("Total $2.52 is $2.00 or more", "10 or more Takes", "Bulk regenerate by filter", "A price is unavailable"), what is left of the daily cap, and a primary **Start · $total** with **Not now**. It is part of the page, never a centred modal, never a popover covering the work, never typed text. It does not hide a prior view; one ticket exists at a time.
-4. **Scope-then-invoke for batches.** The creator ticks shots on the timeline (or uses quick scopes: gaps, needs a pick, possibly out of date, all in scene) and the control under the timeline reads "Generate N · $total". Whole-film actions use the same ticket at the Board and scene rows (NAVIGATION §2). **Regenerate flagged / bulk by filter always shows the ticket** with the money at risk (BUSINESS §3). Staleness itself never spends (R2, X8).
+3. **The inline ticket when a confirm rule fires.** The button's own control row expands in place into a **ticket**: the count (in Takes for take batches, a long shot counting as one, P3), the total or range, the largest item, one line per reason it appeared ("Total $2.52 is $2.00 or more", "10 or more Takes", "Bulk regenerate by filter", "A price is unavailable"), what is left of the daily cap, and a primary **Start · $total** with **Not now**. It is part of the page, never a centred modal, never a popover covering the work, never typed text. It does not hide a prior view; one ticket exists at a time.
+4. **Scope-then-invoke for batches.** The creator ticks shots on the timeline (or uses quick scopes: gaps, needs a pick, possibly out of date, all in scene) and the control under the timeline reads "Generate N · $total". Whole-film actions use the same ticket at their control on the whole-film overview (the Board, NAVIGATION §2; its form is the #60 redo's). **Regenerate flagged / bulk by filter always shows the ticket** with the money at risk (BUSINESS §3). Staleness itself never spends (R2, X8).
 5. **Cap breach offers no Start.** When the action would pass the creator's cap, the ticket shows what is left and offers only **Raise the cap for this action** (an explicit creator act, BUSINESS §6.1), **Trim the selection** (remove items to fit), and **Not now**. There is no Start button until the action fits. The hidden operator ceiling refuses before a ticket exists, in plain studio wording (BUSINESS §6.2).
 6. **Retry** shows its price (or "not charged") and the click is the approval; if the retry alone meets a confirm rule it uses the ticket.
 7. **Duplicate guard.** A second click on an already-generating target shows "this is already generating" with "generate another" (JOB-LIFECYCLE §4). The action id is minted when the ticket opens.
@@ -100,7 +102,7 @@ All thresholds are #68's ($0.05 trivial, $2.00, 10 Takes per Record 2 P3, bulk b
 
 ## 6. Progress and failure presentation
 
-- **Background progress.** A generating target shows a quiet progress indicator in its timeline cell and takes area, derived from a non-terminal Job (JOB-LIFECYCLE §2.1 labels: Waiting, Generating, Finishing, Retrying, Cancelling). The top strip shows a single quiet count of running work; the Outline and Board show the same derived state. Completion produces one quiet "ready, not selected" notice per Generation, coalesced for batches ("11 of 14 ready · 2 failed · 1 cancelled").
+- **Background progress.** A generating target shows a quiet progress indicator in its timeline cell and takes area, derived from a non-terminal Job (JOB-LIFECYCLE §2.1 labels: Waiting, Generating, Finishing, Retrying, Cancelling). The top strip shows a single quiet count of running work; the Outline and whole-film overview show the same derived state. Completion produces one quiet "ready, not selected" notice per Generation, coalesced for batches ("11 of 14 ready · 2 failed · 1 cancelled").
 - **Failures are visible and quiet (X7, M1).** A failed Generation is a **muted mark with plain text and a Retry**, in the shot's cell and takes area: for example "Timed out · you may have been charged · **Retry · $0.56**". No red frames, banners, modals or alarm colour; colour is never the only carrier (accessible name and text). The failure class changes the wording and the available action (JOB-LIFECYCLE §5.2):
   - transient unbilled: "Failed, not charged", automatic retries already shown as "Retrying";
   - maybe billed or unknown: "May have been charged", Retry with price (R8);
@@ -118,7 +120,7 @@ A cancelled Generation reads "Cancelled" and nothing else. If the provider compl
 
 | Ticket | Receives |
 |---|---|
-| **Scene and shot workspace redo** (#60) | One timeline component shared with review (X6); the takes area, spend ticket and gap slates plug into the shot work area; ad-hoc shots excluded from the timeline; Board marks use the same derived states and gap vocabulary; the batch-draft undo is #60's. |
+| **Scene and shot workspace redo** (#60) | The intent that planning's scene runtime view and this review timeline are one consistent component (X6), for the redo to carry; the takes area, spend ticket and gap slates plug into the shot work area; ad-hoc shots excluded from the timeline (their section is the redo's, X5); whatever form the redone whole-film overview takes (D60.3) uses the same derived states and the same gap vocabulary ("needs a pick" versus "missing"); the batch-draft undo is #60's. |
 | **Providers and models** (#66) | The model picker at the trigger, price source and "price unavailable" case; the long-shot estimate "N parts". |
 | **Generation package** (#65) | "Prompt and references" shows the layers of ADR 0014 as recorded for the next Take and for past Takes; overriding writes the shot's prompt override. |
 | **Trust signals** (#63) | Dots and exits on timeline cells; review-all tray as bulk surface; Mark final presentation. |
@@ -130,9 +132,9 @@ A cancelled Generation reads "Cancelled" and nothing else. If the provider compl
 ## 9. Rules and invariants
 
 1. Playing, scrubbing and opening a shot write nothing (SHOT-MODEL §12.12).
-2. The selected pointer references a non-rejected Take of its own Shot; swap is the only way to move it.
+2. The selected pointer references a non-rejected Take of its own Shot; only the creator moves it (select or swap, Unselect, or rejecting the selected Take).
 3. No candidate is ever auto-selected or auto-approved.
-4. No path creates a meaningful Generation without the creator's click on a control that showed the price.
+4. No review or playback path creates a meaningful Generation without the creator's click on a control that showed the price; nothing here starts a Generation automatically (X8).
 5. A cap breach never offers Start.
 6. Flags and failures never fade, recolour or restyle the work, and use no banner or modal.
 7. Reviewing happens in the scene workspace centre; the Peek never spends.
