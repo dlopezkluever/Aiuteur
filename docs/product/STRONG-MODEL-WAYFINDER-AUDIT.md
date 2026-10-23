@@ -3,6 +3,8 @@
 Date: 2026-10-23. Thread: https://ampcode.com/threads/T-01a1691f-0e6f-7664-b75d-9da34e4f75b0.
 Status: audit record for the next creator grilling session. It records findings and corrections. It does **not** decide anything that belongs to the creator.
 
+**Creator follow-up, 2026-10-23:** CR-1 and CR-2 are settled in [Creator Ratification Record 3](CREATOR-RATIFICATION-RECORD-3.md), which controls their current behavior. The audit findings, counts and original recommendations below describe the pre-grilling state. Reconciliation changed docs only; no prototypes, frontier advance, `/to-spec` or launch of #69/#76–#79 followed.
+
 ## 1. Scope
 
 - **Audited state:** `main` at `a23a31b`, including the Record 2 reconciliation commits `704b74b`, `3ba01ae`, `0628410`, `c5a9774`, `7f908d8`, `c707a25`, `31cadce`, `7867738`, `74168f4` and `a23a31b`.
@@ -93,10 +95,14 @@ The defects were of three kinds:
 
 - **Corrected using existing authority:** every row in §4. Each was an agent document contradicting a Record or the Constitution.
 - **Reconciled through existing creator authority:** the D60.5 auto-draft against Constitution §13.1/§14.1/§14.3. It is consistent: M3 ratified auto-triggers as a kind of operation, the draft runs only in the scene the creator opened and only when it has no plan, Phase 7 allows a plan to be "AI-drafted and simply accepted", and Record 2 §7 found no contradiction. The reading is recorded in AI map §11.
-- **Remaining for the creator:** CR-1 and CR-2.
+- **Raised for the creator at audit time:** CR-1 and CR-2. Both are now resolved by Record 3 (§6).
 - **No contradiction between Record 1, Record 2 and the Constitution was found.** No Record transcription error was found.
 
 ## 6. Creator-review queue (input to `/grill-with-docs`)
+
+**Resolved by Record 3.** CR-1 generates the Settings count, default 3, on eligible Treatment entry when there is no Treatment, existing options or upload explicitly designated in Input as the Treatment. Ordinary initial cost such as $0.18 total needs no priced navigation label, extra Draft button or small-cost confirmation. CR-2 auto-drafts only a scene with no plan at an estimate below $0.05; otherwise it offers **Draft plan · $x**. Exceptional confirmation conditions override both triggers. A future preference to reduce spend gates remains deferred.
+
+The questions and recommendations below are preserved as the original audit input, not current product rules. The creator rejected the CR-1 button recommendation and ratified CR-2 option (b).
 
 **CR-1. Should entering an empty Treatment phase draft the treatment options automatically?**
 - **Why it matters:** D58.2 ("the workspace simply generates the configured number") can be read as setting *how many* options or *when* they are drafted. The agent doc had assumed automatic drafting. The Constitution defaults to drafting on explicit request.
@@ -115,7 +121,7 @@ The defects were of three kinds:
 - **Recommendation:** (b).
 - **Affected:** BUSINESS §3 and §9 (marked awaiting review), AI map §6.0 and §11, SHOT-MODEL §3.1, the #60 redo.
 
-These two are the only creator-review items.
+These were the only two creator-review items. Neither remains open.
 
 ## 7. Deferred decisions (confirmed not decided by the audit)
 
@@ -158,16 +164,16 @@ No deferred item is needed for the architecture to be coherent.
 
 - No closed ticket needs reopening. No foundational decision changed; corrections restored the ratified meaning.
 - **Work to revisit later:**
-  - the #60 redo (CR-2, the emptied-plan rule, Board form, X5/X6);
-  - #76 fixtures surfaced by this audit: a G10 allow-list; no Generation on entering an empty Treatment; a capture with skipped frames sends no capture to video; ad-hoc compile; a BYOK revocation isolated per Account; the D52.2 duplicate's closure; no per-part make action; Removed-from-Story shots out of the cut;
+  - the #60 redo (apply Record 3 CR-2, the emptied-plan rule, Board form, X5/X6);
+  - #76 fixtures surfaced by this audit, updated by Record 3: a G10 allow-list of two triggers; eligible Treatment entry generates the configured count without a penny-level price gate, while existing work or an explicitly designated Treatment upload suppresses it; exceptional conditions still stop drafting; scene-plan $0.04 vs $0.05 initiation; a capture with skipped frames sends no capture to video; ad-hoc compile; a BYOK revocation isolated per Account; the D52.2 duplicate's closure; no per-part make action; Removed-from-Story shots out of the cut;
   - #77: VPS plus the P12 floor plus one restore test;
-  - #79: recheck after CR-1 and CR-2.
+  - #79: recheck against the settled CR-1 and CR-2 in Record 3.
 
 ## 11. Prototype implications (no design here)
 
 | Ticket | Fresh strong-model prototype pass? |
 |---|---|
-| #60 | **Yes, required** (D60). The redo starts from the V1 Script Hub and must not decide CR-2. |
+| #60 | **Yes, required** (D60). The redo starts from the V1 Script Hub and applies the CR-2 ruling in Record 3 rather than re-deciding it. |
 | #58 | **Yes, recommended.** The written behaviour is creator-derived, but prototype visuals were rejected (§3.1), and CR-1 changes the empty-Treatment state. |
 | #59 | **Yes, recommended.** Visuals rejected; the identity-first and shot-driven coverage flow has never been sketched at good quality. |
 | #62 | **Yes, recommended.** The sequence-first layout chosen by the creator (C) was a Haiku-era sketch, and its timeline should match #60 (X6). |
@@ -175,4 +181,4 @@ No deferred item is needed for the architecture to be coherent.
 
 ## 12. Recommended next step
 
-**Creator grilling is required before prototype work.** CR-1 changes the #58 prototype's empty state, and CR-2 bears on the #60 redo. The grilling only needs to cover §6. This audit does not start either step.
+**Creator grilling of §6 is complete.** Record 3 controls the #58 empty-Treatment state and the #60 initial-plan spend boundary. The affected docs are reconciled. Prototype work and Wayfinder orchestration were not started, and the frontier is unchanged. The live #49 and #60 pending-review pointers still need the master agent's update when authorized; this doc-only session made no GitHub writes.

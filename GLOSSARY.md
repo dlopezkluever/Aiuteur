@@ -395,7 +395,7 @@ An on-demand panel, opened from the quiet footer line, listing everything possib
 _Avoid_: Dashboard, inbox
 
 **Meaningful spend**:
-Generation cost the creator must initiate and see the estimate for first: any Generation estimated at $0.05 or more, and all video. An inline spend ticket at the initiating control (never a modal) applies at $2.00 or more in total, 10 or more Generations (a take batch counts Takes, not Segments, Record 2 P3), bulk regenerate by filter, an unknown price, or reaching a cap (`docs/domain/BUSINESS-AND-OPERATIONS.md` §3).
+Spend requiring a displayed estimate and explicit creator authorization under the operation's policy, by default any Generation estimated at $0.05 or more and all video. Ordinary initial Treatment drafting is authorized by eligible stage entry without a penny-level price gate, but exceptional conditions still require the inline spend ticket: $2.00 or more in total, 10 or more Generations with take batches counting Takes, bulk regenerate by filter, unknown pricing or reaching a cap ([Record 3](docs/product/CREATOR-RATIFICATION-RECORD-3.md), `docs/domain/BUSINESS-AND-OPERATIONS.md` §3).
 
 **Trivial spend**:
 A Generation estimated below $0.05. Needs no confirmation and may auto-retry when otherwise safe.

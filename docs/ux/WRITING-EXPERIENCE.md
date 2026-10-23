@@ -2,6 +2,8 @@
 
 Resolution of Wayfinder ticket #58. Authority: the Product Constitution, then [`CREATOR-RATIFICATION-RECORD.md`](../product/CREATOR-RATIFICATION-RECORD.md) (Record 1: R2, R10, M1, M3, #63) and [`CREATOR-RATIFICATION-RECORD-2.md`](../product/CREATOR-RATIFICATION-RECORD-2.md) (Record 2: **D58**, X1, X4, X10, §3.1), which controls where they differ. Vocabulary is in [`GLOSSARY.md`](../../GLOSSARY.md). Semantics come from [`STORY-DOCUMENTS.md`](../domain/STORY-DOCUMENTS.md) (#51, ADRs 0008 and 0009) and [`SCENE-IDENTITY.md`](../domain/SCENE-IDENTITY.md) (#52); the shell is [`NAVIGATION.md`](NAVIGATION.md) (#56); flags and locks are [`TRUST-SIGNALS-AND-LOCKS.md`](TRUST-SIGNALS-AND-LOCKS.md) (#63). This document names surfaces and behaviour, never components, routes or pixel layout.
 
+[`CREATOR-RATIFICATION-RECORD-3.md`](../product/CREATOR-RATIFICATION-RECORD-3.md) controls initial Treatment drafting and its spend authorization (CR-1, §2). Entering an eligible empty stage authorizes ordinary initial drafting without a separate button or penny-level price gate.
+
 Constitutional anchors: §4.2 Phases 3–5, §4.4 (4, 5), §5.4, §5.6, §13.2–13.4, §17.2, Appendix A Q28 and Q29. **No `CONSTITUTION AMENDMENT REQUIRED`.** Multiple options by default, "just one" allowed, direct-apply edits, optional guidance and acceptance as a commitment point are all kept.
 
 ## 1. Selected direction
@@ -27,7 +29,9 @@ The Treatment opens in the centre from the Outline. Its phase page begins with o
 
 ### 2.1 Choosing among options
 
-- With no Treatment yet, the page offers one obvious **Draft treatment options** action. One press generates the configured number of options (§2.2), priced and classified like any operation (§8). Opening or entering the page drafts nothing: no automatic Treatment draft has been ratified (Constitution §14.1 "draft ahead on explicit request", §14.3; M3 auto-triggers are limited to ratified ones, AI-RESPONSIBILITY-MAP §6.0). Importing, writing by hand or skipping stay equally available.
+- **Initial options generate on entry (Record 3 CR-1).** Entering Treatment automatically drafts the configured number of options (§2.2) only when there is **no Treatment**, **no existing generated Treatment options**, and **no uploaded file explicitly designated in Input to serve as the Treatment**. Existing options suppress automatic drafting even when none has been chosen. A creator-written Treatment also suppresses it. Returning to existing work never regenerates it, and an in-flight draft follows the existing duplicate-generation guard.
+- **Upload designation is explicit.** An unrelated upload, or AI classification alone, does not take the Treatment's place. A file designated as the Treatment in Input opens as imported creator content with no competing options generated. The regeneration box (§2.4) remains available on both uploaded and generated Treatments for selected-section replacement or whole-document regeneration with optional new suggestions. Explicit Beat Sheet → Treatment updates remain available (§4.3).
+- **Ordinary cost needs no extra action.** Three drafts costing about **$0.18 in total** generate on entry. No Draft button, small-cost popup or `Treatment · ~$0.18` navigation label is shown. Exceptional spend conditions still stop generation for the inline ticket (§8). Skipping and bypassing remain available; viewing those intentional states does not backfill a Treatment (§3).
 - One option is open at a time, in the full document column. A quiet switcher ("Option 2 of 3", previous and next, or a short list of option names) moves between them. It shows where the creator is, not how many to make.
 - Each option carries a **V1-style summary and attributes**: a short summary, plus a few attributes the creator can grasp at a glance (for example tone, structural emphasis, how it ends, estimated runtime). Attributes are generated with the option, are labelled AI-made, and are read-only labels, never document text. Runtime is an estimate and says so.
 - **Choose this one** is the primary action on an option. Choosing is one action: the Option's blocks become the Treatment as one Revision labelled `chosen from <option>`; the others stay recoverable (STORY-DOCUMENTS §2.3, R1). Unchosen options are editable while unchosen and are never synchronized.
@@ -36,7 +40,7 @@ The Treatment opens in the centre from the Outline. Its phase page begins with o
 
 ### 2.2 Option count is an account setting
 
-- The number of options generated at a time is an **account-level setting, default 3** (Appendix A Q28). The workspace generates that many and shows **no count chrome**: no chips, no "just one", no "up to N".
+- The number of initial options is an **account-level setting in Settings, default 3** (Appendix A Q28, Record 3 CR-1). The creator may choose fewer or more there. The workspace generates that many and shows **no count chrome**: no chips, no "just one", no "up to N".
 - Setting it to 1 satisfies Constitution Phase 3 "just give me one". The allowed range is spec-level; the default is a design default, not law (§17.2).
 - Changing the setting affects future generations only. It never rewrites or removes existing options.
 
@@ -154,7 +158,7 @@ Whole-version restore is too coarse when only one passage was lost. While previe
 ## 8. Things that apply everywhere here
 
 - **Flags are subtle (M1).** No banners, modals, dimming or alarm styling. Every dot has an accessible name and reason text.
-- **Spend.** Each text operation here is classified by its code-computed estimate under the ratified spend rules (trivial is under $0.05 per Generation; multi-option drafting with a quality writing model may not be); the price is shown on any control whose estimate is not trivial, and a confirm rule fires inline at that control, never as a centred modal (X2). Opening, browsing, previewing and sync detection spend nothing.
+- **Spend.** Eligible Treatment entry authorizes ordinary initial drafting, even above $0.05 (Record 3 §2). It needs no priced navigation label or extra approval. Existing exceptional rules still override automation: a total estimate of **$2.00 or more**, **10 or more Generations**, unknown pricing, reaching a cap, bulk regeneration by filter or another defined exceptional condition uses the inline spend ticket, never a centred modal (X2). A cap breach offers no Start. Other text operations retain their priced-action rules in BUSINESS-AND-OPERATIONS §3. Estimates and actual costs are recorded for all operations. Browsing existing work, previewing and sync detection spend nothing.
 - **Locks.** If the document is locked, AI-applied results are held as Options and hand edits go through the edit-through confirmation; browsing and history never need an unlock.
 - **Failures** are visible and quiet, with nothing applied, no Revision, a retry control, and the selection preserved (X7).
 - **Cmd-K** reaches any phase, and within a document any beat or scene, from anywhere.
@@ -164,8 +168,8 @@ Whole-version restore is too coarse when only one passage was lost. While previe
 | Receiver | Receives |
 |---|---|
 | **Persistence (#72), module architecture (#71)** | Option count is an Account setting. Notes are an owned, retire-only record anchored to block ids, outside document Revisions and outside AI context unless a request includes them (and the request records which). Option summary and attributes are stored with the Option, not in blocks. Right-sidebar visibility is per-creator UI state. |
-| **AI responsibility map (#64)** | Option generation returns summary and attributes with each Option. "Update Treatment to match Beat Sheet" is a sync operation with protected-span handles; alternatives for a selection are Options on one Generation. |
-| **Verification (#76)** | The invariants in STORY-DOCUMENTS §7, plus: pressing nothing never changes either document; restore adds a head; passage bring-back leaves every other block byte-identical; Notes never appear in a prompt unless "use my notes" was ticked, and then only the notes in scope; acceptance never requires reviewing AI additions; lock is on by default in the sheet. |
+| **AI responsibility map (#64)** | Initial Treatment drafting is a ratified stage-entry trigger with the eligibility and authorization rules of §2.1. Option generation returns summary and attributes with each Option. "Update Treatment to match Beat Sheet" is a sync operation with protected-span handles; alternatives for a selection are Options on one Generation. |
+| **Verification (#76)** | The invariants in STORY-DOCUMENTS §7, plus: initial options generate only on eligible entry (§2.1), ordinary $0.18 drafting has no extra price gate, and exceptional conditions still stop it; existing work is never changed by browsing and sync never runs automatically; restore adds a head; passage bring-back leaves every other block byte-identical; Notes never appear in a prompt unless "use my notes" was ticked, and then only the notes in scope; acceptance never requires reviewing AI additions; lock is on by default in the sheet. |
 | **Scene hub (#60 redo)** | After acceptance the active scenes are the production list; the Master Narrative's excerpt text is the source of scene excerpts in the overview. |
 | **Trust signals (#63)** | The whisper pattern and review-all tray cover drift and "AI added" tags; no new alert style. |
 

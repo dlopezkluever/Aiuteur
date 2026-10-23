@@ -66,7 +66,7 @@ Each Scene has one **Shot plan**: an Editable ordered list of Shot ids (active a
 
 - **Plan accepted** is a lightweight Decision (the creator pressed accept, or edited the plan). It lets the overview and scene workspace tell "AI drafted, untouched" from "confirmed". It gates nothing, so a drafted plan is usable as it stands (Constitution §7.3: "simply accepted"). It is not a commitment point and not a lock.
 - A Scene with zero shots is valid. The last shot can be retired (V1's `LAST_SHOT` 409 is not carried).
-- **Initial draft (Record 2 D60.5).** When the creator enters a Scene that has **no** Shot plan, the initial plan is drafted automatically: a text operation for that Scene only. It never redrafts or replaces an existing plan (a plan the creator emptied by retiring its shots is an existing plan), and it never triggers frames, images, worlds or Takes (X8). **Draft all** drafts shot plans only (D60.4); on a Scene that already has a plan it is a redraft under §5.4.
+- **Initial draft (Record 2 D60.5, refined by [Record 3 CR-2](../product/CREATOR-RATIFICATION-RECORD-3.md)).** When the creator enters a Scene that has **no** Shot plan, the initial plan drafts automatically only if its estimate is **below $0.05** and no exceptional spend condition applies. At **$0.05 or more**, show **Draft plan · $x** and wait for the click. Exceptional conditions use the existing inline spend ticket, and a cap breach offers no Start (BUSINESS-AND-OPERATIONS §3). This is a text operation for that Scene only. It never redrafts or replaces an existing plan (a plan the creator emptied by retiring its shots is an existing plan), and it never triggers frames, images, worlds, Takes or audio (X8). **Draft all** drafts shot plans only (D60.4); on a Scene that already has a plan it is a redraft under §5.4.
 
 ### 3.2 The anchor
 
@@ -393,7 +393,7 @@ Each hook is optional, absent by default, and needs no redesign of the core when
 10. Skipping frames then generating produces a Take with the same lifecycle as the framed path; a batch includes only ready shots.
 11. A Composition reference never contributes identity inputs; the Generation lists mapped Presences as the only identity sources.
 12. Reading or opening a Shot writes nothing.
-13. Entering a Scene with no Shot plan drafts its initial plan once; entering a Scene with any plan (including one emptied by retirement) drafts nothing; no automatic draft creates a frame, image, world or Take Generation (D60.5, X8).
+13. Entering a Scene with no Shot plan drafts its initial plan once at a $0.04 estimate, but a $0.05 estimate offers Draft plan · $x without generating. Unknown price, $2.00 or more, or a cap condition stops automatic drafting under the spend rules. Entering a Scene with any plan (including one emptied by retirement) drafts nothing. No automatic draft creates a frame, image, world, Take or audio Generation (Record 3 CR-2, X8).
 
 Golden fixtures: a 22-second shot on a model capped at 8 s (stitch) and on one with extension; a shot whose third Segment fails; a dialogue line crossing a Segment boundary; split of a shot with a Performance-linked line; merge of two shots with different camera; redraft after the Master Narrative changed a passage under a creator-edited shot; a plan lock holding a redraft as an Option; a continuity chain across a scene boundary where the previous scene's last shot has only a selected Take; a storyboard import with one ambiguous panel.
 
