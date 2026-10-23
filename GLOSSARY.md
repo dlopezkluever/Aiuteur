@@ -285,6 +285,9 @@ The Model and Offering that selection resolved for an action (shot override, pro
 **Automatic** **(Wayfinder)**:
 The default model setting: a policy over the Catalogue, evaluated per shot, with a quality, balanced or lowest-cost bias. It is a system default, not an AI-made choice.
 
+**World model** **(Wayfinder)**:
+A provider of the `world.generate` operation class that CineBlock uses to generate a world for blocking. A Model in the Catalogue like any other; operator-paid until BYOK, BYOK-capable afterwards. Its output is a framing source, never a frame or a clip.
+
 **Need** **(Wayfinder)**:
 One requirement a shot or operation places on a model, derived by code. Each need ends met, met by a declared fallback, limited, unmet-soft or unmet-blocking; a blocking need creates no Generation and offers exits.
 
