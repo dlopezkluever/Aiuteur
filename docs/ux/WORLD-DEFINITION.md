@@ -82,7 +82,7 @@ A night or other variant of a place may be **either** an alternate Look of the s
 
 ## 7. Trust signals in this surface
 
-Per [`TRUST-SIGNALS-AND-LOCKS.md`](TRUST-SIGNALS-AND-LOCKS.md): AI-made choices (style default, AI-proposed Directions, merge suggestions) are quiet inline tags, overridable in one click. Possibly-out-of-date marks on images after a style or description change are whispers, never fading the work. Readiness is explanation, not a gate. Nothing in World Definition uses banners, modals or alarm styling.
+Per [`TRUST-SIGNALS-AND-LOCKS.md`](TRUST-SIGNALS-AND-LOCKS.md): AI-made choices (style default, Directions the AI picked or proposed at shot planning, merge suggestions) are quiet inline tags, overridable in one click. Possibly-out-of-date marks on images after a style or description change are whispers, never fading the work. Readiness is explanation, not a gate. Nothing in World Definition uses banners, modals or alarm styling.
 
 ## 8. Constitutional check
 
@@ -92,7 +92,7 @@ No requirement is unworkable. §4.2 Phase 6 (V1 Stage 5 reference, deferral, lig
 
 | Ticket | Receives |
 |---|---|
-| **Scene hub and shot planning** (#60 redo) | Shot planning is where Directions are proposed and where production coverage needs first appear; Directions the AI chooses are persisted AI-made choices; a shot's Direction is shot-owned (P2). Planning never waits on World Definition (R5). |
+| **Scene hub and shot planning** (#60 redo) | For each shot, planning picks an existing named Direction or proposes a new named one; a new Direction's empty View becomes a production coverage need (D59.11). The creator may also add Directions and Views by hand at any time (§4.1). Directions the AI chooses are persisted AI-made choices; a shot's Direction is shot-owned (P2). Planning never waits on World Definition (R5). |
 | **Entities and Looks** (#53) | Updated §§2.2a, 3, 5, 7 and ADR 0003 (this pass). |
 | **Trust signals** (#63) | Lock offers at identity approval and "world is set". |
 | **Spend** (#68) | Contact-sheet generation is one creator action with one estimate; inline ticket per X2. |

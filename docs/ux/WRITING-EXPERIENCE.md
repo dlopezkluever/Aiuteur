@@ -27,7 +27,7 @@ The Treatment opens in the centre from the Outline. Its phase page begins with o
 
 ### 2.1 Choosing among options
 
-- On first entry, if no Treatment exists, Aiuteur drafts the configured number of options (an M3 auto-trigger on entry to an empty phase; text only, so ordinarily under the trivial-spend threshold and priced like any operation). It never redrafts an existing Treatment on entry.
+- With no Treatment yet, the page offers one obvious **Draft treatment options** action. One press generates the configured number of options (§2.2), priced and classified like any operation (§8). Opening or entering the page drafts nothing: no automatic Treatment draft has been ratified (Constitution §14.1 "draft ahead on explicit request", §14.3; M3 auto-triggers are limited to ratified ones, AI-RESPONSIBILITY-MAP §6.0). Importing, writing by hand or skipping stay equally available.
 - One option is open at a time, in the full document column. A quiet switcher ("Option 2 of 3", previous and next, or a short list of option names) moves between them. It shows where the creator is, not how many to make.
 - Each option carries a **V1-style summary and attributes**: a short summary, plus a few attributes the creator can grasp at a glance (for example tone, structural emphasis, how it ends, estimated runtime). Attributes are generated with the option, are labelled AI-made, and are read-only labels, never document text. Runtime is an estimate and says so.
 - **Choose this one** is the primary action on an option. Choosing is one action: the Option's blocks become the Treatment as one Revision labelled `chosen from <option>`; the others stay recoverable (STORY-DOCUMENTS §2.3, R1). Unchosen options are editable while unchosen and are never synchronized.
@@ -56,7 +56,7 @@ One **regeneration box** serves every regeneration, with optional guidance (V1 r
 | **Selected passage** | Highlight text, optionally give an instruction, choose **Rewrite**. The result applies directly with no preview or diff gate (§13.3). The creator can ask for **several alternatives** instead of one; alternatives are held as Options on that Generation and choosing one applies it as the splice. The selection is the only thing that changes. |
 | **New alternative** | §2.3. |
 
-Every regeneration is one Generation and one Revision; the previous text is in history and a quiet **Undo** (restore of the prior head, adding a new head) is offered after a direct apply. A held result (protected-span conflict, base changed meanwhile, fact conflict after repair, R6) is shown as a quiet "held" item with one-click **Use it**, **Adjust by hand**, or **Discard**. An altered-dialogue or damaged-splice result is rejected with no "use anyway", and the selection is preserved on any failure.
+Every regeneration is one Generation and one Revision; the previous text is in history and a quiet **Undo** (restore of the prior head, adding a new head) is offered after a direct apply. A held result (protected-span conflict, base changed meanwhile, fact conflict after repair, R6) is shown as a quiet "held" item with one-click **Use it**, **Adjust by hand**, or **Discard**; a fact-conflict hold also offers **Change the Fact** and **Regenerate** (R6). An altered-dialogue or damaged-splice result is rejected with no "use anyway", and the selection is preserved on any failure.
 
 ### 2.5 Hand editing, provenance and the rest of the page
 
@@ -111,7 +111,7 @@ R10 stands: Aiuteur detects and shows drift automatically, quietly, and changes 
 ## 5. Master Narrative workspace
 
 - The Master Narrative opens in the centre with the same pattern: a **collapsible right-hand Beat Sheet sidebar** for alignment, read-only (V1's beat-alignment panel), highlighting the beats behind the scene being read. Version history shares the same right-hand slot.
-- Scenes are `scene` container blocks with a heading label and an approximate duration shown as an AI estimate or the creator's own value ([`SCENE-IDENTITY.md`](SCENE-IDENTITY.md) §2.1). The sum against the intended runtime is shown in the top strip, never blocking.
+- Scenes are `scene` container blocks with a heading label and an approximate duration shown as an AI estimate or the creator's own value ([`SCENE-IDENTITY.md`](../domain/SCENE-IDENTITY.md) §2.1). The sum against the intended runtime is shown in the top strip, never blocking.
 - **Drafting** first runs the **disagreement check** if the Treatment and Beat Sheet differ (R10, STORY-DOCUMENTS §6.5): a quiet inline ask on the page "Treatment and Beat Sheet differ in N places. Which should the Master Narrative follow?" with **Follow the Treatment**, **Follow the Beat Sheet**, **Update first** (opens the sync actions), never a modal and never guessed. The drafting Generation records the exact Revisions it used.
 - **Editing and targeted rewrite** behave as §2.4: highlight, optional instruction, direct apply; a selection crossing a scene boundary is applied per scene and cannot move a boundary (SCENE-IDENTITY §2.3). Hand edits of structure (insert, delete, split, merge, reorder scenes) are ordinary edits.
 - **Screenplay conversion additions.** AI additions made while converting a screenplay (descriptive detail between existing blocks, `ai_generated`) are marked inline with a quiet "AI added" tag. Each has **Keep** and **Remove** (Remove retires the block; recoverable). A quiet line offers **Keep all**. The creator's own words are never changed by conversion. Reviewing additions is **optional and never gates** anything, including acceptance. Untouched additions stay marked "AI added" until the creator keeps or edits them; keeping does not launder provenance.
@@ -154,7 +154,7 @@ Whole-version restore is too coarse when only one passage was lost. While previe
 ## 8. Things that apply everywhere here
 
 - **Flags are subtle (M1).** No banners, modals, dimming or alarm styling. Every dot has an accessible name and reason text.
-- **Spend.** Text operations here are ordinarily trivial (under $0.05 each, ratified spend rules); the price is shown on any control whose estimate is not trivial, and a confirm rule fires inline at that control, never as a centred modal (X2). Opening, browsing, previewing and sync detection spend nothing.
+- **Spend.** Each text operation here is classified by its code-computed estimate under the ratified spend rules (trivial is under $0.05 per Generation; multi-option drafting with a quality writing model may not be); the price is shown on any control whose estimate is not trivial, and a confirm rule fires inline at that control, never as a centred modal (X2). Opening, browsing, previewing and sync detection spend nothing.
 - **Locks.** If the document is locked, AI-applied results are held as Options and hand edits go through the edit-through confirmation; browsing and history never need an unlock.
 - **Failures** are visible and quiet, with nothing applied, no Revision, a retry control, and the selection preserved (X7).
 - **Cmd-K** reaches any phase, and within a document any beat or scene, from anywhere.
