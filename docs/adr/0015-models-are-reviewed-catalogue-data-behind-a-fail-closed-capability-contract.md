@@ -21,3 +21,7 @@ Decision: a **Model** (what overrides and defaults store) is reached through **O
 - Changing a default, a project choice or a shot override never marks work out of date.
 - Operations must run a deprecation watch, review ages and conformance probes; probes can suspend or alert only.
 - A fake Offering can exist only in test deployments and can never be a default.
+
+## Amendment (Creator Ratification Record 2, D66 and D61.4)
+
+Automatic biases are ratified: video balanced (the best-ranked model whose typical take stays under the $2.00 one-click line), images, entity images and writing quality, fact-check and utility calls economy, audio quality; the creator may pick a specific model per project or per shot. CineBlock's world model is the `world.generate` operation class, an ordinary Catalogue provider under the same rules: operator-paid until BYOK, BYOK-capable afterwards, price on the initiating button, normal spend rules. Its output is a blocking stage, never a frame or a video input.

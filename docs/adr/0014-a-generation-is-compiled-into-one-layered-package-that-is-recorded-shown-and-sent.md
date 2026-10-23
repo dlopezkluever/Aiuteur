@@ -25,3 +25,5 @@ Decision: a pure compiler turns a snapshot of owned truth and a model capability
 ## Amendment (Creator Ratification Record 2, P10/X3)
 
 The per-Fact "carry into visual generation" pin and pinned Facts in the `binding` layer are removed. Established Facts bind AI drafting and revision of text and World Definition (fact-checked, R6). Media generation reads canonical creative state only (passage, shot, entities and current Looks, Visual Style, references, composition, exact dialogue, provider requirements); no Fact is injected. Contextual state overrides generic state. Global visual rules belong in Visual Style; per-shot Override `add(note)` covers one-offs.
+
+A CineBlock capture is carried only by Frame requests, as a layout composition reference; it is never a pinned frame and never part of a video request (Record 2 D61.3).
