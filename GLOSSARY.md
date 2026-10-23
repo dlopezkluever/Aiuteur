@@ -49,7 +49,7 @@ The conversation in which Aiuteur asks the creator questions until it understand
 _Avoid_: Clarification, intake, questionnaire
 
 **Established Fact**:
-A binding statement of the creator's intent, from an interview answer or stated by the creator elsewhere. No generation may contradict it.
+Development knowledge the AI must remember: a statement from inputs or uploaded documents, an Interview answer, a creator edit or an explicit creator decision. It binds AI drafting and revision (Treatment, Beat Sheet, Master Narrative, World Definition, Visual Style), checked by the fact check, and is never injected into generation prompts for frames, images, takes or audio. The AI never contradicts it; a creator's own contradicting edit supersedes it (Record 2 X3).
 _Avoid_: Answer, requirement
 
 **Treatment**:
@@ -121,7 +121,7 @@ A derived link between an entity and a passage of the Master Narrative (on-scree
 _Avoid_: Tag, appearance record
 
 **Location coverage**:
-A Location's set of directional views (walls or angles). Multi-direction by default; a single establishing image by choice.
+A Location's set of named directional Views. It starts from one canonical reference image; Directions come from the shots (picked or proposed at shot planning) or are added by the creator at any time; a single image by choice (Constitution §6.4 as amended, Record 2 D59).
 
 **Identity readiness**:
 Whether an entity is visually defined enough to use: an approved canonical description and identity image, or a deliberate lightweight text-only definition. Derived, quiet, never blocks. Distinct from Production coverage readiness.
@@ -197,7 +197,7 @@ The versioned, internal handoff from the CineBlock tab to a scene's shots (echoe
 The quiet per-scene list of imported or returned items that matched no shot or matched ambiguously. Unresolved items stay there and block nothing.
 
 **Frame**:
-A still image for a shot, in a role such as opening or ending. A frame is an Attempt: every frame is kept, and the creator approves which one stands. It records its source (generated, uploaded, reused, edited, extracted from a Take, or captured from a composition reference) and, for reuse and editing, the Frame it was derived from.
+A still image for a shot, in a role such as opening or ending. A frame is an Attempt: every frame is kept, and the creator approves which one stands. It records its source (generated, uploaded, reused, edited, or extracted from a Take; a previs capture is never a Frame, it goes through image generation, Record 2 D61.3) and, for reuse and editing, the Frame it was derived from.
 _Avoid_: Anchor, keyframe, frame attempt (a frame is the attempt)
 
 **Frame plan**:
@@ -233,7 +233,7 @@ One generated video attempt for a shot: one clip in the edit, built from one or 
 _Avoid_: Video, render, generation (a take is a result, not the request)
 
 **Selected take**:
-The take the creator designates as a shot's final one; review and export use it. A shot has at most one.
+The take the creator currently chooses for a shot; review and export use it. A shot has at most one. Choosing is reversible; Mark final is a separate voluntary lock.
 _Avoid_: Final take
 
 **Approve**:
@@ -262,7 +262,7 @@ A place in the model that holds one chosen Attempt among many, such as a shot's 
 _Avoid_: Field, placeholder
 
 **Generation** **(Wayfinder)**:
-The permanent record of one request to an AI model to produce content: what was asked (the exact inputs), who initiated it, its cost, and what came of it. Its outputs are Attempts, Options, or the content of an AI-made Revision. A failed Generation has no outputs.
+The permanent record of one request to an AI model to produce content: what was asked (the exact inputs), who initiated it, its cost, and what came of it. Its outputs are Attempts, Options, or the content of an AI-made Revision. A failed Generation has no outputs, unless a late result is later adopted (after a timeout) or attached (after a cancel).
 _Avoid_: Take, render, run, job
 
 **Job** **(Wayfinder)**:
@@ -395,7 +395,7 @@ An on-demand panel, opened from the quiet footer line, listing everything possib
 _Avoid_: Dashboard, inbox
 
 **Meaningful spend**:
-Generation cost the creator must initiate and see the estimate for first: any Generation estimated at $0.05 or more, and all video. A separate confirm step applies at $2.00 or more in total, 10 or more Generations, bulk regenerate by filter, an unknown price, or reaching a cap (`docs/domain/BUSINESS-AND-OPERATIONS.md` §3).
+Generation cost the creator must initiate and see the estimate for first: any Generation estimated at $0.05 or more, and all video. An inline spend ticket at the initiating control (never a modal) applies at $2.00 or more in total, 10 or more Generations (a take batch counts Takes, not Segments, Record 2 P3), bulk regenerate by filter, an unknown price, or reaching a cap (`docs/domain/BUSINESS-AND-OPERATIONS.md` §3).
 
 **Trivial spend**:
 A Generation estimated below $0.05. Needs no confirmation and may auto-retry when otherwise safe.
@@ -455,8 +455,8 @@ The persistent left sidebar inside a project: the film as a document, listing ev
 _Avoid_: Phase rail, wizard, stage list
 
 **Board** **(Wayfinder)**:
-The whole-film centre view: every shot as one mark, one row per scene, coloured by derived status. Where scope is selected for batch actions.
-_Avoid_: Script Hub, dashboard
+The whole-film centre view, scene by scene, where scope is selected for batch actions and from which any scene opens. Its form is pending the #60 redo from the V1 Script Hub (Record 2 D60.3); earlier per-shot-mark renditions are rejected.
+_Avoid_: dashboard
 
 **Scene workspace** **(Wayfinder)**:
 The main centre workspace for one scene, where the creator preps and makes its shots: shot list, plan, optional direction, frames, takes, optional audio. Shot work is never confined to a side drawer.
@@ -491,7 +491,7 @@ The computed, quiet difference between a linked beat and its passage relative to
 _Avoid_: Out of sync (as a stored state)
 
 **Sync**:
-Before Master Narrative acceptance, the creator-pressed action that brings a beat and its passage back into agreement without deleting or overwriting protected spans. One Generation, one undoable Revision per target.
+Before Master Narrative acceptance, the collective name for the creator-pressed update actions (Update Treatment to match Beat Sheet, primary; Update Beat Sheet from Treatment, reverse) that bring a beat and its passage back into agreement without deleting or overwriting protected spans. One Generation, one undoable Revision per target. Never automatic.
 
 **Disagreement check**:
 Before drafting or accepting the Master Narrative, if Treatment and Beat Sheet disagree, Aiuteur shows it and asks which to follow; it never guesses.
@@ -572,7 +572,7 @@ A merge-blocking test that proves one Account cannot read, change or learn of an
 _Avoid_: Security review
 
 **Independent copy** **(Wayfinder)**:
-The backup of database and media held at a second vendor under credentials that cannot delete, so loss or compromise of the primary vendors or of our own code cannot erase it.
+A backup of database and media held at a second vendor under credentials that cannot delete. A deferred option (Record 2 P12.3), not a current requirement; the current floor is a daily dump plus continuous WAL archiving off the machine (OPERATIONAL-BASELINE §8.1).
 _Avoid_: Mirror, replica (as a product term)
 
 ## Persistence (Wayfinder #72)

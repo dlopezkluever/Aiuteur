@@ -152,7 +152,7 @@ Text before the first heading, or any imported content segmentation cannot place
 - **No new staleness reason.** Structure effects use existing reasons (`narrative-changed`, `input-retired`) and the existing Acknowledgements ([`LINEAGE-AND-STALENESS.md`](LINEAGE-AND-STALENESS.md) §3.1). Mapping never re-stamps a Basis; only the creator's reconcile does.
 - **Locks.** A lock on a scene attaches to its id. Delete, split, merge, mapping retire and rewrite of a locked scene are edits to a locked scope: confirmation with impact; AI-applied changes are held as Options. Locks follow `merged_into`.
 - **Looks and Facts.** Anchors to a retired scene are inert, not removed, and return on restore. Redirects follow `merged_into`.
-- **Duplicate project.** Full duplicate: container ids remap with everything else. Duplicate without production (D52.2): no scene containers are carried; the new Master Narrative's scenes get new ids from the imported screenplay. How the source's scene-anchored Look assignments and Fact anchors carry into the new version is not yet decided.
+- **Duplicate project.** Full duplicate: container ids remap with everything else. Duplicate without production (D52.2): no scene containers are carried; the new Master Narrative's scenes get new ids from the imported screenplay. Look definitions carry; scene-anchored Look assignments and Fact anchors do not (their anchors do not exist in the new version); the new narrative's Look assignments are proposed and reviewed afresh in World Definition ([`PERSISTENCE-AND-MEDIA.md`](../architecture/PERSISTENCE-AND-MEDIA.md), Record 2 amendment).
 
 ## 7. Considered alternatives
 
