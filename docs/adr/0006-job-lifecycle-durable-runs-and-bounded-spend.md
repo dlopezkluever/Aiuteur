@@ -23,6 +23,6 @@ V1 ran generation as unawaited promises and one in-memory serial loop: no restar
 
 ## Consequences
 
-- A Generation's outcome is immutable except that a timed-out Generation can later gain outputs by adoption; its request never changes. Domain model §5 is amended accordingly.
+- A Generation's request never changes. Without a new Job, a settled Generation's outcome changes only when a late result arrives: a timed-out Generation is adopted (failed → succeeded, "arrived late"), and a cancelled one keeps reading *Cancelled* while the paid output attaches unselected as "arrived after cancel"; both give a quiet notice (Ratification M2). Domain model §5 is amended accordingly.
 - A batch-dependent Generation's inputs are finalised once, when its dependency succeeds.
 - The execution substrate (resolved in [ADR 0017](0017-the-job-row-is-the-queue-on-plain-postgres-with-own-sse-progress.md): the Job row is the queue on plain Postgres) must supply durable timers, leases, webhook ingress and an outbox; the provider adapter contract (#66) must declare idempotency, completion signalling, cancellation, retention, billing-on-failure and error classes.

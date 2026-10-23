@@ -1,6 +1,6 @@
 # Aiuteur V2: Business and Operations Contract
 
-Resolution of Wayfinder ticket #68. Vocabulary is in [`GLOSSARY.md`](../../GLOSSARY.md); the trade-offs are recorded in [ADR 0010](../adr/0010-multi-creator-accounts-operator-paid-bounded-spend.md). Creator decisions come from the [Creator Ratification Record](../product/CREATOR-RATIFICATION-RECORD.md) (M4 to M7 and section 2, #68), which controls; they are marked **[creator]**. Everything else is agent-designed and reviewable. Like the job lifecycle, this document is provider-neutral and substrate-neutral: no tables, columns or endpoints. Values the creator parked, or that are tuning, are listed in §9 as spec-level configuration; they are not invented here.
+Resolution of Wayfinder ticket #68. Vocabulary is in [`GLOSSARY.md`](../../GLOSSARY.md); the trade-offs are recorded in [ADR 0010](../adr/0010-multi-creator-accounts-operator-paid-bounded-spend.md). Creator decisions come from the [Creator Ratification Record](../product/CREATOR-RATIFICATION-RECORD.md) (M4 to M7 and section 2, #68) and [Record 2](../product/CREATOR-RATIFICATION-RECORD-2.md) (P3, X2, X8, D60.4, D60.5, D61.4, P11), which control; they are marked **[creator]**. Everything else is agent-designed and reviewable. Like the job lifecycle, this document is provider-neutral and substrate-neutral: no tables, columns or endpoints. Values the creator parked, or that are tuning, are listed in §9 as spec-level configuration; they are not invented here.
 
 ## 1. Operating model
 
@@ -16,15 +16,17 @@ Resolution of Wayfinder ticket #68. Vocabulary is in [`GLOSSARY.md`](../../GLOSS
 
 The product tracks provider spend per Account to show the creator the price before and after, to enforce the creator's and the operator's limits, and to let the operator reconcile provider invoices. It is **not a billing system**: no invoices, no charges to anyone, no balances (§10).
 
+Hosting is the operator's own cost and is not part of the spend record. The current default deploy target is one VPS running the web process, the worker and Postgres, with Cloudflare R2 for media (Record 2 P11), estimated at about $10 to $25 a month before provider bills. That figure is an **unverified estimate**, and the VPS is a **current deploy choice that stays portable, not architecture** ([`RUNTIME-PLATFORM.md`](../architecture/RUNTIME-PLATFORM.md)). Provider bills, which this contract governs, are separate and scale with generation.
+
 ## 3. The meaningful-spend rule **[creator, final]**
 
 Every Generation has a **spend class** computed by code from its estimate (§4). The rule is mechanical, so every generation trigger in the UX gives the same answer.
 
 | Class | Test | The creator sees | Confirmation |
 |---|---|---|---|
-| **Trivial** | Estimate below **$0.05** for the Generation (text actions are expected here; video never) | Nothing extra | None. May auto-retry under JOB-LIFECYCLE §5.3 |
+| **Trivial** | Estimate below **$0.05** for the Generation (many text actions fall here, but the class is computed from the estimate, never assumed from the kind of work; video never) | Nothing extra | None. May auto-retry under JOB-LIFECYCLE §5.3 |
 | **Meaningful** | Everything else, and **all video** at any price | The **estimated price on the initiating control** before the click | The click is the approval (**one-click spend**) |
-| **Meaningful, with a confirm step** | Meaningful, and any of: the action's **total estimate is $2.00 or more**; it creates **10 or more Generations, counting Takes, not Segments** (a long shot's Segments count as one Take; Record 2 P3; the $2.00 total still sums every Segment); it is a **bulk regenerate by filter**; **any price is unknown**; it **would reach a cap** (§6) | A separate confirmation with the estimate, the number of Generations, the largest item and, for a cap, what is left | Required before anything is created |
+| **Meaningful, with a confirm step** | Any action that meets any of: its **total estimate is $2.00 or more**; it creates **10 or more Generations**, where the Segment Generations of one long Take count as one, so a take batch counts **Takes, not Segments** (Record 2 P3; the $2.00 total still sums every Segment's cost); it is a **bulk regenerate by filter**; **any price is unknown**; it **would hit a cap** (§6). The count applies even when every member is trivial (see below) | An **inline spend ticket at the initiating control**, never a centred modal (Record 2 X2): the estimate, the count (in Takes for take batches), the largest item, the reasons and, for a cap, what is left. **A cap breach offers no Start** (§6.1) | Required before anything is created |
 
 Rules that complete the table:
 
@@ -33,7 +35,9 @@ Rules that complete the table:
 - **Retry.** A creator's Retry shows the price (or "not charged"); the click is the approval. If the retry alone meets a confirm-step condition, it uses the confirm step. Automatic retries follow JOB-LIFECYCLE §5.3 and never create a billable run beyond the original approval except trivial ones.
 - **Regeneration and bulk.** One regeneration is one action. A selection the creator picks is one action whose size decides the class. A bulk regenerate by filter (everything affected by a change, a scene, a reason) always uses the confirm step, with the money at risk shown. Staleness never spends (Ratification R2).
 - **Single takes, bulk images, video batches.** Single takes follow the table by price. Bulk image generation (a film's frames, a location's views) is a batch and reaches the 10-Generation or $2.00 condition quickly; a batch under 10 below $2.00 in total is one click with the price shown.
-- **Count applies regardless of price.** "Draft all scene plans" over a long film shows the confirm step even if each text call is trivial. The step is cheap to pass and shows the total.
+- **Count applies regardless of price.** "Draft all scene plans" over a long film shows the confirm step even if each text call is trivial. The step is cheap to pass and shows the total. "Draft all" drafts shot plans only, a text operation; it never generates frames, images, worlds or takes (Record 2 D60.4).
+- **Automatic text operations.** The ratified automatic Generation triggers are text-only and ride on a creator action (AI-RESPONSIBILITY-MAP §6.0, G10): the initial shot-plan draft when the creator enters a scene that has no plan (Record 2 D60.5), and the first Treatment options on entry to an empty Treatment phase ([`WRITING-EXPERIENCE.md`](../ux/WRITING-EXPERIENCE.md) §2.1). Each is classified by this table like any other Generation and recorded in the spend record. Neither redrafts existing work, and neither creates frames, images, worlds, takes or audio. Nothing else creates a Generation without the creator's click; staleness, coverage needs and CineBlock return never spend (Record 2 X8). Whether such a draft may still run automatically when its computed class is meaningful rather than trivial is open (§9).
+- **World generation [creator, Record 2 D61.4].** A CineBlock world (`world.generate`, PROVIDERS-AND-MODELS §13) is a meaningful Generation, always creator-initiated, under the same rule: price on the initiating control, one click under $2.00, the confirm step when a condition above fires. The operator pays until BYOK ships (M5); it is BYOK-capable afterwards through the §7 seam. About $1.20 per world is the current estimate (unverified).
 - **Approval covers what it states.** One billable run per Generation; a Batch approval is the sum (ADR 0006). Actual above estimate is recorded and shown, feeds drift detection (§4.4), and never triggers another run.
 - **Thresholds are tunable defaults, not architecture. [creator]** $0.05, $2.00 and 10 are configuration; changing one changes no structure.
 - **Cheaper-first suggestions are information, never substitution.** No path creates a meaningful Generation without the creator's click.
@@ -128,7 +132,7 @@ Generation ──► Job runs (billed state, cost per run)
 
 A creator sets their own caps for their Account: a **daily** and a **monthly** limit (account-local calendar periods) and optionally a **per-action maximum**. Defaults are **parked** (§9); the creator said not to worry about them now. Only the creator changes them, in the app, at any time.
 
-A creator cap is a guard set for themselves, so reaching it is a confirm-step condition (§3), not a silent failure: the step shows what is left and offers to raise the cap for this action or cancel. Raising a cap is an explicit creator act.
+A creator cap is a guard set for themselves, so reaching it is a confirm-step condition (§3), not a silent failure: the spend ticket shows what is left and offers to raise the cap for this action, trim the action, or cancel. It offers **no Start** until the action fits (Record 2 X2). Raising a cap is an explicit creator act.
 
 ### 6.2 The hidden operator ceiling **[creator, M6]**
 
@@ -162,7 +166,7 @@ All are per Account unless stated. Creator-facing ones never block silently: the
 | S1 | **Approval is the per-action cap** | One billable run per Generation; the approved estimate (or batch sum) bounds the action. Actual above estimate is recorded, never re-run |
 | S2 | **Creator caps** (§6.1) | Daily, monthly and optional per-action limits; reaching one needs the confirm step |
 | S3 | **Operator ceiling** (§6.2) | Hidden hard limit on operator-paid spend per Account until BYOK |
-| S4 | **Spend rule** (§3) | Confirm step for $2.00 or more, 10 or more Generations, bulk regenerate by filter, unknown price, cap-hit |
+| S4 | **Spend rule** (§3) | Inline spend ticket for $2.00 or more, 10 or more Generations (Takes, not Segments, P3), bulk regenerate by filter, unknown price, cap-hit |
 | S5 | **Runaway-retry guards** | Automatic retry capped at three Jobs per Generation, only for known-unbilled or trivial runs (JOB-LIFECYCLE §5.3); a creator Retry never loops; trivial automatic retries count toward committed spend and a per-Account **trivial-retry rate limit** stops a failing trivial path draining money in small pieces |
 | S6 | **Duplicate guard** | Action ids and input fingerprints stop double clicks and accidental repeats (JOB-LIFECYCLE §4) |
 | S7 | **Provider circuit breaker** (operator-wide, since operator keys are shared) | After a configured number of billed or maybe-billed failures in a window on one provider or model, automatic retries to it stop and new submissions show "this model is failing; you may be charged" until a success or the operator clears it. Platform configuration failures stop submissions to that provider at once |
@@ -187,6 +191,7 @@ Not decided here, and not to be invented silently:
 | Period boundaries | Calendar day and month in the Account's timezone; spec-level |
 | Spend retention after purge (M7) | Decided with the deletion feature |
 | $0.05, $2.00 and 10 | Ratified defaults; configuration |
+| Automatic text draft (initial shot plan, first Treatment options) whose estimate is meaningful (§3) | **Awaiting creator review**: D60.5 makes the draft automatic; the spend rule requires a priced click for meaningful spend. Not to be decided silently |
 
 ## 10. Explicit deferral list
 
@@ -222,7 +227,7 @@ Not designed here, and where the Constitution excludes them not to be invented w
 | **Runtime platform** (#74) | Per-Account and per-provider admission limits and fairness (S8); the circuit breaker (S7) needs state shared across workers |
 | **Providers and models** (#66, resolved in [`PROVIDERS-AND-MODELS.md`](PROVIDERS-AND-MODELS.md) §§7, 14) | Adapter contract additions: price declaration (unit, source, bounds), billed-quantity rule, actual-cost reporting capability, credential interface resolved by (Account, provider), and error mapping that separates operator-funds from content failures |
 | **Generation package** (#65) | The estimate derives from the exact package; its parameters set the billed quantity |
-| **World Definition** (#59), **Candidate review and playback** (#62) | Every generation trigger applies §3: price on the initiating control; confirm-step conditions; Retry with price; the "may have been charged" wording; unknown-price and cap-hit states; money at risk from lineage |
+| **World Definition** (#59), **Shot planning inputs / CineBlock** (#61), **Candidate review and playback** (#62) | Every generation trigger applies §3: price on the initiating control; confirm-step conditions as an inline ticket, never a modal, with no Start on a cap breach; Retry with price; the "may have been charged" wording; unknown-price and cap-hit states; money at risk from lineage |
 | **Module architecture** (#71, resolved in [`MODULE-ARCHITECTURE.md`](../architecture/MODULE-ARCHITECTURE.md)) | A spend module (estimate, cap check, summaries) beside generation; a credential resolver; the price registry; no vendor names in it |
 | **Verification** (#76) | Provider fakes need price entries, stale and unknown prices, drift, unavailable actual cost, funds exhausted, key revoked; tests for cap races between concurrent actions and for cross-Account isolation |
 
