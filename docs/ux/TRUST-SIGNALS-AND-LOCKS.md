@@ -1,6 +1,6 @@
 # Aiuteur V2: Trust Signals, Lock Points and Friction
 
-Resolution of Wayfinder ticket #63. It makes the semantics of [`LINEAGE-AND-STALENESS.md`](../domain/LINEAGE-AND-STALENESS.md) (#54, ADRs [0004](../adr/0004-possibly-out-of-date-is-derived-from-lineage.md) and [0005](../adr/0005-locks-are-server-enforced-domain-state.md)) legible. The creator's decisions are in [`CREATOR-RATIFICATION-RECORD.md`](../wayfinder-v2/CREATOR-RATIFICATION-RECORD.md) §2 (#63) and M1; they are final. This document is conceptual: it states what the creator sees and when, not components or layouts.
+Resolution of Wayfinder ticket #63. It makes the semantics of [`LINEAGE-AND-STALENESS.md`](../domain/LINEAGE-AND-STALENESS.md) (#54, ADRs [0004](../adr/0004-possibly-out-of-date-is-derived-from-lineage.md) and [0005](../adr/0005-locks-are-server-enforced-domain-state.md)) legible. The creator's decisions are in [`CREATOR-RATIFICATION-RECORD.md`](../product/CREATOR-RATIFICATION-RECORD.md) §2 (#63) and M1; they are final. [`CREATOR-RATIFICATION-RECORD-2.md`](../product/CREATOR-RATIFICATION-RECORD-2.md) confirms them (§7: "#63 all hold") and adds the consequences cited below (D58.9, D60.5–6, D62.3, P1, P2, X2, X5, X7). This document is conceptual: it states what the creator sees and when, not components or layouts.
 
 Constitutional anchors: §4.4, §13.2, §13.4, §13.6, §16 principles 4, 9, 10, 11, Appendix A Q26. **No `CONSTITUTION AMENDMENT REQUIRED`:** every settled item (quiet non-blocking markers with reasons, non-blocking always-unlockable locks, no forced unlock/re-lock, Master Narrative acceptance as a lock point, no preview/diff ceremony) is workable as designed.
 
@@ -23,9 +23,9 @@ A throwaway prototype compared three treatments on one scene (a narrative passag
 |---|---|---|
 | **Provenance** (§13.2, IMPORTANT) | A project-wide toggle, "Highlight AI vs mine", off by default. When on, text spans and items made by AI are tinted differently from creator-written or imported ones. | Span-level for text (#51). Reading the toggle changes nothing. Four classes: creator-written, creator-imported, AI-generated, AI-edited at the creator's request. |
 | **AI-made choice** | A small dotted-underline tag inline ("AI chose: 35mm"); one click overrides it, after which it reads "yours". | No interruption. An on-demand project-wide list collects them (R7). |
-| **Possibly out of date** | A Whisper dot (§1). Tapping shows one sentence from the closed reason vocabulary (LINEAGE §3.1) and the exits: **Regenerate**, **It still fits** (reconcile), **Keep as is**. | Never blocks. A *via* reason ("made from a shot that may be out of date") is a quieter variant of the same dot. Kept items show a muted "Kept despite: …" note only when inspected. |
-| **Bulk reconcile** | When two or more items are marked, a single quiet footer line: "N items may be out of date · it all fits · keep all · regenerate all…". "Review all" opens the tray, grouped by reason, with the same actions per group or per item. | Bulk keep and bulk fits are one action group and reversible in one step. Bulk regenerate is a spend decision and shows its total estimate first (#68). |
-| **Write-back vs deviation** | The moment a structured edit below the owning level diverges from narrative or identity truth, an inline note under the edited field: **Update the Master Narrative** · **Keep for this shot only** · **Decide later**. | The write-back option previews its impact (the same summary locks use). Decide later leaves a quiet "differs from narrative" mark and a row in the tray's to-reconcile group. Free-text prompt overrides cannot be checked and show only a "prompt overridden" badge (R3). |
+| **Possibly out of date** | A Whisper dot (§1). Tapping shows one sentence from the closed reason vocabulary (LINEAGE §3.1) and the exits: **Regenerate**, **It still fits** (reconcile), **Keep as is**. Restoring the upstream from its version history also clears the dot where content matches again (LINEAGE §2.4). | Never blocks. A *via* reason ("made from a shot that may be out of date") is a quieter variant of the same dot. Kept items show a muted "Kept despite: …" note only when inspected. |
+| **Bulk reconcile** | When two or more items are marked, a single quiet footer line: "N items may be out of date · it all fits · keep all · regenerate all…". "Review all" opens the tray, grouped by reason, with the same actions per group or per item. | Bulk keep and bulk fits are one action group and reversible in one step. Bulk regenerate is a spend decision and shows its total estimate first (#68), as the inline ticket at the control, never a centred modal (Record 2 X2). |
+| **Write-back vs deviation** | The moment a structured edit below the owning level diverges from narrative or identity truth, an inline note under the edited field: **Update the Master Narrative** (or **Update the entity**, for identity truth, Constitution §4.4 (7)) · **Keep for this shot only** · **Decide later**. | The write-back option previews its impact (the same summary locks use). Decide later leaves a quiet "differs from narrative" mark and a row in the tray's to-reconcile group. Free-text prompt overrides cannot be checked and show only a "prompt overridden" badge (R3). Shot-owned fields never raise the note: a shot's dialogue delivery (shown as an override with a quiet "Copy to narrative" action, Record 2 P1) and its location Direction (P2). Ad-hoc shots never raise it while ad-hoc (X5). |
 
 All marker text is derived (ADR 0004); this document only decides presentation.
 
@@ -37,13 +37,15 @@ A lock blocks edits to the locked thing (new Revisions, retiring, moving the cho
 
 | # | Point | Behaviour |
 |---|---|---|
-| 1 | **Master Narrative acceptance** | Locks by default, in the same action group as the Accept (accept and lock stay separately addressable, LINEAGE §6.4). |
+| 1 | **Master Narrative acceptance** | Locks by default, in the same action group as the Accept (accept and lock stay separately addressable, LINEAGE §6.4). In the one concise acceptance sheet this is a **Lock** checkbox **checked by default**, which the creator may untick (Record 2 D58.9; [`WRITING-EXPERIENCE.md`](WRITING-EXPERIENCE.md) §6). |
 | 2 | **Entity identity approval** (Character, Location, Prop, Extra type) | Approval *offers* a lock for that entity. |
 | 3 | **Visual Style / World Definition** | Offered when the creator says the world is set. |
 | 4 | **A scene's shot plan** | Offered when frame generation for that scene begins. |
 | 5 | **Anything else** | Voluntary only; any scope can be locked by the creator, none by default. |
 
 An offer is a single quiet inline choice (lock / not now), never repeated and never required. Not locking is a normal state, not a missing one.
+
+**Shot-plan locks and AI drafting.** The automatic first draft runs only when a scene has **no** shot plan (Record 2 D60.5), so it never meets the point-4 offer, which comes later at frame generation. Any AI result that would change a locked shot plan (a redraft, "Draft all" across scenes, or a first draft for a scene the creator voluntarily locked while empty) is **held as an Option**, never applied (§3; D60.6). None of these ever generates frames, images, worlds or takes (X8).
 
 ## 5. Friction scales with downstream work
 
@@ -62,9 +64,9 @@ The server computes the impact (chosen downstream work reached through lineage, 
 
 ## 6. Take selection is not a commitment point
 
-Resolves Constitution §13.4 (3). **Choosing a Take is a reversible Slot choice**, creator-only (§13.6), recorded as history. It is not a commitment point and carries no lock. Changing the choice flags what was built from the previous pick as possibly out of date (R2), exactly like any other upstream change.
+Resolves Constitution §13.4 (3). **Choosing a Take is a reversible Slot choice**, creator-only (§13.6), recorded as history. It is not a commitment point and carries no lock. Changing the choice flags what was built from the previous pick as possibly out of date (R2), exactly like any other upstream change. In review, **swapping a take into the sequence is selecting it**; there is no separate preview state (Record 2 D62.3, [`CANDIDATE-REVIEW-AND-PLAYBACK.md`](CANDIDATE-REVIEW-AND-PLAYBACK.md) §1).
 
-**Mark final** is an optional, per-shot, stronger *voluntary lock* on the chosen Take, for organization. It is a normal lock under §3: the creator can always return to a final Take and change it by unlocking, and nothing cascades. Export and assembly quietly list shots with no chosen Take; the absence blocks nothing.
+**Mark final** is an optional, per-shot, stronger *voluntary lock* on the chosen Take, for organization. It is a normal lock under §3: the creator can always return to a final Take and change it by unlocking (or by edit-through, §5), and nothing cascades. Export and assembly quietly list shots with no chosen Take; the absence blocks nothing.
 
 ## 7. Hand-offs
 
@@ -74,4 +76,5 @@ Resolves Constitution §13.4 (3). **Choosing a Take is a reversible Slot choice*
 | **Shot model** (#55), **Entities and Looks** (#53), **Story documents** (#51) | The structured paths that raise the write-back note; the narrative-bearing slices; span-level provenance for the toggle. |
 | **Module architecture** (#71, resolved in [`MODULE-ARCHITECTURE.md`](../architecture/MODULE-ARCHITECTURE.md)) / **Persistence** (#72) | The impact summary and edit-session confirmation must be server operations (ADR 0005); the confirmation token carries the impact version. |
 | **Spend and cost** (#68) | Money-at-risk reads Generation cost; tier 2 and bulk regenerate use the same estimate display. |
-| **Downstream UX tickets** | Flags are subtle (M1); no typed confirmation anywhere; any new surface that shows state uses the Whisper pattern first. |
+| **Scene and shot workspace redo** (#60, Record 2 D60) | The shot-plan lock offer at frame generation (§4 point 4) and the held-as-Option rule for AI results on a locked plan (§4). |
+| **Downstream UX tickets** | Flags are subtle (M1); failures are visible and quiet, a muted mark with "Retry · $x" (Record 2 X7); no typed confirmation anywhere; any new surface that shows state uses the Whisper pattern first. |
