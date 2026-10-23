@@ -1,0 +1,50 @@
+<!doctype html><html><head><meta charset="utf-8"><title>#60 · B Film timeline first</title>
+<link rel="stylesheet" href="../shared/kit.css"><link rel="stylesheet" href="proto.css"></head><body>
+<script src="../shared/kit.js"></script><script src="film.js"></script><script src="parts.js"></script>
+<script>
+const P={name:'B · Film timeline first → edit the cut',cur:'s7',anchor:null};
+const mini=s=>{const st=F.stats(s);const w=k=>st.n?(st[k]/st.n*100)+'%':'0%';return h('div',{class:'minibar',title:F.status(s).t},h('i',{style:`width:${w('sel')};background:var(--ok)`}),h('i',{style:`width:${w('pick')};background:var(--sel);opacity:.6`}))};
+P.renderHub=el=>{
+  const cur=F.byId(P.cur)||F.scenes[0],t=F.totals();
+  const onScene=(s,e)=>{ // click: focus · shift-click: brush a range into Draft-all scope · dblclick: open
+    if(e.shiftKey&&P.anchor){const a=F.scenes.findIndex(x=>x.id===P.anchor),b=F.scenes.indexOf(s);F.scope=new Set(F.scenes.slice(Math.min(a,b),Math.max(a,b)+1).map(x=>x.id));F.ticket=false}
+    else{P.cur=s.id;P.anchor=s.id}
+    P.render()};
+  const tl=UI.timeline({scenes:F.scenes,onScene,sceneSel:cur.id});
+  tl.addEventListener('dblclick',()=>P.go({t:'scene',id:P.cur}));
+  const k=F.enterKind(cur);
+  const slip=h('div',{class:'card slip'},h('div',{},UI.thumb(cur,'big')),
+    h('div',{class:'col'},h('div',{class:'row'},UI.slug(cur),UI.status(cur)),h('div',{class:'serif',style:'font-size:15px;line-height:1.6'},cur.excerpt),UI.deps(cur),UI.runtime(cur),
+      h('div',{class:'quiet'},cur.plan==='none'&&!cur.shots.length?(k.auto?'No plan · drafts itself when you open it':'No plan · you will see Draft plan · '+(k.unknown?'price unavailable':UI.money(cur.est))):cur.locked?'Plan locked · AI results are held as Options':'')),
+    h('div',{class:'col'},h('button',{class:'primary',onclick:()=>P.go({t:'scene',id:cur.id})},'Open scene'),h('button',{onclick:()=>{F.scope.has(cur.id)?F.scope.delete(cur.id):F.scope.add(cur.id);F.ticket=false;P.render()}},F.scope.has(cur.id)?'Remove from scope':'Add to Draft all scope'),h('button',{class:'ghost',onclick:()=>{P.peek=cur.id;P.render()}},'Peek')));
+  const reel=h('div',{class:'reel card'},F.scenes.map(s=>{const picked=F.scope.has(s.id);
+    return h('div',{class:'reelrow'+(s.id===cur.id?' on':''),onclick:()=>{P.cur=s.id;P.anchor=s.id;P.render()},ondblclick:()=>P.go({t:'scene',id:s.id})},
+      h('input',{type:'checkbox',checked:picked?true:null,onclick:e=>{e.stopPropagation();picked?F.scope.delete(s.id):F.scope.add(s.id);F.ticket=false;P.render()}}),
+      h('span',{},h('b',{style:'color:var(--accent)'},F.num(s)+' '),s.line+' – '+s.time),h('span',{},UI.status(s)),mini(s),h('span',{class:'dim small'},F.stats(s).n?F.fmt(F.stats(s).plan):'—'),h('span',{class:'quiet'},s.plan==='none'&&!s.shots.length?(F.enterKind(s).auto?'auto-drafts':'Draft plan'):s.opts?'Options waiting':''))}));
+  el.style.overflow='auto';
+  const hub=h('div',{class:'pane'},
+    h('div',{class:'hdr'},h('h2',{},'Whole film'),h('span',{class:'dim'},F.fmt(t.plan)+' of '+F.fmt(F.target)+' target · '+t.n+' shots · '+F.scenes.length+' scenes'),h('span',{class:'sp'}),h('span',{class:'faint small'},'click = focus · shift-click = brush a range into Draft all · double-click = open')),
+    tl,h('div',{class:'faint small',style:'margin:4px 0 12px'},'Scenes sized by runtime (unplanned ones by the story estimate); ticks are shots: green selected, blue needs a pick, amber generating, hatched = no plan yet. This is the #62 film-scope timeline.'),
+    UI.draftAll(P),slip,reel);
+  const ps=P.peek&&F.byId(P.peek);
+  if(ps){el.style.overflow='hidden';el.append(h('div',{class:'with-peek'},h('div',{class:'grow'},hub),UI.peek(ps,P)))}else el.append(hub);
+};
+P.renderScene=(el,s)=>{
+  el.style.overflow='auto';
+  const L=F.labels(s),act=F.active(s),sel=act.find(x=>x.id===F.selShot[s.id])||act[0];if(sel)F.selShot[s.id]=sel.id;const i=F.scenes.indexOf(s),st=F.stats(s);
+  const head=h('div',{class:'wshead'},h('button',{class:'ghost',onclick:()=>P.go({t:'hub'})},'← Film'),UI.slug(s),UI.status(s),h('span',{class:'sp'}),UI.runtime(s),UI.lockChip(s),act.length?UI.redraftBtn(s):'',
+    h('button',{class:'ghost',disabled:i<1,onclick:()=>P.go({t:'scene',id:F.scenes[i-1].id})},'‹'),h('button',{class:'ghost',disabled:i>=F.scenes.length-1,onclick:()=>P.go({t:'scene',id:F.scenes[i+1].id})},'›'));
+  const top=h('div',{class:'pane',style:'padding-bottom:8px;display:flex;flex-direction:column;gap:10px'});
+  const ps=UI.planStart(s,P);if(ps)top.append(ps);const op=UI.options(s);if(op)top.append(op);
+  top.append(h('div',{class:'row'},h('span',{class:'lbl'},'Scene timeline · edit the cut'),h('span',{class:'sp'}),
+    st.pick?h('span',{class:'chip sel'},st.pick+' need a pick'):'',st.miss?h('span',{class:'chip'},st.miss+' missing'):'',st.ood?h('span',{class:'quiet'},h('span',{class:'whisper'}),' '+st.ood+' possibly out of date'):'',s.auto?h('span',{class:'faint small'},'drafted on entry · text only'):''));
+  const tl=UI.timeline({scene:s,sel:sel&&sel.id,onSel:x=>{F.selShot[s.id]=x.id;P.render()},draggable:!s.locked});tl.style.height='96px';top.append(tl);
+  if(act.length)top.append(h('div',{class:'row wrap'},h('span',{class:'dim small'},'Selected '+(sel?L[sel.id]:'')+':'),sel?UI.shotOps(s,sel):'',h('button',{onclick:()=>F.addShot(s)},'+ Add shot'),h('span',{class:'faint small'},s.locked?'Plan locked: unlock to restructure.':'Drag cells to reorder · Split / Merge act on the selected cell')),UI.timelineNote);
+  const ret=s.shots.filter(x=>x.retired);if(ret.length&&act.length)top.append(h('details',{class:'faint small'},h('summary',{},ret.length+' retired · work kept'),ret.map(x=>h('div',{class:'row'},h('span',{},x.action),h('span',{class:'sp'}),h('button',{class:'ghost small',onclick:()=>F.unretire(s,x.id)},'Bring back')))));
+  const lower=h('div',{class:'pane',style:'display:grid;grid-template-columns:minmax(380px,1.2fr) minmax(280px,1fr);gap:22px;padding-top:6px'},
+    h('div',{class:'card',style:'padding:14px'},sel?UI.shotDetail(s,sel,true):h('div',{class:'faint'},'Select a cell to plan that shot.')),
+    h('div',{},h('div',{class:'lbl',style:'margin-bottom:6px'},'Narrative (what the cells cover)'),UI.narrative(s,sel&&sel.id,b=>{const x=act.find(y=>y.anchor.includes(b.id));if(x){F.selShot[s.id]=x.id;P.render()}})));
+  el.append(head,top,lower);
+};
+UI.mount(P);
+</script></body></html>

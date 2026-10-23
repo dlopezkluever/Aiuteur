@@ -1,0 +1,58 @@
+<!doctype html><html><head><meta charset="utf-8"><title>#60 · A Script Hub cards</title>
+<link rel="stylesheet" href="../shared/kit.css"><link rel="stylesheet" href="proto.css"></head><body>
+<script src="../shared/kit.js"></script><script src="film.js"></script><script src="parts.js"></script>
+<script>
+const P={name:'A · Script Hub cards → workspace',mode:'cards',filter:'all',peek:null};
+const visible=()=>F.scenes.filter(s=>P.filter==='all'||(P.filter==='noplan'&&!F.active(s).length)||(P.filter==='attn'&&F.needsAttn(s)));
+const planTag=s=>{const k=F.enterKind(s);
+  if(s.plan==='none'&&!s.shots.length)return h('span',{class:'quiet'},k.auto?'no plan · drafts when opened':k.unknown?'no plan · Draft plan · price unavailable':'no plan · Draft plan · '+UI.money(s.est));
+  if(!F.active(s).length)return h('span',{class:'quiet'},'plan emptied');
+  return s.opts?h('span',{class:'quiet'},h('span',{class:'whisper'}),' Options waiting'):'';};
+P.renderHub=el=>{
+  const list=visible(),t=F.totals();
+  const toggle=id=>{F.scope.has(id)?F.scope.delete(id):F.scope.add(id);F.ticket=false;P.render()};
+  const hub=h('div',{class:'pane'},
+    h('div',{class:'hubbar'},h('div',{class:'hdr',style:'margin:0'},h('h2',{},'Scenes'),h('span',{class:'dim'},F.scenes.length+' scenes · '+t.n+' shots · '+t.sel+' selected')),h('span',{class:'sp'}),
+      ['all','noplan','attn'].map(f=>h('button',{class:'ghost'+(P.filter===f?' on':''),style:P.filter===f?'color:var(--text);background:var(--panel2)':'',onclick:()=>{P.filter=f;P.render()}},{all:'All',noplan:'Needs a plan',attn:'Needs attention'}[f])),
+      h('span',{class:'tabs',style:'margin:0;border:0'},['cards','list'].map(m=>h('button',{class:P.mode===m?'on':'',onclick:()=>{P.mode=m;P.render()}},m==='cards'?'Cards':'List')))),
+    UI.draftAll(P),
+    P.mode==='cards'?h('div',{class:'cards'},list.map(s=>{const picked=F.scope.has(s.id),st=F.stats(s);
+      return h('div',{class:'card scard'+(picked?' picked':''),onclick:()=>P.go({t:'scene',id:s.id})},
+        h('input',{type:'checkbox',class:'ck',checked:picked?true:null,title:'Add to Draft all scope',onclick:e=>{e.stopPropagation();toggle(s.id)}}),
+        h('div',{class:'row'},UI.thumb(s),h('div',{class:'col',style:'gap:4px'},UI.slug(s),h('div',{class:'row wrap'},UI.status(s),s.locked?h('span',{class:'lock'},'🔒 plan'):''))),
+        h('div',{class:'exc'},s.excerpt),UI.deps(s),
+        h('div',{class:'foot'},UI.runtime(s),h('span',{class:'row'},planTag(s),st.ood?h('span',{class:'whisper',title:st.ood+' possibly out of date'}):'',h('button',{class:'ghost small',title:'Peek: preview only',onclick:e=>{e.stopPropagation();P.peek=s.id;P.render()}},'👁'))))})):
+      h('div',{},list.map(s=>{const picked=F.scope.has(s.id);
+        return h('div',{class:'lrow'+(picked?' picked':''),onclick:()=>P.go({t:'scene',id:s.id})},
+          h('input',{type:'checkbox',checked:picked?true:null,onclick:e=>{e.stopPropagation();toggle(s.id)}}),h('b',{style:'color:var(--accent)'},F.num(s)),UI.thumb(s),
+          h('div',{},h('div',{style:'font-weight:600'},s.line+' – '+s.time),h('small',{class:'faint'},F.enc(s))),UI.status(s),h('div',{class:'exc'},s.excerpt),h('div',{class:'row'},planTag(s)))})));
+  const peekS=P.peek&&F.byId(P.peek);
+  el.append(peekS?h('div',{class:'with-peek'},h('div',{class:'grow'},hub),UI.peek(peekS,P)):hub);
+  if(peekS)el.style.overflow='hidden';else el.style.overflow='auto';
+};
+P.renderScene=(el,s)=>{
+  el.style.overflow='hidden';el.style.display='flex';el.style.flexDirection='column';
+  const L=F.labels(s),act=F.active(s),sel=act.find(x=>x.id===F.selShot[s.id])||act[0];if(sel)F.selShot[s.id]=sel.id;
+  const i=F.scenes.indexOf(s);
+  const head=h('div',{class:'wshead'},h('button',{class:'ghost',onclick:()=>P.go({t:'hub'})},'← Hub'),UI.slug(s),UI.status(s),h('span',{class:'sp'}),UI.runtime(s),UI.lockChip(s),
+    h('button',{class:'ghost',disabled:i<1,onclick:()=>P.go({t:'scene',id:F.scenes[i-1].id})},'‹ scene'),h('button',{class:'ghost',disabled:i>=F.scenes.length-1,onclick:()=>P.go({t:'scene',id:F.scenes[i+1].id})},'scene ›'));
+  const st=F.stats(s);
+  const prog=h('div',{class:'wshead',style:'padding:6px 22px;gap:10px'},h('span',{class:'dim small'},st.n+' shots'),st.n?h('span',{class:'chip ok'},st.sel+' selected'):'',st.pick?h('span',{class:'chip sel'},st.pick+' need a pick'):'',st.n?h('span',{class:'chip'},(st.miss)+' missing'):'',st.fail?h('span',{class:'quiet fail'},st.fail+' failed'):'',st.ood?h('span',{class:'quiet'},h('span',{class:'whisper'}),' '+st.ood+' possibly out of date'):'',
+    s.auto?h('span',{class:'faint small'},'· plan drafted automatically when you opened this scene (text only)'):'',s.batch?h('span',{class:'faint small'},'· drafted by Draft all'):'');
+  const nar=h('section',{},h('div',{class:'lbl'},'Master Narrative · this scene'),UI.narrative(s,sel&&sel.id,b=>{const x=act.find(y=>y.anchor.includes(b.id));if(x){F.selShot[s.id]=x.id;P.render()}}),
+    F.uncovered(s).length&&act.length?h('div',{class:'faint small'},F.uncovered(s).length+' passage(s) not covered by a shot — information only.'):'');
+  const mid=h('section',{},h('div',{class:'row'},h('div',{class:'lbl'},'Shot plan'),h('span',{class:'sp'}),act.length?h('span',{class:'chip',title:'AI drafted, untouched vs confirmed. Gates nothing.'},s.accepted?'plan accepted':(s.auto||s.batch||s.fresh)?'AI drafted':'your plan'):'',act.length&&!s.accepted?h('button',{class:'ghost small',onclick:()=>F.accept(s)},'Accept plan'):'',act.length?UI.redraftBtn(s):''));
+  const ps=UI.planStart(s,P);if(ps)mid.append(ps);
+  const op=UI.options(s);if(op)mid.append(op);
+  s.shots.forEach(x=>{if(x.retired&&s.plan!=='emptied'){return}});
+  act.forEach(x=>{mid.append(h('div',{class:'shotrow'+(sel&&sel.id===x.id?' on':''),onclick:()=>{F.selShot[s.id]=x.id;P.render()}},h('span',{class:'lb'},L[x.id]),h('span',{class:'tx'},x.action),h('span',{class:'faint small'},x.dur+'s'),
+    h('span',{class:'small dim'},{failed:'failed',gen:'generating',sel:'selected',final:'final',pick:x.takes+' takes',miss:x.framing?'framing':'planned'}[F.kind(x)]),x.ood?h('span',{class:'whisper'}):h('span',{})))});
+  if(act.length)mid.append(h('div',{class:'row'},h('button',{onclick:()=>F.addShot(s)},'+ Add shot')));
+  const ret=s.shots.filter(x=>x.retired);if(ret.length&&act.length)mid.append(h('details',{class:'faint small'},h('summary',{},ret.length+' retired shot(s) — work kept'),ret.map(x=>h('div',{class:'row'},h('span',{},x.action),h('span',{class:'sp'}),h('button',{class:'ghost small',onclick:()=>F.unretire(s,x.id)},'Bring back')))));
+  const right=h('section',{style:'border-right:0'},sel?UI.shotDetail(s,sel):h('div',{class:'faint'},'Select a shot to work on it here. Shot work never happens in a drawer.'));
+  const body=h('div',{class:'ws3',style:'flex:1;min-height:0'},nar,mid,right);
+  const tl=h('div',{style:'padding:8px 22px 12px;border-top:1px solid var(--line);background:var(--panel)'},h('div',{class:'row',style:'margin-bottom:6px'},h('span',{class:'lbl'},'Scene timeline · runtime'),h('span',{class:'sp'}),UI.runtime(s)),UI.timeline({scene:s,sel:sel&&sel.id,onSel:x=>{F.selShot[s.id]=x.id;P.render()}}),UI.timelineNote);
+  el.append(head,prog,body,tl);
+};
+UI.mount(P);
+</script></body></html>

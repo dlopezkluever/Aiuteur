@@ -1,0 +1,50 @@
+<!doctype html><html><head><meta charset="utf-8"><title>#60 · C Manuscript first</title>
+<link rel="stylesheet" href="../shared/kit.css"><link rel="stylesheet" href="proto.css"></head><body>
+<script src="../shared/kit.js"></script><script src="film.js"></script><script src="parts.js"></script>
+<script>
+const P={name:'C · Manuscript first → coverage view',fold:false,anchor:null};
+P.renderHub=el=>{
+  el.style.overflow='auto';const t=F.totals();
+  const pick=(s,e)=>{if(e.shiftKey&&P.anchor){const a=F.scenes.findIndex(x=>x.id===P.anchor),b=F.scenes.indexOf(s);for(const x of F.scenes.slice(Math.min(a,b),Math.max(a,b)+1))F.scope.add(x.id)}else{F.scope.has(s.id)?F.scope.delete(s.id):F.scope.add(s.id)}P.anchor=s.id;F.ticket=false;P.render()};
+  const ms=h('div',{class:'ms'},h('div',{class:'hdr',style:'padding-top:12px'},h('h2',{},'The Salt Line'),h('span',{class:'dim'},'Master Narrative, scene by scene · '+t.n+' shots'),h('span',{class:'sp'}),h('button',{class:'ghost',onclick:()=>{P.fold=!P.fold;P.render()}},P.fold?'Show text':'Fold to sluglines')),
+    h('div',{class:'faint small'},'Tick the gutter (shift-click for a range) to scope Draft all. Click a slugline to open the scene. The margin shows what each scene has.'));
+  F.scenes.forEach(s=>{const picked=F.scope.has(s.id),st=F.stats(s),k=F.enterKind(s),empty=!F.active(s).length;
+    ms.append(h('div',{class:'msec'+(picked?' picked':'')+(P.fold?' fold':'')},
+      h('div',{class:'gut'},h('input',{type:'checkbox',checked:picked?true:null,onclick:e=>{e.preventDefault();pick(s,e)}})),
+      h('div',{},h('div',{class:'big'},F.num(s)),h('div',{class:'sl',onclick:()=>P.go({t:'scene',id:s.id})},s.line+' – '+s.time),h('small',{class:'faint'},F.enc(s)),h('div',{class:'txt'},s.excerpt)),
+      h('div',{class:'slipc'},h('div',{class:'row'},UI.thumb(s),h('div',{class:'col',style:'gap:4px'},UI.status(s),UI.runtime(s))),UI.deps(s),
+        empty&&s.plan==='none'?h('div',{class:'quiet'},k.auto?'No plan · drafts when opened':'No plan · Draft plan · '+(k.unknown?'price unavailable':UI.money(s.est))):'',
+        s.locked?h('div',{class:'lock'},'🔒 plan locked'):'',s.opts?h('div',{class:'quiet'},h('span',{class:'whisper'}),' Options waiting'):'',st.ood?h('div',{class:'quiet'},h('span',{class:'whisper'}),' '+st.ood+' possibly out of date'):'',
+        h('button',{class:'small',onclick:()=>P.go({t:'scene',id:s.id})},'Open scene →'))))});
+  el.append(ms);
+  el.append(h('div',{class:'stickybar',style:'position:sticky;bottom:0;padding:0 30px 10px;max-width:1120px;margin:0 auto'},UI.draftAll(P)));
+};
+P.renderScene=(el,s)=>{
+  el.style.overflow='auto';
+  const L=F.labels(s),act=F.active(s),sel=act.find(x=>x.id===F.selShot[s.id])||act[0];if(sel)F.selShot[s.id]=sel.id;const i=F.scenes.indexOf(s),st=F.stats(s);
+  const head=h('div',{class:'wshead'},h('button',{class:'ghost',onclick:()=>P.go({t:'hub'})},'← Manuscript'),UI.slug(s),UI.status(s),h('span',{class:'sp'}),UI.runtime(s),UI.lockChip(s),act.length?UI.redraftBtn(s):'',
+    h('button',{class:'ghost',disabled:i<1,onclick:()=>P.go({t:'scene',id:F.scenes[i-1].id})},'‹'),h('button',{class:'ghost',disabled:i>=F.scenes.length-1,onclick:()=>P.go({t:'scene',id:F.scenes[i+1].id})},'›'));
+  const pre=h('div',{class:'pane',style:'padding-bottom:0;display:flex;flex-direction:column;gap:10px'});
+  const ps=UI.planStart(s,P);if(ps)pre.append(ps);const op=UI.options(s);if(op)pre.append(op);
+  const rows=[];
+  const card=x=>{const k=F.kind(x),on=sel&&sel.id===x.id;
+    const b=h('div',{class:'bracket k-'+k+(on?' on':''),onclick:()=>{F.selShot[s.id]=on?null:x.id;P.render()}},
+      h('div',{class:'top'},h('b',{style:'color:var(--accent)'},L[x.id]),h('span',{class:'dim'},x.action.slice(0,70)+(x.action.length>70?'…':'')),h('span',{class:'sp'}),h('span',{class:'faint small'},x.dur+'s'),
+        h('span',{class:'small dim'},{failed:'failed',gen:'generating',sel:'selected',final:'final',pick:x.takes+' takes',miss:x.framing?'framing':'planned'}[k]),x.ood?h('span',{class:'whisper'}):''),
+      x.anchor.length>1?h('div',{class:'faint small'},'covers '+x.anchor.join(' + ')):'');
+    if(on){const d=h('div',{class:'inl',onclick:e=>e.stopPropagation()},UI.shotDetail(s,x));return h('div',{},b,d)}return b};
+  const placed=new Set();
+  s.blocks.forEach(blk=>{const here=act.filter(x=>x.anchor[0]===blk.id);here.forEach(x=>placed.add(x.id));
+    const covered=act.some(x=>x.anchor.includes(blk.id));
+    rows.push(h('div',{class:'l'},blk.kind==='dialogue'?h('div',{class:'small faint'},blk.who):'',h('div',{class:'serif',style:blk.kind==='dialogue'?'padding-left:18px':''},blk.text)),
+      h('div',{class:'r'},here.map(card),(!covered?h('div',{class:'gapnote'},'not covered by a shot (information only) ',h('a',{class:'lnk',onclick:()=>F.addShot(s,blk.id)},'+ Add shot here')):(!here.length?h('div',{class:'faint small',style:'padding-left:10px'},'↑ covered by '+act.filter(x=>x.anchor.includes(blk.id)).map(x=>L[x.id]).join(', ')):''))))});
+  const loose=act.filter(x=>!placed.has(x.id));
+  const cov=h('div',{class:'cov'},rows);
+  const looseBox=loose.length?h('div',{class:'pane',style:'padding-top:0'},h('div',{class:'lbl'},'Not anchored to the narrative'),h('div',{class:'col'},loose.map(card))):'';
+  const ops=sel?h('div',{class:'pane',style:'padding:0 22px'},h('div',{class:'row'},h('span',{class:'dim small'},'Selected '+L[sel.id]+' — move, split, merge in the plan order:'),UI.shotOps(s,sel),h('button',{onclick:()=>F.addShot(s)},'+ Add unanchored shot'))):(act.length?h('div',{class:'pane',style:'padding:0 22px'},h('button',{onclick:()=>F.addShot(s)},'+ Add unanchored shot')):'');
+  const tl=h('div',{style:'position:sticky;bottom:0;padding:8px 22px 12px;border-top:1px solid var(--line);background:var(--panel);z-index:3'},h('div',{class:'row',style:'margin-bottom:6px'},h('span',{class:'lbl'},'Scene timeline'),h('span',{class:'sp'}),st.pick?h('span',{class:'chip sel'},st.pick+' need a pick'):'',st.miss?h('span',{class:'chip'},st.miss+' missing'):'',UI.runtime(s)),UI.timeline({scene:s,sel:sel&&sel.id,onSel:x=>{F.selShot[s.id]=x.id;P.render()}}));
+  const ret=s.shots.filter(x=>x.retired);
+  el.append(head,pre,cov,looseBox,ops,ret.length&&act.length?h('div',{class:'pane'},h('details',{class:'faint small'},h('summary',{},ret.length+' retired · work kept'),ret.map(x=>h('div',{class:'row'},h('span',{},x.action),h('span',{class:'sp'}),h('button',{class:'ghost small',onclick:()=>F.unretire(s,x.id)},'Bring back'))))):'',tl);
+};
+UI.mount(P);
+</script></body></html>
