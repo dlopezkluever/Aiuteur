@@ -14,4 +14,4 @@ A lock is an append-only stream of lock and unlock Decisions on a scope, enforce
 
 - Module architecture (#71) must route every mutation through the gate; persistence (#72) must keep lock state and the write in one transaction.
 - AI results landing on a locked scope are held as Options.
-- Which scopes get locks and the UX are #63's.
+- Which scopes get locks and the UX are #63's, now resolved (Record 1 #63, `docs/ux/TRUST-SIGNALS-AND-LOCKS.md`): Master Narrative acceptance locks by default; identity approval, a set world/Visual Style, and a shot plan at frame generation offer a lock; Mark final is a voluntary lock on a take Slot. Choosing a Take is a reversible selection, not a lock or a commitment.

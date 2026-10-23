@@ -13,5 +13,5 @@ Every Generation records, at dispatch, the exact input slices it read (unit, Rev
 ## Consequences
 
 - Needs an inverse index from input unit to dependants for 150–250 shot projects (#72), and owners must name input slices (#53, #55, #51) so a change marks only real consumers.
-- Every Generation must capture inputs at dispatch (#65).
+- Every Generation must capture inputs at dispatch (#65). Media Generations never capture Established Facts, so a Fact change never marks media directly (Record 2 X3).
 - No module may store an "outdated" status.

@@ -9,7 +9,7 @@ Resolution of Wayfinder ticket #50. Vocabulary is defined in [`GLOSSARY.md`](../
 3. **Two kinds of change.**
    - An **editable object** changes only by gaining a **Revision**. History is append-only; restoring an earlier Revision adds a new one.
    - A **generated or uploaded artifact** never changes. It is an **Attempt** for a **Slot**; Attempts accumulate and one is chosen. "Editing" an artifact makes a new Attempt that records what it came from.
-4. **No hard deletion of creative work inside a project.** Objects are **retired**, with everything attached still reachable. Removing a scene or shot never removes its frames, takes or history (Constitution §7.1, §16 principle 3; V1's cascades, legacy 04 §8, are the counter-example). *Carve-out (creator ratification M7):* "never destroyed" governs everything inside a project. Permanent **project purge** and **account purge** are a deliberate, creator-initiated operation on a whole project or account, scheduled later and not vital to V2 core. They are never a way to remove a part of a project, and they do not make retire-only optional anywhere else. **Separability constraint:** each project's data and media must be separable and purge-able as a unit (no object, shared Media reference or index entangles two projects, and the account's own data stays enumerable), so purge can be added without a rewrite (#72).
+4. **No hard deletion of creative work inside a project.** Objects are **retired**, with everything attached still reachable. Removing a scene or shot never removes its frames, takes or history (Constitution §7.1, §16 principle 3; V1's cascades, legacy 04 §8, are the counter-example). *Carve-out (creator ratification M7):* "never destroyed" governs everything inside a project. Permanent **project purge** and **account purge** are a deliberate, creator-initiated operation on a whole project or account, scheduled later and not vital to V2 core. They are never a way to remove a part of a project, and they do not make retire-only optional anywhere else. **Separability constraint:** each project's data and media must be separable and purge-able as a unit (no object, shared Media reference or index entangles two projects, and the account's own data stays enumerable), so purge can be added without a rewrite (#72). When purge ships, its promise is: gone from Aiuteur at once, and any backup copies expire within the retention window stated to the creator at purge time (Record 2 P8-purge; the window itself is deferred, P12).
 5. **No hidden layer.** A derived or compiled representation (a screenplay export, a progress view, a compiled prompt) may be rebuilt from owned truth and holds no truth that exists nowhere else (§5.3).
 6. **Reading never writes.** Opening, browsing or refreshing creates no Revision, Attempt or Generation (§16 principle 11).
 7. **Provider-neutral.** No object names a vendor or model as a concept. A Generation records which model was used; that is history, not structure.
@@ -23,7 +23,7 @@ Four classes carry the model. The full seven-class taxonomy (adding Decisions, d
 |---|---|---|
 | **Editable** | Mutable only through Revisions; Provenance on each Revision | Project settings, Established Fact, Treatment, Beat Sheet, Master Narrative, Shot, Entity canonical identity, Look, Location coverage definition, Visual Style, Writing Style, Voice definition, Dialogue line, Composition reference attachment |
 | **Supplied** | Creator-provided originals, immutable; only their role or links are editable | Source Material, Reference Media, Performance |
-| **Artifact (Attempt)** | Immutable results, accumulate per Slot, one chosen | Frame, Take, entity image, coverage View, Option, transformed Performance |
+| **Artifact (Attempt)** | Immutable results, accumulate per Slot, one chosen | Frame, Take, entity image, coverage View, Option, transformed Performance, CineBlock capture and scene state (Attempt-class records, [`SHOT-PLANNING-INPUTS.md`](SHOT-PLANNING-INPUTS.md) §4) |
 | **Record** | Immutable statements of what happened or was decided | Generation, Job, AI-made choice, Deliberate local deviation, Export package (manifest) |
 
 Scene, Interview, Presence and the pointers that choose an Attempt (selected take, approved frame, active image) are structure or state rather than content. Their owners and lifecycle are given below.
@@ -41,7 +41,8 @@ PROJECT ── settings (1) ─ intended runtime, format, tone, rating, genre, m
   ├── STORY  (project-wide)
   │    ├── Source Material       1..*   immutable originals + role
   │    ├── Interview             0..1   conversation record
-  │    │      └─ produces ~> Established Fact  0..*  (project-owned; creator-edited)
+  │    ├── Established Fact      0..*   development knowledge from inputs, Interview,
+  │    │                                creator edits and decisions; binds AI drafting only
   │    ├── Treatment             0..1 chosen (+ Options 0..*)   development document
   │    ├── Beat Sheet            0..1 chosen (+ Options 0..*)   development document
   │    └── MASTER NARRATIVE      1 (canonical; accepted = commitment point)
@@ -52,22 +53,26 @@ PROJECT ── settings (1) ─ intended runtime, format, tone, rating, genre, m
   │    │      ├─ canonical identity (1): description + images (Attempts, 1 active)
   │    │      ├─ Look                 0..*   (Character, Prop, Location)
   │    │      ├─ Voice                0..1   (Character only)
-  │    │      └─ Location only: coverage = View 1..*  (1 = single-image option)
+  │    │      └─ Location only: coverage = View 0..* per (Direction × Look-or-base),
+  │    │                         shot-driven; identity image = canonical reference
   │    │                         sub-location ~> parent Location 0..1
   │    ├── Visual Style          1      required (default is an AI-made choice if unset)
   │    ├── Writing Style         0..1
   │    └── Reference Media       0..*
   │
-  ├── PRODUCTION  (per Scene)
-  │    Scene
+  ├── PRODUCTION  (per Scene, plus the project's Ad-hoc shots section)
+  │    Scene                     (retired scenes with work: "Removed from Story")
+  │     ├── CineBlock scene state 0..*  Attempt-class saves, latest re-opens (D61)
   │     └── Shot                 0..*   ordered; one continuous camera moment
-  │          ├── anchor ~> passage of the Master Narrative within its Scene
-  │          ├── location ~> Location (1) [+ View 0..1]
+  │          ├── anchor ~> passage of the Master Narrative within its Scene (0..1)
+  │          ├── location ~> Location [+ Direction slot, shot-owned]
   │          ├── Presence         0..*   ~> Entity [+ Look]
   │          ├── Dialogue line    0..*   └─ Performance ~> 0..*  (one chosen)
-  │          ├── Composition reference 0..*   ~> Reference Media / previs capture
+  │          ├── Composition reference 0..*   ~> Reference Media / CineBlock capture
   │          ├── Frame            0..*   Attempts, per role (opening, ending, ...)
   │          └── Take             0..*   Attempts; selected take 0..1
+  │    Ad-hoc shots (project)
+  │     └── Shot                 0..*   no parent Scene, no anchor, explicit Looks (X5)
   │
   └── RECORDS
        ├── Generation            0..*   ──► outputs: Attempts | Options | AI-made Revision
@@ -77,7 +82,7 @@ PROJECT ── settings (1) ─ intended runtime, format, tone, rating, genre, m
        └── Export package        0..*   ~> exact selected Takes, Frames, document Revisions
 ```
 
-Nesting at a glance: **Project ▸ Scene ▸ Shot ▸ (Frame, Take, Dialogue line, Composition reference, Presence)** for production; **Project ▸ Entity ▸ (Look, View, Voice, images)** for the world; **Project ▸ Master Narrative ▸ Scene** links the two trees, because scenes come from the narrative but own production.
+Nesting at a glance: **Project ▸ Scene ▸ Shot ▸ (Frame, Take, Dialogue line, Composition reference, Presence)** for production, or **Project ▸ Ad-hoc shots ▸ Shot** for a shot made intentionally outside the narrative (Record 2 X5); **Project ▸ Entity ▸ (Look, View, Voice, images)** for the world; **Project ▸ Master Narrative ▸ Scene** links the two trees, because scenes come from the narrative but own production.
 
 ## 4. Object catalogue
 
@@ -88,14 +93,14 @@ Nesting at a glance: **Project ▸ Scene ▸ Shot ▸ (Frame, Take, Dialogue lin
 | Object | Cardinality | Class | Owns | Identity rule |
 |---|---|---|---|---|
 | **Account (studio)** | the root; one creator; 1 per creator | Editable (account settings) | The creator's identity and sign-in, the account's own spend caps and settings, usage and spend records, the personal library when it exists (LATER) | Own id, never reused. Every Project, Record and piece of Media is owned by exactly one Account. Nothing is shared across accounts. |
-| **Project** | 0..* per Account; each belongs to exactly one Account | Editable (settings) | Intent: intended runtime, format and aspect, tone, rating, genre, default model choices, which phases were skipped or bypassed (Phase disposition) | Own id. The title is a label. A duplicated project is a different project; every object inside gets a new identity and a "duplicated from" record. |
+| **Project** | 0..* per Account; each belongs to exactly one Account | Editable (settings) | Intent: intended runtime, format and aspect, tone, rating, genre, default model choices, which phases were skipped or bypassed (Phase disposition) | Own id. The title is a label. A duplicated project is a different project; every object inside gets a new identity and a "duplicated from" record. A **duplicate into a new version** (offered on a major revised-screenplay import, Record 2 D52.2) carries the upstream material only (inputs, Interview and Facts, Treatment and Beat Sheet as development history, World Definition, settings) and no scenes, shot plans, shots, frames or takes; the two projects show a quiet informational **"made from"** link, and no production work is adopted across projects ([`PERSISTENCE-AND-MEDIA.md`](../architecture/PERSISTENCE-AND-MEDIA.md), Record 2 amendment). |
 | **Source Material** item | 1..* (typed text counts) | Supplied | The original content, untouched, plus a role (primary or supporting) and understood maturity | Own id per supplied item. Content never defines identity (two identical uploads are two items). The role is editable. |
 | **Interview** | 0..1; stays open to take new questions | Record of turns | The conversation: what was asked and answered | One per project; resumed rather than restarted. |
-| **Established Fact** | 0..* | Editable | One binding statement of creator intent | Own id. Wording changes are Revisions. A fact is retired, not deleted, if the creator withdraws it. A conflicting new input raises a question and never overwrites the fact. |
+| **Established Fact** | 0..* | Editable | One statement of creator intent the AI must remember: development knowledge from inputs and documents, Interview answers, creator edits or explicit creator decisions. It binds AI **drafting and revision** (Treatment, Beat Sheet, Master Narrative, World Definition, Visual Style) and is **never injected into media generation**, which reads canonical creative state (Record 2 X3, P10) | Own id. Wording changes are Revisions. A fact is retired, not deleted, if the creator withdraws it. A conflicting new input raises a question and never overwrites the fact. A creator's own edit that contradicts it wins, and the fact is quietly marked **superseded** as a Revision, with Undo; no question is raised (X3.5). |
 | **Treatment** | 0..1 chosen, plus Options | Editable | The story as prose | The Treatment is the chosen one. Choosing an Option adds a Revision to it; unchosen Options remain recoverable. Imported content becomes Revision 1 with import provenance. |
 | **Beat Sheet** | 0..1 chosen, plus Options | Editable | The ordered major events | As Treatment. Identity of individual beats is #51's. |
 | **Master Narrative** | exactly 1 per project | Editable | All narrative truth: action, dialogue, presence and appearance at that point, setting, props, state changes, approximate duration per scene | Own id, singular by construction. Acceptance and its lock are state on it, not a second narrative. |
-| **Scene** | 1..* once the narrative is accepted | Structure | Its identity, order within the narrative and everything produced under it. **Not** any narrative text. | The id of its `scene` container block in the Master Narrative, assigned when the container first appears. Survives insert, delete, reorder, split, merge, rewrite and screenplay re-import. Number and heading are labels. Active or retired is derived from the current narrative; a scene that leaves it is retired with all work attached. Boundaries, mapping and disposition: [`SCENE-IDENTITY.md`](SCENE-IDENTITY.md), [ADR 0011](../adr/0011-scene-identity-is-the-container-block-id-and-mapping-precedes-id-assignment.md). |
+| **Scene** | 1..* once the narrative is accepted | Structure | Its identity, order within the narrative and everything produced under it. **Not** any narrative text. | The id of its `scene` container block in the Master Narrative, assigned when the container first appears. Survives insert, delete, reorder, split, merge, rewrite and screenplay re-import. Number and heading are labels. Active or retired is derived from the current narrative; a scene that leaves it is retired with all work attached, shown in the Outline's **"Removed from Story"** group with Bring back and Adopt work (Record 2 D52.4). Boundaries, mapping and disposition: [`SCENE-IDENTITY.md`](SCENE-IDENTITY.md), [ADR 0011](../adr/0011-scene-identity-is-the-container-block-id-and-mapping-precedes-id-assignment.md). |
 | **Screenplay export** | derived on demand | Derived | Nothing | A rebuildable view of one Master Narrative Revision. |
 
 Treatment and Beat Sheet become development history once the Master Narrative is accepted; that is a status, not a different object.
@@ -105,13 +110,13 @@ Treatment and Beat Sheet become development history once the Master Narrative is
 | Object | Cardinality | Class | Owns | Identity rule |
 |---|---|---|---|---|
 | **Entity** (Character, Location, Prop, Extra type) | 0..* per project | Editable | Canonical identity: the one approved description and images (Attempts, one active). Lightweight entities have a description and no image. | Own id. Name is a label. Survives renaming and type change. Merging duplicates keeps one id and retains the other as a redirect (merge and type change are resolved in [`ENTITIES-AND-LOOKS.md`](ENTITIES-AND-LOOKS.md) §§2.3–2.4). Entity type is fixed at any moment. |
-| **Look** | 0..* per Character, Prop or Location; none for Extra types | Editable | One named appearance, anchored to the entity | Own id, owned by exactly one entity forever. The base appearance is the canonical identity itself, not a Look. Carry-forward is derived from narrative position over stored Look assignments ([ADR 0002](../adr/0002-looks-and-carry-forward-derived-from-narrative-position.md)). |
-| **Location coverage / View** | 1..* Views per Location (1 is the single-image option) | Attempts under a coverage definition | The views a shot's setting can be seen from | Each View has its own id and a direction label; each direction is a Slot with one active View. A View promoted from a Frame records that lineage and does not share the Frame's identity. |
+| **Look** | 0..* per Character, Prop or Location; none for Extra types | Editable | One named appearance, anchored to the entity | Own id, owned by exactly one entity forever. The base appearance is the canonical identity itself, not a Look. Carry-forward is derived from narrative position over stored Look assignments ([ADR 0002](../adr/0002-looks-and-carry-forward-derived-from-narrative-position.md)). An ad-hoc shot has no narrative position, so its Looks are the creator's explicit picks, defaulting to base (X5). |
+| **Location coverage / View** | 0..* Views per Location, shot-driven (Record 2 D59); the Location's approved identity image is its canonical reference | Attempts under a coverage definition | The views a shot's setting can be seen from | Each View has its own id; each (Direction × Look-or-base) is a Slot with one active View; in single-image mode there is one Direction. Directions are named at shot planning or added by the creator at any time. A View promoted from a Frame records that lineage and does not share the Frame's identity ([`ENTITIES-AND-LOOKS.md`](ENTITIES-AND-LOOKS.md) §5). |
 | **Voice** | 0..1 per Character | Editable | The character's persistent voice identity | Owned by the Character; own id. Detail is #69's. |
 | **Visual Style** | exactly 1 per project | Editable | The project-wide look and its reference images | Own id. Changing it adds a Revision and marks dependants possibly out of date. |
 | **Writing Style** | 0..1 per project | Editable | Voice guidance for written documents | Own id. |
 | **Reference Media** | 0..* per project | Supplied | An inspiration, parody or recreation reference | Own id per supplied item. It becomes a Composition reference only by being attached to a shot. |
-| **Presence** | 0..* per Scene and Shot | Structure | That an entity, in a Look, appears. No description of its own. | Defined by (container, entity, Look). Derived from the narrative at scene level, derived from the scene with explicit overrides at shot level (#55). |
+| **Presence** | 0..* per Scene and Shot | Structure | That an entity, in a Look, appears. No description of its own. | Defined by (container, entity, Look). Derived from the narrative at scene level, derived from the scene with explicit overrides at shot level (#55). An ad-hoc shot's Presences are explicit. |
 
 Entity images and style reference images belong to the entity or style (canonical identity). Reference Media is the creator's separate, shot-facing inspiration material.
 
@@ -119,11 +124,12 @@ Entity images and style reference images belong to the entity or style (canonica
 
 | Object | Cardinality | Class | Owns | Identity rule |
 |---|---|---|---|---|
-| **Shot** | 0..* per Scene, ordered | Editable | Action, camera intent, approximate duration, continuity context, and its links: anchor in the narrative, location and View, Presences | Own id, never derived from position, number or text. Survives reorder and re-drafting without overwriting the creator's edits. Split and merge create and retire identities explicitly and invent no story. A retired shot keeps its Frames and Takes. Full model: [`SHOT-MODEL.md`](SHOT-MODEL.md), [ADR 0012](../adr/0012-shot-identity-survives-split-merge-and-redraft-by-keep-first-and-options.md). |
-| **Dialogue line** | 0..* per Shot | Editable | One attributed utterance and its delivery | Own id within the shot, so a Performance can link to it and a changed line can be written back or deviate. |
-| **Composition reference** | 0..* per Shot | Editable | That this media guides this shot's framing and staging, and any notes | A link, not a copy: (shot, media, role). The media is Reference Media or a previs or sketch capture. Subjects are replaced by project entities. |
+| **Shot** | 0..* per Scene, ordered; or 0..* in the project's **Ad-hoc shots** section with no parent Scene (Record 2 X5) | Editable | Action, camera intent, approximate duration, continuity context, dialogue delivery overrides (shot-owned, Record 2 P1), and its links: anchor in the narrative, location and Direction (shot-owned, P2), Presences | Own id, never derived from position, number or text. Survives reorder and re-drafting without overwriting the creator's edits. Split and merge create and retire identities explicitly and invent no story. A retired shot keeps its Frames and Takes. An ad-hoc shot anchors to no passage, never raises write-back or deviation while ad-hoc, is excluded from runtime and sequence playback, is exported separately, and after **Move to scene…** follows the normal anchoring rules; it is distinct from work in Removed from Story. Full model: [`SHOT-MODEL.md`](SHOT-MODEL.md), [ADR 0012](../adr/0012-shot-identity-survives-split-merge-and-redraft-by-keep-first-and-options.md). |
+| **Dialogue line** | 0..* per Shot | Editable | One attributed utterance (line text and speaker are narrative truth) and the shot's delivery override, if any (shot-owned; the narrative's delivery note is the default, and a quiet "Copy to narrative" writes the override back on request, Record 2 P1) | Own id within the shot, so a Performance can link to it and a changed line can be written back or deviate. |
+| **Composition reference** | 0..* per Shot | Editable | That this media guides this shot's framing and staging, and any notes | A link, not a copy: (shot, media, role). The media is Reference Media or a previs or sketch capture. Subjects are replaced by project entities. A CineBlock capture is auto-linked by shot id on Send back, retired (never deleted) by its ✕, and always goes through image generation: it is never the Frame itself and never sent to video (Record 2 D61.3). |
+| **CineBlock scene state** | 0..* saves per Scene; the latest is what Re-open loads | Attempt-class record | The scene's blocking (world, placements, poses, lights, camera paths), opaque and versioned | Own id per save. Project data like any other: account-isolated, retired never deleted, copied on duplicate, purged with the project (D61.1). A world in it is the output of a world-model Generation (a Catalogue provider class, D61.4) and is a stage for blocking, never a Frame or a clip. Detail: [`SHOT-PLANNING-INPUTS.md`](SHOT-PLANNING-INPUTS.md) §4. |
 | **Frame** | 0..* per Shot, per role | Attempt | One still image | Own id per Frame. A reused or edited frame is a new Frame in the later shot whose lineage names its source; identical pixels do not merge two Frames. At most one is approved per role; approving is the creator's. |
-| **Take** | 0..* per Shot | Attempt | One complete clip for the shot | Own id per Take. Never overwritten. Rejected Takes stay recoverable. The **selected take** is a pointer on the Shot (0..1), not a flag inside a Take. A shot longer than one generator call can produce is still one Take: an assembly of Segments, each made by its own Generation ([`SHOT-MODEL.md`](SHOT-MODEL.md) §7, [ADR 0013](../adr/0013-a-take-is-an-assembly-of-segments-so-long-shots-stay-one-clip.md)). |
+| **Take** | 0..* per Shot | Attempt | One complete clip for the shot | Own id per Take. Never overwritten. Rejected Takes stay recoverable. The **selected take** is a pointer on the Shot (0..1), not a flag inside a Take. A shot longer than one generator call can produce is still one Take: an assembly of Segments, each made by its own Generation ([`SHOT-MODEL.md`](SHOT-MODEL.md) §7, [ADR 0013](../adr/0013-a-take-is-an-assembly-of-segments-so-long-shots-stay-one-clip.md)); it counts as one Take toward the 10-or-more confirm rule while its cost sums every Segment (Record 2 P3). Changing the selected take is a reversible Decision that flags what was built from the previous pick (Record 1 #63 item 4). |
 | **Performance** | 0..* per Dialogue line, one chosen | Supplied | A creator's recorded or uploaded delivery of a line | Own id per supplied recording. A voice-transformed version is a separate Attempt derived from it. |
 | **Export package** | 0..* per project | Record | A manifest of exactly which selected Takes, Frames, prompts and document Revisions it contained when built | Own id per build. Same manifest produces identical contents (deterministic). Holds no creative truth. |
 
@@ -144,7 +150,7 @@ Entity images and style reference images belong to the entity or style (canonica
 |---|---|---|---|---|
 | Is | A recorded state of an editable object | A generated or uploaded artifact competing for a Slot | The record of one AI request and what it produced | One run of the background work executing it |
 | Applies to | Editable objects | Frames, Takes, entity images, Views, Options | Any AI content production | Generations and other long work |
-| Mutable? | No, but a new one can be added | No, ever | Its request never; its outcome may gain outputs once by adoption of a late result (#67) | Yes, while running |
+| Mutable? | No, but a new one can be added | No, ever | Its request never; its outcome may gain outputs once from a late result: after a timeout it is adopted and reads succeeded, after a cancel the output attaches labelled "arrived after cancel" and the Generation still reads cancelled (#67, Record 1 M2). Late outputs are unselected Attempts compared against current inputs like any other ([`LINEAGE-AND-STALENESS.md`](LINEAGE-AND-STALENESS.md) §3.4) | Yes, while running |
 | Count per thing | Many per object, in a line | Many per Slot, one chosen | One per request | One or more per Generation |
 | Restoring | Add a new Revision copying an old one | Choose a different Attempt | n/a | n/a |
 | Owns creative truth | Yes | The artifact itself | The inputs and cost | None |
@@ -163,7 +169,7 @@ The word **version** is not used as a model term. In the interface, "version his
 
 | Question | Single owner | Others may only |
 |---|---|---|
-| What does the creator want overall? | Project settings and Established Facts | Read it; raise a question if input conflicts |
+| What does the creator want overall? | Project settings and Established Facts | Read it; raise a question if input conflicts. Facts bind AI drafting only; media generation reads the canonical state (X3) |
 | What did the creator supply? | Source Material, Reference Media, Performance | Reference them |
 | What is the story? | Master Narrative (Treatment and Beat Sheet are development history once it is accepted) | Anchor to passages; write back at the creator's choice; record a deviation |
 | Which scenes exist and in what order? | The Master Narrative's scene structure (Scene identity owned by the Scene) | Refer to a Scene by its identity |
@@ -188,7 +194,10 @@ The word **version** is not used as a model term. In the interface, "version his
 | The creator changes Marcus's jacket in the entity description. | A new Revision of Marcus (or of the Look); frames and takes made from earlier Revisions are untouched, and dependants are marked possibly out of date. |
 | The creator records a better ad-lib than the scripted line. | The Performance is linked to the Dialogue line. The creator writes the line back to the Master Narrative (new Revision) or the Dialogue line records a deliberate local deviation. |
 | The creator duplicates the project to try a bold change. | A new Project; every object gets a new identity with a "duplicated from" record. No shared mutable state. |
-| A scene is removed from the revised narrative. | The Scene is retired with its shots, frames and takes attached and reachable; nothing is deleted. |
+| A revised screenplay would retire, split or merge scenes that have production work. | Aiuteur recommends, never forces, **Duplicate into a new version**: a new Project with the upstream material and no production work, linked by a quiet "made from" note. Choosing **Apply to this project** keeps everything here and flags what may be out of date (D52.2). |
+| A scene is removed from the revised narrative. | The Scene is retired with its shots, frames and takes attached and reachable in "Removed from Story"; nothing is deleted. Adopt work re-homes its shots into an active scene. |
+| The creator adds a B-roll shot that belongs to no scene. | An ad-hoc Shot with no parent Scene: no anchor, explicit Looks, no write-back question, outside runtime and playback (X5). Move to scene… later places it under normal rules. |
+| A video run times out and the provider finishes an hour later. | The same Generation adopts the output as an unselected Take labelled "arrived late", with a quiet notice; if its inputs changed since dispatch, its drift shows ([`LINEAGE-AND-STALENESS.md`](LINEAGE-AND-STALENESS.md) §3.4). |
 | The Master Narrative is accepted, then the creator edits it. | A new Revision of the Master Narrative; the lock adds friction scaled by dependants; production objects are untouched and marked possibly out of date. |
 | Two characters share a name. | They are two Entities with two identities; names are labels. |
 
@@ -217,10 +226,10 @@ The model guarantees the following so that LATER capabilities are not precluded.
 | **Entities and Looks** (#53) | Entity types and the strict meaning of "Entity"; canonical identity as owned truth with Attempts and one active; Look as an owned specialization of the base identity (Character, Prop, Location; none for Extra type); View/coverage as Attempts per direction; Presence as the only usage link; Visual Style exactly one, Writing Style 0..1; the copy-on-use self-containment rule. Still open: how mentions link to the narrative, carry-forward derivation, merge and type change, sub-location representation, "needed vs deferrable", Reference Media versus entity images, location-view resolution for shots. |
 | **Lineage and staleness** (#54) | The four classes (Editable, Supplied, Artifact, Record) as input, the full taxonomy and derived and commitment/lock state still to decide; Revision and Attempt semantics (including that restoring adds a Revision); Generation as the record that must capture exact input Revisions; AI-made choice and Deliberate local deviation as Records; retire-not-delete; reading never writes; duplicate-project identity rule. Still open: staleness derived versus stored, reason vocabulary, write-back versus deviation mechanics, selection history, lock state. |
 | **Shot model** (#55, resolved) | Resolved in [`SHOT-MODEL.md`](SHOT-MODEL.md): structured and free fields as lineage slices; anchor to Master Narrative blocks; Shot plan per Scene; Presence derived with stored overrides; split, merge and redraft identity (ADR 0012); Frame plan, roles, sources and reuse lineage; the derived realization state; Segment and the Take as an assembly (ADR 0013); the composition-reference slot; reserved hooks for Performance, CineBlock, storyboard and shot-list import. |
-| **Scene identity** (#52) | Scene owns identity, order and production; it owns no text; retire-not-delete. Resolved in [`SCENE-IDENTITY.md`](SCENE-IDENTITY.md): Scene id is the container block id; derived active/retired; mapping before id assignment; creator confirms ambiguous or work-affecting items. |
+| **Scene identity** (#52) | Scene owns identity, order and production; it owns no text; retire-not-delete. Resolved in [`SCENE-IDENTITY.md`](SCENE-IDENTITY.md): Scene id is the container block id; derived active/retired; mapping before id assignment; creator confirms ambiguous or work-affecting items; Keep current as the re-import conflict default, the duplicate-into-new-version recommendation and "Removed from Story" (Record 2 D52). |
 | **Story documents** (#51) | Treatment and Beat Sheet as editable with Options; Master Narrative singular; Revisions as the history mechanism; provenance as a property of Revisions. Still open: span-level provenance, sync, beat identity. |
 | **AI responsibility map** (#64) | Generation is the record for every AI call that produces creator-visible content, text or media; deterministic operations are not Generations; AI-made choice as a Record. |
-| **Generation package** (#65, resolved) | A Generation records the exact inputs; the package, Fit report and Rendered request are defined in [`GENERATION-PACKAGE.md`](GENERATION-PACKAGE.md) and ADR 0014. |
+| **Generation package** (#65, resolved) | A Generation records the exact inputs; the package, Fit report and Rendered request are defined in [`GENERATION-PACKAGE.md`](GENERATION-PACKAGE.md) and ADR 0014. Established Facts are a text-drafting input only, never a media input (Record 2 X3). |
 | **Job lifecycle** (#67) | A Job carries out a Generation or other long work; retry is a new Job for the same Generation; regeneration is a new Generation; a Job holds no creative truth; whether quick inline AI calls get a Job; states, idempotency, cancellation, batch grouping are all #67's. |
 | **Voice and performance seams** (#69) | Voice owned by Character; Performance as Supplied linked to a Dialogue line; transformed performance as an Attempt. |
 | **Persistence** (#72) | Retire-not-delete, immutability of Attempts and Media, private media, and project duplication as new identities. Account and project ownership and isolation (M4), and project/media separability so a later purge (M7) needs no rewrite. Resolved in [`PERSISTENCE-AND-MEDIA.md`](../architecture/PERSISTENCE-AND-MEDIA.md): Media belongs to one project and is copied, never shared, across projects, so purge is a row delete plus a prefix delete (§§7–9, ADRs 0019–0023). |
