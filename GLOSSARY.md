@@ -471,6 +471,14 @@ Before drafting or accepting the Master Narrative, if Treatment and Beat Sheet d
 **Reverse generation**:
 An explicit AI generation of a bypassed or development-history document (for example beats) from the Master Narrative.
 
+**Update Treatment to match Beat Sheet**:
+The creator-pressed action (Beat Sheet page, per beat or whole pair) that revises the corresponding Treatment passages to reflect newer Beat Sheet decisions while preserving unrelated detail. Protected spans are held for one-click approval; one Generation and one `sync` Revision. The reverse, "Update Beat Sheet from Treatment", is also available. Never automatic.
+_Avoid_: Auto-sync, push to Treatment
+
+**Notes (writing)**:
+Creator annotations on a passage or beat in a story document. Not document text, no provenance, not sent to the AI unless the creator ticks "use my notes" on a regeneration request (per request, unticked by default).
+_Avoid_: Comments, instructions (those are optional guidance on a request)
+
 ## Architecture (Wayfinder #71)
 
 Terms that cross the module boundaries. Defined in `docs/architecture/MODULE-ARCHITECTURE.md` and [ADR 0016](docs/adr/0016-modules-follow-ownership-of-truth-and-every-write-passes-one-history-gate.md).
