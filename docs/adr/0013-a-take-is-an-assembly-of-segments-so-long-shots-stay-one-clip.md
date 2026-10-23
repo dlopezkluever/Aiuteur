@@ -9,7 +9,7 @@ A Shot is one continuous camera moment and one clip. A generator can produce onl
 - **Split the long shot into several Shots.** Rejected: changes the creator's shot structure and the edit, breaks "one shot, one clip", and puts a generator's limit into creative structure (Constitution §7.3).
 - **Force a maximum shot length.** Rejected: V1's mandatory 8-second shot, explicitly rejected as product law.
 - **Store the realization plan on the Shot.** Rejected: it is a function of the chosen model, so it would drift when the model changes. Recording it on the Generations keeps the Shot provider-neutral.
-- **One Generation with an internal multi-step job.** Rejected: hides per-part cost, failure, retry and reuse. Segment Generations reuse the existing Batch, retry and spend rules (JOB-LIFECYCLE §4, R8, R9) with no new lifecycle.
+- **One Generation with an internal multi-step job.** Rejected: hides per-part cost, failure, retry and reuse. Segment Generations reuse the existing Batch, retry and spend rules (JOB-LIFECYCLE §§5, 8, R8, R9) with no new lifecycle.
 - **Segments inside a Take, one Generation per Segment (chosen).** Short and long shots share one pipeline (a Take always has 1..n Segments); partial results survive; "regenerate from part k" needs no state on the Shot.
 
 ## Consequences
@@ -17,4 +17,5 @@ A Shot is one continuous camera moment and one clip. A generator can produce onl
 - The capability profile (#66) must expose duration limits, extension rules and frame support so planning is computed, not hard-coded.
 - Segment prompts must be verified partitions of the Shot's own action and dialogue (no new story).
 - Audio continuity across stitched joins is not guaranteed; extension-native paths and supplied Performances do better. This is recorded as a capability limit.
+- Spend: for the "10 or more Generations" confirm rule a long shot counts as **one Take**, however many Segments it has; the $2.00 threshold still sums every Segment's cost (Record 2 P3, BUSINESS-AND-OPERATIONS §3).
 - Segment Media is shared between Takes, so purge and storage accounting follow Media references (#72).
