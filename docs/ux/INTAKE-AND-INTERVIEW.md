@@ -1,6 +1,6 @@
 # Intake and Interview: UX decision (Wayfinder #57)
 
-Status: resolved. Creator decision: `docs/product/CREATOR-RATIFICATION-RECORD.md` §2 (#57), which controls over any earlier recommendation. Constitution: §4.2 Phases 1–2, §4.3, §13.2, §14.2, §16 principle 2. The AI-side mechanism is `docs/ai/AI-RESPONSIBILITY-MAP.md` §7, unchanged.
+Status: resolved. Creator decision: `docs/product/CREATOR-RATIFICATION-RECORD.md` §2 (#57), which controls over any earlier recommendation. Constitution: §4.2 Phases 1–2, §4.3, §13.2, §14.2, §16 principle 2. The AI-side mechanism is `docs/ai/AI-RESPONSIBILITY-MAP.md` §7, which carries the §3 hand-off below (Record 2 §2.1). Established Facts follow Record 2 P10/X3.
 
 Throwaway prototype (A conversation, B question cards, C living brief) is on branch `prototype/intake-interview-57`, never merged.
 
@@ -21,7 +21,7 @@ Input and Interview are two consecutive phases in the normal start-a-project flo
 
 - **A-led conversation.** Aiuteur asks one question at a time. Each question shows why it is being asked (evidence from the material), suggested answers as chips, and a free-text reply. Every question can be skipped ("you decide") and every answer can be undone.
 - **Topic-based.** Questions are grouped by topic, for example story and plot, characters and locations, visual and audio style, format. The creator can work through a topic personally or tell Aiuteur to decide it. A topic left to Aiuteur becomes visible AI-made choices. The topic list is guiding lore: later decisions may supersede it, and it is not a fixed schema.
-- **Ledger beside the conversation.** It lists Established Facts and AI-made choices, grouped by topic, each editable in place. Provenance is shown quietly: the creator's own, edited, from settings, or AI chose (distinct, subtle marking per Constitution §13.2; no alarm styling). Editing a Fact is a Revision. Facts are development knowledge from inputs, Interview answers and creator edits; they bind AI drafting only and are never injected into media prompts, so the Ledger has no pin or "carry into generation" toggle (Record 2 P10). A creator's own edit that contradicts a Fact wins and quietly marks the Fact superseded, with Undo. Overriding an AI-made choice makes it the creator's Fact.
+- **Ledger beside the conversation.** It lists Established Facts and AI-made choices, grouped by topic, each editable in place. Provenance is shown quietly: the creator's own, edited, from settings, or AI chose (distinct, subtle marking per Constitution §13.2; no alarm styling). Editing a Fact is a Revision. Facts are development knowledge from inputs and uploaded documents, Interview answers, creator edits and explicit creator decisions; they bind AI drafting and revision (Treatment, Beat Sheet, Master Narrative, World Definition, Visual Style) and are never injected into prompts for frames, images, takes or audio, so the Ledger has no pin or "carry into generation" toggle (Record 2 P10). A creator's own edit that contradicts a Fact wins and quietly marks the Fact superseded, with Undo. Overriding an AI-made choice makes it the creator's Fact.
 - **Scope guard.** The Interview captures intent and non-negotiables as Established Facts. It does not produce finished entity sheets or visual designs; detailed design stays in World Definition (#59), so work is not done twice.
 
 ### Ending: advisory only
@@ -32,7 +32,7 @@ Input and Interview are two consecutive phases in the normal start-a-project flo
 
 ### Later conflict with an Established Fact (R6)
 
-New Source Material or later creator input that conflicts with a Fact is not applied. The conversation resumes with a distinct message naming the Fact and the new content, with three outcomes: keep the Fact (flag the new content), update the Fact, or record a deliberate exception. Neither side is overwritten silently. Generated output that contradicts a Fact follows R6 (one repair attempt, then held with its choices; altered dialogue or a damaged splice rejected).
+New Source Material that conflicts with a Fact does not overwrite it. The conversation resumes with a new question naming the Fact and the new content, with three outcomes: keep the Fact (flag the new content), update the Fact, or record a deliberate exception. Neither side is overwritten silently. A creator's own edit that contradicts a Fact raises no question: the edit wins and the Fact is quietly marked superseded, with Undo (Record 2 X3.5). Generated output that contradicts a Fact follows R6 (one repair attempt, then held with its choices; if the check is unavailable, the result commits with a visible "not checked against Established Facts" marker and a check-now action; altered dialogue or a damaged splice is rejected with no "use anyway").
 
 ## 2. Trade-offs considered
 
