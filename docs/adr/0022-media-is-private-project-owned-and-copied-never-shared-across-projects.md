@@ -18,7 +18,8 @@ Decision: **Committed Media** is immutable, content-hashed, belongs to exactly o
 - Purge is a row delete plus a prefix delete with a verification listing; duplicate is a resumable background copy followed by one database transaction, so a project appears whole or not at all.
 - Storage cost of a duplicate is the copy, about thirty cents a month for a 20 GB project at R2-class prices.
 - `BlobStore.delete` is confined to staging, rendition and export prefixes; committed-media deletion has one caller.
-- Backups retain purged data until they age out; restore must replay the purge log (#75).
+- Backups (Record 2 P12.1: daily dumps and WAL archive, off the machine) cannot delete one project, so purged data stays in them until it ages out within the retention window stated at purge time (P8-purge; the window is deferred, P12.3); every restore replays the purge log (#75).
+- The duplicate into a new version of a major import (Record 2 D52.2) copies only the Media referenced by its carried upstream closure; the rule is otherwise the same.
 - Copy-on-use for the LATER library is the same copy with a closure of Media and no live link.
 
 Detail: `docs/architecture/PERSISTENCE-AND-MEDIA.md` §§7–9.
