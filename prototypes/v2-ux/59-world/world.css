@@ -1,0 +1,36 @@
+.main{padding-bottom:60px}
+.ctl{position:fixed;right:10px;top:48px;width:250px;background:#101218ee;border:1px solid var(--line2);border-radius:8px;padding:10px;z-index:20;font-size:11.5px;max-height:calc(100vh - 70px);overflow:auto}
+.ctl h5{margin:8px 0 4px;font-size:10px;letter-spacing:.12em;color:var(--faint);text-transform:uppercase}.ctl h5:first-child{margin-top:0}
+.ctl .seg{display:flex;flex-wrap:wrap;gap:3px}.ctl button{font-size:11px;padding:3px 7px}.ctl button.on{border-color:var(--accent);color:var(--accent)}
+.pane{max-width:1060px;padding-right:290px}
+.sub-h{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin:20px 0 8px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:14px}
+.tile{cursor:pointer}.tile .img{aspect-ratio:4/3;border:1px solid var(--line)}.tile:hover .img{border-color:var(--faint)}
+.tile.deferred .img{opacity:.45}.tile.proposed .img{border-style:dashed}
+.tile .nm{margin-top:6px;font-weight:600}.tile .st{font-size:11.5px;color:var(--dim)}.tile .st .ok{color:var(--ok)}
+.car{position:absolute;inset:auto 0 4px 0;display:flex;justify-content:space-between;padding:0 4px;opacity:0;transition:.15s}.tile:hover .car,.strip-row:hover .car{opacity:1}
+.car button{padding:0 7px;background:#000a;border:0}.dots{position:absolute;top:5px;right:6px;display:flex;gap:3px}.dots i{width:5px;height:5px;border-radius:50%;background:#fff5}.dots i.on{background:#fff}
+.img .lbl{position:absolute;left:6px;bottom:6px;font-size:10.5px;background:#000a;padding:1px 6px;border-radius:8px}
+.img .ph{position:absolute;inset:0;display:grid;place-items:center;color:var(--faint);font-size:11px}
+.img.h5{background:linear-gradient(135deg,#40302a,#1c1414)}.img.h6{background:linear-gradient(135deg,#2a2a40,#10101c)}.img.h7{background:linear-gradient(135deg,#34402a,#171c12)}.img.h8{background:linear-gradient(135deg,#1c2430,#0b0f14)}
+.seg2{display:inline-flex;border:1px solid var(--line2);border-radius:6px;overflow:hidden}.seg2 button{border:0;border-radius:0;background:none;color:var(--dim)}.seg2 button.on{background:var(--panel2);color:var(--text)}
+.strip-row{display:flex;gap:10px;overflow:auto;padding-bottom:6px}.strip-row .tile{flex:none;width:220px}
+.rev .item{display:grid;grid-template-columns:34px 1fr auto;gap:12px;align-items:start;padding:10px 12px;border-bottom:1px solid var(--line)}
+.rev .item:last-child{border:0}.rev .acts{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end}.rev .acts button{font-size:11.5px;padding:3px 8px}
+.rev .sug{color:var(--stale);font-size:11.5px;margin-top:3px}
+.ws{display:grid;grid-template-columns:260px 1fr;gap:22px}
+.hero{aspect-ratio:4/3;border:1px solid var(--line)}
+.attempts{display:flex;gap:6px;margin-top:8px}.attempts .img{width:56px;height:42px;border:2px solid transparent;cursor:pointer}.attempts .img.act{border-color:var(--accent)}
+.ladder{display:flex;gap:6px;align-items:center;font-size:12px;color:var(--dim);margin:2px 0 14px}.ladder b{color:var(--text);font-weight:500}.ladder .step{padding:2px 9px;border:1px solid var(--line2);border-radius:12px;cursor:pointer}.ladder .step.on{border-color:var(--accent);color:var(--text)}
+.views{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.vt .img{aspect-ratio:16/9;border:1px solid var(--line)}.vt.needed .img{border:1px dashed var(--stale)}.vt.draft .img{border-color:var(--sel)}
+.vt .nm{font-size:12px;margin-top:4px}.vt .s{font-size:11px;color:var(--dim)}.vt .fx{display:flex;gap:2px;margin-top:2px}.vt .fx button{font-size:10.5px;padding:1px 6px}
+.sheet{border:1px solid var(--line2);border-radius:8px;padding:12px;background:var(--panel);margin:10px 0}
+.look{display:flex;gap:10px;align-items:center;padding:8px 10px;border:1px solid var(--line);border-radius:8px;margin-bottom:6px}.look .img{width:64px;height:48px}
+.note{font-size:11.5px;color:var(--dim);border-left:2px solid var(--line2);padding:2px 10px;margin:8px 0}
+.wall table{border-collapse:collapse;width:100%}.wall td,.wall th{padding:6px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top;font-weight:400}
+.wall .vt{width:120px}
+.aitag{border-bottom:1px dotted var(--stale);color:var(--stale);font-size:11.5px;cursor:pointer}
+.rail{display:flex;flex-direction:column;gap:2px;position:sticky;top:0}
+.sec{border-top:1px solid var(--line);padding-top:14px;margin-top:18px}.sec h4{margin:0 0 8px;font-size:13px;font-weight:600}
+.tray{border:1px solid var(--line2);border-radius:8px;padding:10px;background:var(--panel)}.tray label{display:flex;gap:8px;padding:2px 0;color:var(--dim)}
