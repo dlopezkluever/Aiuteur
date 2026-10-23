@@ -70,7 +70,7 @@ Cross-cutting rules (ratified in D61.5, restated as the contract):
 
 - **Composition owns framing; entities own appearance; locations own environment** (§8.2). Identity inputs to the image Generation come only from the mapped Presences; the Generation records both lists (SHOT-MODEL §8.2, invariant 11).
 - **Delivery is best-effort.** The compiler delivers a capture as a layout image with replace-the-placeholders instructions, or as a conditioning input where a model supports one. The package reports delivery quality quietly and never blocks.
-- **Frames are the check.** The creator approves the generated Frame before video spend. A capture is "the strongest reason to use frames" (SHOT-MODEL §8.4); the skip path remains available, and then the capture is described to the video request only as a derived layout input, never as the first frame.
+- **Frames are the check.** The creator approves the generated Frame before video spend. A capture is "the strongest reason to use frames" (SHOT-MODEL §8.4); the skip path remains available, but a capture is never carried by a video request (D61.3): with frames skipped, the Fit report says the capture was not carried and offers to make the frame (GENERATION-PACKAGE §4.3).
 - **Camera facets and metadata may propose, never silently set.** A camera path or lens may propose camera facets as an AI-made choice.
 - **Captures promote.** Approving a Frame made from a capture records `source: generated` with the capture in its inputs. The unmodified capture is never promoted to a Frame by default; "use capture as the frame" is not offered, because a mannequin render is not a quality frame.
 
@@ -96,7 +96,7 @@ package { format: "aiuteur-previs-package", version: n,
 
 - Captures are uploaded as Media under the project (committed Media rules apply); only references travel in the package.
 - **Unknown versions fail closed:** a package whose version the app cannot read attaches nothing and says so (it never half-reads).
-- **Scene state** is stored as an Attempt-class record per scene (every save is kept; the latest is what Re-open loads). It is project data: it is copied on project duplicate and purged with the project.
+- **Scene state** is stored as an Attempt-class record per scene (every save is kept; the latest is what Re-open loads). It is project data: it is copied on a full project duplicate (not by the new-version duplicate of a major import, which carries no scenes or shots, Record 2 D52.2) and purged with the project.
 - The World Labs coordinate convention, splat formats and similar details belong to the CineBlock module, not to this contract. Re-checked 2026-10-23: the current Marble API models are `marble-1.0`, `marble-1.1`, `marble-1.1-plus` (legacy 0.1 names still accepted); a world generation is billed at 1,500 credits ($1.00 per 1,250, about $1.20), and `marble-1.1-plus` may add up to 1,500 credits for larger worlds, so its estimate is a range; Spark is published on npm (2.3.1). The legacy client-side API key does **not** carry over: the key is operator-held server-side (M5) and the call is a Job through the Catalogue.
 
 ## 5. The leftovers review list
