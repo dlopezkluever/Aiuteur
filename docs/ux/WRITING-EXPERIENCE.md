@@ -154,7 +154,7 @@ Whole-version restore is too coarse when only one passage was lost. While previe
 ## 8. Things that apply everywhere here
 
 - **Flags are subtle (M1).** No banners, modals, dimming or alarm styling. Every dot has an accessible name and reason text.
-- **Spend.** Text operations here are ordinarily trivial (under $0.05 each, ratified spend rules, R-spend); the price is shown on any control whose estimate is not trivial, and a confirm rule fires inline at that control, never as a centred modal (X2). Opening, browsing, previewing and sync detection spend nothing.
+- **Spend.** Text operations here are ordinarily trivial (under $0.05 each, ratified spend rules); the price is shown on any control whose estimate is not trivial, and a confirm rule fires inline at that control, never as a centred modal (X2). Opening, browsing, previewing and sync detection spend nothing.
 - **Locks.** If the document is locked, AI-applied results are held as Options and hand edits go through the edit-through confirmation; browsing and history never need an unlock.
 - **Failures** are visible and quiet, with nothing applied, no Revision, a retry control, and the selection preserved (X7).
 - **Cmd-K** reaches any phase, and within a document any beat or scene, from anywhere.
