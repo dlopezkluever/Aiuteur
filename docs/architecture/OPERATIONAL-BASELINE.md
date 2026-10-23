@@ -1,6 +1,6 @@
 # Aiuteur V2: Operational Baseline
 
-Resolution of Wayfinder ticket #75. The trade-offs are recorded in [ADR 0018](../adr/0018-own-auth-in-our-database-envelope-held-credentials-and-an-independent-backup-copy.md). Inputs: the [business contract](../domain/BUSINESS-AND-OPERATIONS.md) (invite-only Accounts, server-held operator keys, BYOK seam, alerts S10), the [runtime platform](RUNTIME-PLATFORM.md) (Fly, Neon, R2; three database identities; the signals §7), the [module architecture](MODULE-ARCHITECTURE.md) (`accounts`, ports `Auth` and `Vault`, rules R1 to R13), the [job lifecycle](../domain/JOB-LIFECYCLE.md), [providers and models](../domain/PROVIDERS-AND-MODELS.md), the [Creator Ratification Record](../product/CREATOR-RATIFICATION-RECORD.md) (M4 to M7, which controls) and the #73 research (`research/platform-execution`, `postgres-auth.md` and `storage-cdn.md`; facts dated 2026-10-21; items marked *nv* there stay unverified here).
+Resolution of Wayfinder ticket #75. The trade-offs are recorded in [ADR 0018](../adr/0018-own-auth-in-our-database-envelope-held-credentials-and-an-independent-backup-copy.md). Inputs: the [business contract](../domain/BUSINESS-AND-OPERATIONS.md) (invite-only Accounts, server-held operator keys, BYOK seam, alerts S10), the [runtime platform](RUNTIME-PLATFORM.md) (one VPS running `web`, `worker` and Postgres with R2 as the current, portable deploy choice; three database identities; the signals §7), the [module architecture](MODULE-ARCHITECTURE.md) (`accounts`, ports `Auth` and `Vault`, rules R1 to R13), the [job lifecycle](../domain/JOB-LIFECYCLE.md), [providers and models](../domain/PROVIDERS-AND-MODELS.md), the [Creator Ratification Record](../product/CREATOR-RATIFICATION-RECORD.md) (M4 to M7, which controls), [Record 2](../product/CREATOR-RATIFICATION-RECORD-2.md) (P11, P12 and P8-purge, which changed hosting, backups and drills; see the last section) and the #73 research (`research/platform-execution`, `postgres-auth.md` and `storage-cdn.md`; facts dated 2026-10-21; items marked *nv* there stay unverified here).
 
 Vocabulary is in [`GLOSSARY.md`](../../GLOSSARY.md). This document fixes **what the initial product must run with, and nothing more**: one decision per baseline item, and a deferral list. It does not fix schema, the row-level mechanism, key layout or the migration tool (Persistence, #72), nor the verification harness design (#76), nor numeric tuning (spec). Cost figures are estimates from the #73 price sheets and vendor pages read on 2026-10-21; re-check at build time.
 
@@ -8,19 +8,19 @@ Vocabulary is in [`GLOSSARY.md`](../../GLOSSARY.md). This document fixes **what 
 
 | # | Item | Decision |
 |---|---|---|
-| 1 | **Authentication** | **Better Auth, self-hosted in our Neon database**, behind the `Auth` port. Invitation link → creator sets a password; email-link recovery. The auth user is mapped to an Account by `accounts`; the Account exists only after redemption. Server sessions in the database. Passkey or TOTP offered to creators, **required for the operator** |
-| 2 | **Secrets and provider credentials** | Platform secrets are Fly secrets, per environment. **Operator provider keys are Fly secrets** and are never in the database. **Creator-supplied keys (BYOK) are wrapped-key (envelope) ciphertext in the database**, bound to Account and provider, unwrapped only in `web` and `worker`. Both sit behind one `Vault` port and one opaque `CredentialHandle` |
-| 3 | **Environments** | `local`, `ci` (ephemeral), `staging` (persistent, synthetic data, real vendors, capped test keys), `production`. **Production data never leaves production** except to the backup copy and restore drills |
+| 1 | **Authentication** | **Better Auth, self-hosted in our Postgres database**, behind the `Auth` port. Invitation link → creator sets a password; email-link recovery. The auth user is mapped to an Account by `accounts`; the Account exists only after redemption. Server sessions in the database. Passkey or TOTP offered to creators, **required for the operator** |
+| 2 | **Secrets and provider credentials** | Platform secrets are host-held secrets, per environment. **Operator provider keys are server-held secrets in the host's configuration** and are never in the database. **Creator-supplied keys (BYOK) are wrapped-key (envelope) ciphertext in the database**, bound to Account and provider, unwrapped only in `web` and `worker`. Both sit behind one `Vault` port and one opaque `CredentialHandle` |
+| 3 | **Environments** | `local`, `ci` (ephemeral), `staging` (persistent, synthetic data, real vendors, capped test keys), `production`. **Production data never leaves production** except to backups and restore tests |
 | 4 | **CI and delivery** | GitHub Actions. One required pipeline: static and architecture rules, secret scan, tests on real Postgres, the **isolation gates**, migrations gate; one image digest promoted staging → production with a manual approval; migrations run by the pipeline under the `owner` identity, expand/contract only |
 | 5 | **Error tracking** | **Sentry (hosted) behind an `ErrorSink` port**, deny-by-default scrubbing, ids only, **no session replay**. Domain failures are product events, not error-tracker items |
-| 6 | **Logs and traces** | One typed structured logger (no `console`), JSON to stdout, shipped by Fly to a log sink with 30-day retention. Correlation by ids; **no distributed-tracing backend** at baseline |
+| 6 | **Logs and traces** | One typed structured logger (no `console`), JSON to stdout, shipped from the host to a log sink with 30-day retention. Correlation by ids; **no distributed-tracing backend** at baseline |
 | 7 | **Alerts and liveness** | The S10 list plus the runtime's oldest-overdue signal, evaluated in the worker and delivered by email; plus an **external heartbeat** that watches the thing that cannot alert about itself |
-| 8 | **Backups** | Neon point-in-time history, **plus an independent copy at a second vendor**: encrypted database dumps and a copy-only-new media replica, written with credentials that cannot delete. Retention bounded so a later purge leaves backups within a stated window |
-| 9 | **Restore drills and recovery** | Weekly automated restore verification; a full manual drill **before the first invitation**, after major platform or schema changes, and quarterly. Runbooks are build deliverables |
+| 8 | **Backups** | **Floor from day one (Record 2 P12):** an automated daily database dump plus continuous WAL archiving, encrypted, to storage **off the machine** (R2 is acceptable). Number of copies, retention, a second vendor and no-delete backup credentials are **deferred**. When purge ships, backups expire within a retention window stated to the creator at purge time (P8-purge) |
+| 9 | **Restore tests and recovery** | **One successful restore test before any creator other than the owner is invited** (P12). Drill cadence and the full manual drill gate are **deferred**. Runbooks are build deliverables |
 | 10 | **Provider configuration** | Catalogue is reviewed data in the repository; operational overlay and prices are audited data; keys per environment; provider-side prepaid limits are the outer wall (S9) |
 | 11 | **Security tests** | Cross-Account refusal on every path (HTTP, stream, webhook, worker, signed URL, operator views), role-posture and forced-row-rule coverage checks, secret-canary leak test, auth abuse limits |
 
-Estimated added monthly cost over the platform of RUNTIME-PLATFORM §0 (about $35 to $40): error tracking $0 to $26, log sink $0, backup storage about $2 to $3, heartbeat monitor $0, transactional email $0 to $20 by volume. **Roughly $40 to $90 a month in total**, and the low end holds until the error or email volume grows.
+Estimated added monthly cost over the hosting of RUNTIME-PLATFORM §0 (the VPS default, about $10 to $25, an unverified estimate): error tracking $0 to $26, log sink $0, backup storage on R2 a few dollars, heartbeat monitor $0, transactional email $0 to $20 by volume. **Roughly $12 to $75 a month in total**, and the low end holds until the error or email volume grows. (On #74's original Fly + Neon platform the total was estimated at $40 to $90.)
 
 ## 1. What the baseline answers
 
@@ -51,7 +51,7 @@ Estimated added monthly cost over the platform of RUNTIME-PLATFORM §0 (about $3
 | Isolation fit | Account scoping is ours; identity can be mapped to Account in one place | Same mapping needed | Same |
 | Verdict | **Chosen** | Named fallback | Named fallback |
 
-**Why A.** Three facts decide it. (1) Purge and backup (M7, principle 3) must cover everything about a creator; identity inside our database is covered by the same restore, the same drill and the same per-Account deletion. (2) Local and CI parity: the two-Account isolation harness and the invitation flow run against plain Postgres with no cloud account. (3) A hosted login is one more vendor whose outage stops creators from reaching work that is otherwise safe. The cost of A is real: we own patching of a younger library and the small invitation flow. Auth.js and Lucia are not options (the first points new projects to Better Auth; the second is deprecated). Supabase Auth is out with Supabase (ADR 0017).
+**Why A.** Three facts decide it. (1) Purge and backup (M7, principle 3) must cover everything about a creator; identity inside our database is covered by the same backups, the same restore test and the same per-Account deletion. (2) Local and CI parity: the two-Account isolation harness and the invitation flow run against plain Postgres with no cloud account. (3) A hosted login is one more vendor whose outage stops creators from reaching work that is otherwise safe. The cost of A is real: we own patching of a younger library and the small invitation flow. Auth.js and Lucia are not options (the first points new projects to Better Auth; the second is deprecated). Supabase Auth is out with Supabase (ADR 0017).
 
 ### 2.2 The seam keeps this reversible
 
@@ -79,20 +79,20 @@ Estimated added monthly cost over the platform of RUNTIME-PLATFORM §0 (about $3
 
 | Kind | Examples | Lives in | Read by |
 |---|---|---|---|
-| **Platform secrets** | The `app`, `scheduler`, `identity` DSNs; R2 tokens; session secret; webhook signing secrets; error-tracker key; mailer key | **Fly secrets** of the app and environment that needs them. Never in the repository, an image layer or a log | The process that needs them, by name, through the validated boot configuration |
-| **Operator provider keys** | One key per provider surface | **Fly secrets** of the production (and, separately, staging) app | `web` and `worker` only, through the `Vault` operator adapter |
-| **Key-wrapping key (KEK)** | `KEK_v1`, `KEK_v2` | Fly secrets of `web` and `worker`, **plus an offline copy** held by the operator (password manager) | `web` and `worker` only; **not** the backup app |
+| **Platform secrets** | The `app`, `scheduler`, `identity` DSNs; R2 tokens; session secret; webhook signing secrets; error-tracker key; mailer key | **Host-held secrets** of the process and environment that needs them (on the VPS, secret files or environment readable only by that container and injected at start; on a PaaS, its secret store). Never in the repository, an image layer or a log | The process that needs them, by name, through the validated boot configuration |
+| **Operator provider keys** | One key per provider surface | **Host-held secrets** of the production (and, separately, staging) `web` and `worker` | `web` and `worker` only, through the `Vault` operator adapter |
+| **Key-wrapping key (KEK)** | `KEK_v1`, `KEK_v2` | Host-held secrets of `web` and `worker`, **plus an offline copy** held by the operator (password manager) | `web` and `worker` only; **not** the backup job |
 | **Creator-supplied keys (BYOK, follow-on)** | A creator's provider key | **Database ciphertext** (§3.3) | `web` and `worker` only |
 | **Database owner and migration identity** | `owner` DSN | The CI environment secret for the target environment, protected by approval for production | The migration step only; never any running process |
-| **Backup credentials** | Backup-storage write key; the backup public key | The separate backup app's secrets | The backup job only |
+| **Backup credentials** | Backup-storage write key; the backup public key | The backup job's own secrets (not held by `web` or `worker`) | The backup job and Postgres's WAL archiving only |
 
 ### 3.2 Designs compared for operator keys
 
-| | **A. Fly secrets, resolved by the Vault adapter (chosen)** | **B. Operator keys also encrypted in the database** | **C. External secrets manager or KMS** |
+| | **A. Host-held secrets, resolved by the Vault adapter (chosen)** | **B. Operator keys also encrypted in the database** | **C. External secrets manager or KMS** |
 |---|---|---|---|
 | Single mechanism with BYOK | No: two adapters, one interface | **Yes** | Possible |
 | A stolen database dump or backup contains operator keys | **No** | Yes, as ciphertext; the KEK is then the only protection | No |
-| Rotation | `fly secrets set`; a restart | An admin operation plus re-wrap | Manager's own |
+| Rotation | Update the host's secret configuration; a restart | An admin operation plus re-wrap | Manager's own |
 | Moving parts and vendors | 0 added | 0 added, more code | +1 vendor and an availability dependency on the credential path |
 | Verdict | **Chosen** | Rejected: it puts the most valuable keys into every backup for the sake of uniformity the port already gives | Deferred; the `Vault` port is the exit |
 
@@ -106,8 +106,8 @@ Estimated added monthly cost over the platform of RUNTIME-PLATFORM §0 (about $3
 | Binding | Account id, provider surface and credential id are authenticated associated data, so a ciphertext copied to another Account or provider fails to open |
 | Write-only | Never returned, displayed, logged or placed in a Generation; shown only as "set on [date]" and the last four characters |
 | Where it opens | Only in `web` and `worker`. The `scheduler` identity, the operator views and the backup job cannot read or open it |
-| Rotation | Add `KEK_v2`, deploy, re-wrap job, retire `KEK_v1`. A provider key's rotation is the creator's (own) or the operator's (`fly secrets`) |
-| Loss of KEK | Own-key ciphertext is unrecoverable without it, by design. The offline copy is part of the restore drill (§9) |
+| Rotation | Add `KEK_v2`, deploy, re-wrap job, retire `KEK_v1`. A provider key's rotation is the creator's (own) or the operator's (host secrets) |
+| Loss of KEK | Own-key ciphertext is unrecoverable without it, by design. The offline copy is checked in restore testing once own keys exist (§9) |
 
 ### 3.4 Handling rules (enforced, not advised)
 
@@ -119,7 +119,7 @@ Estimated added monthly cost over the platform of RUNTIME-PLATFORM §0 (about $3
 | SC4 | Boot configuration is parsed against a schema; a missing or malformed secret stops the boot; none has a default value | Config test |
 | SC5 | Production and staging share no secret: separate provider keys (staging keys carry small provider-side limits), separate database, bucket, session and KEK | Environment matrix check in CI (names must differ per environment) |
 | SC6 | Webhook signatures are verified per adapter with a per-environment secret; deliveries are idempotent (RUNTIME-PLATFORM §4.5) | Adapter conformance suite (#76) |
-| SC7 | Provider-side prepaid balance or spend limit set at each provider, as the outer wall (S9) | Operator checklist item recorded in the first drill; stale-ness alert (§7) |
+| SC7 | Provider-side prepaid balance or spend limit set at each provider, as the outer wall (S9) | Operator checklist item recorded before the first invitation; stale-ness alert (§7) |
 
 ## 4. Environments and CI
 
@@ -128,18 +128,18 @@ Estimated added monthly cost over the platform of RUNTIME-PLATFORM §0 (about $3
 | | **A. local + production** | **B. local + ci + staging + production (chosen)** | **C. B plus per-pull-request previews** |
 |---|---|---|---|
 | Where a bad migration or a scheduler change is first seen | Production | **Staging** | Preview |
-| Cost beyond production | $0 | About $10 to $15 a month (one small `web`, one small `worker`, a Neon project, an R2 bucket) | Per preview |
+| Cost beyond production | $0 | Estimated at about $10 to $15 a month on #74's Fly + Neon platform; on the VPS default, one small separate host running both roles and its own Postgres, plus an R2 bucket (not re-estimated) | Per preview |
 | Risk of production data in lower environments | None | None, by rule | Higher: previews tempt branching production |
 | Verdict | Rejected: the scheduler, the lease behaviour and the rolling deploy are exactly what must not first meet production | **Chosen** | Deferred |
 
 | Environment | Database | Storage | Providers | Data |
 |---|---|---|---|---|
 | **local** | Docker Postgres, same major version | In-memory or local S3-compatible `BlobStore` | `kind: fake` Offerings only | Fixtures |
-| **ci** | A fresh database or branch per run, created from the schema, never from production | In-memory `BlobStore` | Fakes with wire capture | Generated |
-| **staging** | Its own Neon project; two synthetic Accounts | Its own R2 bucket | Fakes by default; real providers only through staging keys with small provider-side limits, in scheduled smoke runs | Synthetic only |
-| **production** | Neon, scale-to-zero off, direct connections (RUNTIME-PLATFORM §0) | R2 | Real, operator keys | Creators' |
+| **ci** | A fresh database per run (a Postgres service container), created from the schema, never from production | In-memory `BlobStore` | Fakes with wire capture | Generated |
+| **staging** | Its own Postgres on its own host, never the production machine; two synthetic Accounts | Its own R2 bucket | Fakes by default; real providers only through staging keys with small provider-side limits, in scheduled smoke runs | Synthetic only |
+| **production** | Postgres on the production VPS (the current deploy choice, RUNTIME-PLATFORM §0), direct connections | R2 | Real, operator keys | Creators' |
 
-**Rules.** (1) **Production data never leaves production** except to the backup copy (§8) and restore drills, which run under production's access rules and are deleted after. Staging is seeded with synthetic data, never restored from production, because private media and prompts are not for developers' staging. (2) A deployment declares its `environment`; the composition root refuses to boot a `kind: fake` Offering, a fake `Mailer` or a fake `BlobStore` in `production`, and refuses real provider keys in `local` and `ci` (F2). (3) Configuration differs by environment only in values, never in code paths.
+**Rules.** (1) **Production data never leaves production** except to backups (§8) and restore tests, which run under production's access rules and are deleted after. Staging is seeded with synthetic data, never restored from production, because private media and prompts are not for developers' staging. (2) A deployment declares its `environment`; the composition root refuses to boot a `kind: fake` Offering, a fake `Mailer` or a fake `BlobStore` in `production`, and refuses real provider keys in `local` and `ci` (F2). (3) Configuration differs by environment only in values, never in code paths.
 
 ### 4.2 Pipeline
 
@@ -159,7 +159,7 @@ Estimated added monthly cost over the platform of RUNTIME-PLATFORM §0 (about $3
 | **Migrations gate** | Applying the chain from an empty database reaches the committed schema snapshot; applying it to the previous release's schema reaches the same; no number reuse; no DDL outside the chain (the `owner` DSN exists only in the pipeline, so there is no console route for DDL) | Yes |
 | **Build** | One image for both process roles, tagged by digest | n/a |
 | **Staging deploy** | Migrations (under `owner`), then rolling deploy of `web` and `worker`, then a smoke test: sign-in, one fake-provider Job end to end, an event stream reconnect | Fails the pipeline |
-| **Production deploy** | A manual approval on the **same digest**; migrations first; rolling deploy of `web` (2 or more machines) then `worker`. Rollback is redeploying the previous digest | Approval required |
+| **Production deploy** | A manual approval on the **same digest**; migrations first; rolling deploy of `web` (2 or more instances) then `worker`. Rollback is redeploying the previous digest | Approval required |
 
 **Delivery rules.** Migrations are **forward-only and expand/contract**: a release's schema must work with the previous image still running, so the rolling deploy and a rollback are both safe. Real-provider and real-model smoke tests are a separate scheduled workflow with spend-limited keys, never a merge gate (they cost money and flake). `main` is protected; the required checks are the blocking stages above. The migration **tool** and schema authority are #72's; this section fixes the gates any tool must pass. Preview environments, dependency auto-merge and supply-chain attestations are deferred (§12).
 
@@ -174,16 +174,16 @@ RUNTIME-PLATFORM §5 fixed three identities. The baseline completes the set, eac
 | `scheduler` | The claim, wake and outbox functions | Execute those functions, which return ids and Account ids | Read tenant content |
 | `identity` (**new**) | The auth handler | Read and write the auth schema; call `accounts.map_subject` | Touch tenant tables |
 | `operator_read` (**new**) | The operator endpoints | Select from a fixed set of content-free views: Accounts, usage, spend totals, Job states and ages, alerts | Select from any table, or any view not on the list |
-| `backup` (**new**) | The backup job in its own app | Read everything for dumping, **including past row rules** | Exist anywhere on a request, worker or webhook path; its DSN lives only in the backup app; it cannot write to production |
+| `backup` (**new**) | The daily dump job, run as its own process with its own secrets | Read everything for dumping, **including past row rules** | Exist anywhere on a request, worker or webhook path; its DSN is held only by the backup job; it cannot write to production |
 
-The `backup` identity is the single deliberate exception to "no identity bypasses row rules", and it exists because a faithful dump must read every row. It is credentialed separately, runs only in the backup app, and its use is logged. The role-posture test (§11) asserts each of these properties from the catalogue.
+The `backup` identity is the single deliberate exception to "no identity bypasses row rules", and it exists because a faithful dump must read every row. It is credentialed separately, held only by the backup job, and its use is logged. (WAL archiving is done by Postgres itself and needs no application identity.) The role-posture test (§11) asserts each of these properties from the catalogue.
 
 ## 6. Logs and traces
 
 | Topic | Decision |
 |---|---|
 | **Logger** | One typed logger. A log call takes a static message key and a typed field set drawn from `contract`: ids (Account, project, Job, Generation, request, action), closed codes, durations, counts. There is no free-text field, so a prompt, a document, a key, a signed URL or another Account's content cannot be passed. `console.*` is a lint error |
-| **Shape and shipping** | JSON to stdout; Fly ships it to a log sink. The sink is configuration, not code: the first choice is a hosted sink with a free tier and 30-day retention (Axiom Personal was the researched option; *free-tier terms to be re-checked at build*). Fly's own log buffer is short, so shipping is part of the baseline |
+| **Shape and shipping** | JSON to stdout; the host forwards it to a log sink (on the VPS, the container runtime's logging driver or a small shipping agent; on a PaaS, its log drain). The sink is configuration, not code: the first choice is a hosted sink with a free tier and 30-day retention (Axiom Personal was the researched option; *free-tier terms to be re-checked at build*). Logs kept on the host rotate and are lost with the machine, so shipping is part of the baseline |
 | **Correlation** | `requestId` → `actionId` → Job id → Generation id, on every line, every provider call (as metadata or idempotency key where the provider accepts one) and every event. Account id on all of them |
 | **Provider traffic** | Request and response bodies are never logged. The record of what was sent is the stored Rendered request under `Scope`, not the log |
 | **Retention** | 30 days at baseline. Purge (M7) is satisfied because logs carry ids only |
@@ -216,26 +216,45 @@ Delivered to the operator by email through the `Mailer` port (any push or chat c
 | Stale or suspect prices; drift beyond tolerance | Price registry | S10 |
 | Maybe-billed runs unreconciled past their retention deadline | Generation run history | S10 |
 | Deprecation watch: a shutdown date near, a review age exceeded, a conformance probe failed | Catalogue | PROVIDERS §10.4 |
-| Backup or restore verification failed or older than allowed (§9) | Backup job | this document |
+| The daily dump or WAL archiving failed, or its latest success is older than allowed (§8) | Backup job, Postgres archiver status | this document |
 | Unclassified exception rate rising; a release's new error group | Error tracker | this document |
 | A migration or deploy failed | Pipeline | this document |
 
-**The external heartbeat.** A worker that is down cannot report that it is down. An external monitor (any service that polls a URL from outside Fly; a free tier suffices) requests `GET /healthz/deep` on `web`, which answers failure when the oldest-overdue signal or the worker's last tick is stale, when the database is unreachable, or when the latest backup is too old. It also checks plain reachability. Its alert reaches the operator by a different channel than the platform's own email. The endpoint returns counts only, never content.
+**The external heartbeat.** A worker that is down cannot report that it is down. An external monitor (any service that polls a URL from outside the host; a free tier suffices) requests `GET /healthz/deep` on `web`, which answers failure when the oldest-overdue signal or the worker's last tick is stale, when the database is unreachable, or when the latest backup is too old. It also checks plain reachability. Its alert reaches the operator by a different channel than the application's own email, so a dead VPS is still reported. The endpoint returns counts only, never content.
 
 ## 8. Backups
 
-### 8.1 Designs compared
+### 8.1 The floor, required from day one (Record 2 P12)
+
+On the VPS default a single disk failure would otherwise lose every creator's work (Constitution §16.1, R1), so this floor is **non-negotiable**:
+
+| Data | Protection now | Recovery point |
+|---|---|---|
+| **Database** (creative history, Jobs, spend, auth schema, ciphertext) | **Continuous WAL archiving** (with the base backups replay needs) **plus an automated daily logical dump** taken by the `backup` identity. Both are encrypted before they leave the machine, with key material the operator also holds offline, and written to **storage off the machine** (R2 is acceptable), in a bucket that `web` and `worker` hold no credentials for | Up to the WAL archiving interval, to a chosen point in time; the daily dump is the simpler second route |
+| **Media** (R2, content-addressed and immutable) | Already off the machine in R2. R2 has no object versioning, so a deletion by our own code is permanent; that is why committed-media deletion has one caller (PERSISTENCE-AND-MEDIA R16). An extra copy of media is part of the deferred policy | Not applicable |
+| **Configuration** (Catalogue, prompts, code) | The repository and its remotes | Not applicable |
+| **Secrets** | Host-held secrets, plus the operator's offline copy of KEKs, the backup encryption key and provider and platform credentials | Not applicable |
+
+The dump job runs as its own process with its own secrets, so `web` and `worker` do not hold backup credentials. A compromise of the VPS host itself reaches everything on it; that limit of the single-machine default, and loss or compromise of the storage account, are what the deferred policy decisions answer.
+
+**Deferred, not decided (Record 2 P12.3):** how many backups and copies; retention periods; a second independent vendor; restore-drill cadence; the no-delete backup credential design; the full manual drill gate. The original #75 design for these (§§8.2, 8.3 and the deferred rows of §9) is kept as an option for that decision, not as a current requirement; nothing is to be built as if one of them were chosen.
+
+**Purge and backups (M7, P8-purge).** When project or account purge ships, the promise is: **gone from Aiuteur at once; any backup copies expire within a stated retention window, which is told to the creator at purge time.** The retention window is therefore a value the deferred backup policy must set before purge ships. Whenever a purge exists, it appends to a durable **purge log**; every restore procedure ends by replaying that log so a restore cannot resurrect a purged project or Account. The baseline requires that rule now; the purge feature supplies the log.
+
+### 8.2 Original #75 comparison (drafted for Neon + Fly; now a deferred option)
+
+#74's platform had a managed database with its own history window, so #75 compared the options below and chose B. Record 2 P11 moved hosting to a VPS and P12 replaced B with the floor of §8.1 and deferred the rest. Kept as history and as input to the deferred decision.
 
 | | **A. Vendor history only** (Neon history window; R2 as is) | **B. A plus an independent copy at a second vendor (chosen)** | **C. Own continuous archiving to our own storage** |
 |---|---|---|---|
 | Bad migration, bug or operator slip | Recoverable inside the history window only | Same, plus older dumps | Same |
 | Vendor outage, account loss, suspension or compromise of the Neon or Cloudflare account | **Everything is gone together** | **Recoverable elsewhere** | Recoverable if the archive is at another vendor |
-| Our deletion bug or credential compromise erasing media in R2 (R2 offers no versioning or object lock; *inferred, not stated outright in the docs*) | Unrecoverable | Recoverable | Recoverable |
+| Our deletion bug or credential compromise erasing media in R2 (R2 has no object versioning; its prefix-scoped bucket lock rules exist but are not configured, and an indefinite lock would also block purge; Cloudflare R2 bucket-locks page and S3 API compatibility table, read 2026-10-23) | Unrecoverable | Recoverable | Recoverable |
 | Added vendors and cost | 0 | 1 (object storage); about $2 to $3 a month at 200 GB | 1, and a stateful service we operate |
 | Effort | None | A scheduled job and its drill | Most |
-| Verdict | Rejected: "nothing is lost" would rest on one account at each of two vendors, with nothing outside them | **Chosen** | Rejected: operating archiving is the chore the managed database was chosen to avoid |
+| Verdict | Rejected: "nothing is lost" would rest on one account at each of two vendors, with nothing outside them | **Chosen** | Rejected by #75: operating archiving is the chore the managed database was chosen to avoid. *Superseded by Record 2 P11/P12:* continuous WAL archiving off the machine is now part of the floor (§8.1) |
 
-### 8.2 What is copied, where, and how
+### 8.3 Original #75 copy design (deferred option)
 
 | Data | Primary protection | Independent copy | Recovery point |
 |---|---|---|---|
@@ -246,25 +265,20 @@ Delivered to the operator by email through the `Mailer` port (any push or chat c
 
 **The backup job** runs as a scheduled machine in its **own Fly app** with its own secrets, so a compromise of `web` or `worker` cannot reach the backup credentials, and a compromise of the backup app cannot reach production keys or write to production. Its storage credentials are scoped to the backup bucket and **cannot delete or overwrite** (*the vendor's key capability set must be checked to omit delete at build; this is the one assumption the design leans on*). Expiry is by the bucket's lifecycle rule, so only the vendor's retention, not our credentials, removes backups. The second vendor is a different company and account from Cloudflare and Neon; Backblaze B2 was the researched option at about $6.95 per terabyte-month, and any S3-compatible store behind the same `BlobStore`-shaped copy tool qualifies.
 
-**Retention.** Dumps are kept 30 days (spec may adjust); the replica is kept while the object is referenced by a live project and is removed with its prefix on purge. This is a **bounded** retention so that the later purge feature can state a promise: *a purged project leaves every backup within the dump retention window*.
-
-**Consistency.** A dump can reference media newer than the last replica run. The restore check (§9) reports such dangling references rather than failing silently, and the daily replica run follows the dump.
-
-**Purge and restore (M7).** Whenever a purge exists, it appends to a durable **purge log**; every restore procedure ends by replaying that log so a restore cannot resurrect a purged project or Account. The baseline requires that rule now; the purge feature supplies the log.
-
-## 9. Restore drills and recovery
+## 9. Restore tests and recovery
 
 | Drill | What it proves | When |
 |---|---|---|
-| **Automated verification** | Restores the newest dump into a throwaway database, applies the migration check, runs the role-posture and forced-row-rule checks, the two-Account smoke, row counts against the source, and hashes a random sample of replica objects. Writes pass or fail and its age to the heartbeat | Weekly |
-| **Full manual drill** | Starting from nothing but the operator's offline material: restore the database from the second vendor into a **new Postgres host**, restore a project's media from the replica, repoint a staging-shaped app, sign in, open a project, play a Take; recover own-key ciphertext with the offline KEK; replay the purge log; time the whole run | **Before the first invitation**, after any change of database or storage vendor or major schema change, and quarterly |
-| **Point-in-time drill** | Recovers the primary database to a moment before a deliberately bad change, into a new branch, and compares | With the first manual drill and yearly |
+| **Restore test (required now)** | From what is off the machine (the WAL archive, base backup and dump in backup storage, and the operator's offline keys): restore into a fresh Postgres that is not the production machine, start the application against it, sign in and open a project, and run the role-posture check. Record date, duration and the recovery point reached | **Once, successfully, before any creator other than the owner is invited** (Record 2 P12.2) |
+| Automated verification (*deferred option*) | Restores the newest dump into a throwaway database, applies the migration check, runs the role-posture and forced-row-rule checks, the two-Account smoke, row counts against the source, and hashes a random sample of replica objects. Writes pass or fail and its age to the heartbeat | Cadence deferred (P12.3); #75 proposed weekly |
+| Full manual drill (*deferred option*) | Starting from nothing but the operator's offline material: restore the database from the second vendor into a **new Postgres host**, restore a project's media from the replica, repoint a staging-shaped app, sign in, open a project, play a Take; recover own-key ciphertext with the offline KEK; replay the purge log; time the whole run | Whether and when it gates is deferred (P12.3); #75 proposed before the first invitation, after vendor or major schema changes, and quarterly |
+| Point-in-time drill (*deferred option*) | Recovers the database from the WAL archive to a moment before a deliberately bad change, into a separate database, and compares | Deferred (P12.3) |
 
-**Gate.** No creator is invited until a full manual drill has passed and its result is recorded with date, duration and the measured recovery time. The same gate holds the parked defaults of BUSINESS §9 (caps and ceiling set before the first invitation). **Targets**, to be confirmed by the first drill rather than assumed: recovery of the database within the vendor window in minutes to under an hour; restoration from the independent copy within a working day; independent-copy loss window of at most the dump and replica intervals.
+**Gate.** No creator other than the owner is invited until one restore test has passed and its result is recorded with date, duration and the recovery point reached (Record 2 P12.2). Cap defaults and the hidden operator ceiling size remain parked and must be set before the first invitation (Record 2 P12.4; BUSINESS §9). Recovery targets are not set until the backup policy is decided; the restore test's measured time is the first evidence for them.
 
-**Runbooks** are build deliverables in the repository, one page each, exercised in the drills: worker down or stalled; deploy rollback by digest; Neon outage or compute restart; vendor-level loss (restore elsewhere); point-in-time recovery after a bad change; R2 object loss (restore from replica); provider key revoked or leaked (rotate, revoke, review spend); platform secret leaked (rotate, revoke sessions); KEK rotation; Account lockout and suspension; restore after a purge.
+**Runbooks** are build deliverables in the repository, one page each, exercised in restore testing: worker down or stalled; deploy rollback by digest; Postgres down or restarted on the VPS; VPS loss (rebuild a host from the image and restore from off-machine backups); storage-account loss; point-in-time recovery from the WAL archive after a bad change; R2 object loss (what is recoverable depends on the deferred media-copy decision); provider key revoked or leaked (rotate, revoke, review spend); platform secret leaked (rotate, revoke sessions); KEK rotation; Account lockout and suspension; restore after a purge.
 
-**Recovery posture by design.** Nothing in the processes is stateful (RUNTIME-PLATFORM §4.4), so recovering means restoring the database and storage and starting two process roles. Exit paths for each vendor are RUNTIME-PLATFORM §9.
+**Recovery posture by design.** Nothing in the processes is stateful (RUNTIME-PLATFORM §4.4), so recovering means restoring the database and storage and starting two process roles. On the VPS default that means a fresh host from the same image; exit paths for each vendor are RUNTIME-PLATFORM §9.
 
 **Residual risk stated plainly.** The deployer owns the infrastructure accounts and can technically read the database and storage. "Private media" (§18.4) is enforced between creators and in every operator surface, which are content-free, but is not a promise against the deployer's own infrastructure access; client-side encryption of media would be a different product. Break-glass reads are an operator procedure outside the product.
 
@@ -277,7 +291,7 @@ Delivered to the operator by email through the `Mailer` port (any push or chat c
 | **Per environment** | Keys, enablement and ranking are environment values. Production never loads a fake (F2). Staging enables real Offerings only where a staging key exists |
 | **Price entries** | Looked-up entries refresh automatically; published entries are reviewed data with a date; staleness and drift alert (BUSINESS §4.3) |
 | **Webhooks** | Each webhook-capable provider is registered with the environment's callback URL and signing secret, a setup checklist item verified in each environment's smoke run |
-| **Outer wall** | Prepaid balance or spend limit at every provider (S9); recorded in the first drill and rechecked quarterly |
+| **Outer wall** | Prepaid balance or spend limit at every provider (S9); recorded before the first invitation and rechecked quarterly |
 | **Retirement watch** | The deprecation watch, review ages and conformance probes of PROVIDERS §10.4 run as scheduled worker checks and feed §7.2 |
 
 ## 11. Security tests: the isolation gates
@@ -309,7 +323,8 @@ Not part of the baseline, and not to be invented without a decision:
 - Creator-required second factor (revisited when BYOK ships); social or enterprise single sign-on; an operator console UI beyond the minimum endpoints.
 - An external key-management service or hardware security module (the `Vault` port is the exit); automatic key rotation.
 - A web application firewall, DDoS service or custom domain for private media (RUNTIME-PLATFORM §3 fact 7); application rate limits and platform limits are the baseline.
-- Automated failover across regions or vendors; continuous archiving of our own; chaos testing beyond the kill-a-worker tests.
+- Automated failover across regions or vendors; chaos testing beyond the kill-a-worker tests. (Continuous WAL archiving is no longer deferred: it is part of the backup floor, §8.1.)
+- The backup policy beyond the floor (Record 2 P12.3): number of copies, retention, a second independent vendor, restore-drill cadence, no-delete backup credentials, the full manual drill gate.
 - Software bill of materials, signed builds and attestations; third-party penetration testing; compliance programmes. (Synthetic-media marking is a separate fog patch on the map.)
 - The BYOK setup flow itself, permanent project and account purge and its purge log, anonymised spend retention after purge, an Account data export, and the default caps and ceiling values: all named elsewhere and scheduled after the core build.
 - Numeric tuning (session lifetimes, rate limits, thresholds, retention values, drill intervals as defaults): spec.
@@ -318,18 +333,18 @@ Not part of the baseline, and not to be invented without a decision:
 
 | Ticket | Receives |
 |---|---|
-| **Persistence and media storage** (#72) | The `identity`, `operator_read` and `backup` identities and their grants (§5); the auth schema kept apart; the migration gates (§4.2) for whatever tool is chosen; ciphertext rows for own keys bound to Account and provider; the purge log as a durable record that restores replay; dump and replica retention (§8.2) and the project-separable key layout the replica and purge both rely on; content-free operator views as a named set |
-| **Build sequence** (#77) | Stand up first: Fly apps for `web`, `worker`, and the separate backup app; Neon; R2 and the second-vendor bucket; the pipeline with its gates; the **first full restore drill before the first invitation**. Early tracer pieces: invitation → Account → `Scope`, the typed logger and scrubber, the heartbeat |
+| **Persistence and media storage** (#72) | The `identity`, `operator_read` and `backup` identities and their grants (§5); the auth schema kept apart; the migration gates (§4.2) for whatever tool is chosen; ciphertext rows for own keys bound to Account and provider; the purge log as a durable record that restores replay; backup retention once the deferred policy sets it (§8), and the project-separable key layout purge (and any later replica) relies on; content-free operator views as a named set |
+| **Build sequence** (#77) | Stand up first: one VPS running `web`, `worker`, Postgres and the backup job as containers; R2 for media and backups; the backup floor (daily dump and continuous WAL archiving off the machine, §8.1); the pipeline with its gates; **one successful restore test before any creator other than the owner is invited** (§9). Early tracer pieces: invitation → Account → `Scope`, the typed logger and scrubber, the heartbeat |
 | **Verification** (#76) | Gates G1 to G11 and their generation from the contract and grants; the secret canary; the role-posture check; `Mailer` and `Vault` fakes; environment guards |
 | **Providers** (#66) | Credential handle only; per-environment keys; webhook secret per environment; the retirement watch feeding alerts |
 | **Business and operations** (#68) | S10 mapped to alerts (§7.2); operator actions (§2.3); invoice reconciliation remains an operator task |
 
 ## 14. Constitution check
 
-No requirement was found unworkable or contradictory; **no `CONSTITUTION AMENDMENT REQUIRED` is raised.** §15.5 (collaboration out) holds: the only capability that is not a creator's own is the deployment's operator, defined by configuration plus a second factor, with content-free views; there are no roles or permissions. §18.4 holds between creators and on every operator surface; §9 states the limit honestly. Principle 3 ("nothing is lost inside a project") is met by point-in-time history, an independent copy of data and media at a second vendor, an offline route to the keys, and drills that prove restoring. Principle 12 is met: no extra state store, no queue, and every check reads the database that is already the truth. M4 to M7 are met by §2, §3 and §8.
+No requirement was found unworkable or contradictory; **no `CONSTITUTION AMENDMENT REQUIRED` is raised.** §15.5 (collaboration out) holds: the only capability that is not a creator's own is the deployment's operator, defined by configuration plus a second factor, with content-free views; there are no roles or permissions. §18.4 holds between creators and on every operator surface; §9 states the limit honestly. Principle 3 ("nothing is lost inside a project") is met at baseline by continuous WAL archiving and a daily dump off the machine, an offline route to the keys, and a restore test before others are invited (Record 2 P12); further copies and drill cadence are a deferred creator decision. Principle 12 is met: no extra state store, no queue, and every check reads the database that is already the truth. M4 to M7 are met by §2, §3 and §8.
 
 ## Record 2 amendment (P12, P8-purge): backups and restore
 
-**Floor from day one** (a single VPS disk failure would otherwise lose every creator's work, violating Constitution §16.1 and R1): an automated **daily database dump plus continuous WAL archiving to storage off the machine** (R2 is acceptable). **One successful restore test before any creator other than the owner is invited.** **Deferred, not decided:** number of backups and copies, retention, a second independent vendor, restore-drill cadence, the no-delete backup credential design, and the full manual drill gate described above. Read the second-vendor copy, weekly verification and full-drill gate in this document as deferred options. Cap defaults and the hidden operator ceiling size remain parked and must be set before the first invitation.
+**Floor from day one** (a single VPS disk failure would otherwise lose every creator's work, violating Constitution §16.1 and R1): an automated **daily database dump plus continuous WAL archiving to storage off the machine** (R2 is acceptable). **One successful restore test before any creator other than the owner is invited.** **Deferred, not decided:** number of backups and copies, retention, a second independent vendor, restore-drill cadence, the no-delete backup credential design, and the full manual drill gate described above. The body (§0, §§8, 9, 12, 13) now states this floor as current; the second-vendor copy, weekly verification and full-drill gate appear there only as deferred options. Cap defaults and the hidden operator ceiling size remain parked and must be set before the first invitation.
 
 **Purge promise (when purge ships, M7):** gone from Aiuteur at once; any backup copies expire within a stated retention window, which is told to the creator at purge time.

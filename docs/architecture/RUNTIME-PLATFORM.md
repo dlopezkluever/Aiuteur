@@ -1,6 +1,6 @@
 # Aiuteur V2: Runtime Platform
 
-Resolution of Wayfinder ticket #74. The trade-offs are recorded in [ADR 0017](../adr/0017-the-job-row-is-the-queue-on-plain-postgres-with-own-sse-progress.md). Inputs: the [job lifecycle](../domain/JOB-LIFECYCLE.md) (settled; this substrate implements it), the [module architecture](MODULE-ARCHITECTURE.md) (the ports and process roles this fills), the [business contract](../domain/BUSINESS-AND-OPERATIONS.md) (multi-creator isolation, server-held keys, BYOK-ready), the [Creator Ratification Record](../product/CREATOR-RATIFICATION-RECORD.md) (M4 to M7) and the #73 research (note `docs/research/platform-and-execution-options.md` and five area reports on the throwaway branch `research/platform-execution`; facts dated 2026-10-21; items that research marked *not verified* stay unverified here).
+Resolution of Wayfinder ticket #74. The trade-offs are recorded in [ADR 0017](../adr/0017-the-job-row-is-the-queue-on-plain-postgres-with-own-sse-progress.md). Inputs: the [job lifecycle](../domain/JOB-LIFECYCLE.md) (settled; this substrate implements it), the [module architecture](MODULE-ARCHITECTURE.md) (the ports and process roles this fills), the [business contract](../domain/BUSINESS-AND-OPERATIONS.md) (multi-creator isolation, server-held keys, BYOK-ready), the [Creator Ratification Record](../product/CREATOR-RATIFICATION-RECORD.md) (M4 to M7), [Record 2](../product/CREATOR-RATIFICATION-RECORD-2.md) (P11, which moved the hosting default; see the last section) and the #73 research (note `docs/research/platform-and-execution-options.md` and five area reports on the throwaway branch `research/platform-execution`; facts dated 2026-10-21; items that research marked *not verified* stay unverified here).
 
 Vocabulary is in [`GLOSSARY.md`](../../GLOSSARY.md). This document fixes **which platform, which execution substrate, which progress channel, and the rules that make restarts and duplicates safe**. It does not fix table or column shapes, the schema authority, row-level rules, media key layout or retention (Persistence, #72); the authentication product, secrets custody, error tracking, backups and CI (Operational baseline, #75); or numeric tuning (spec).
 
@@ -8,14 +8,16 @@ Vocabulary is in [`GLOSSARY.md`](../../GLOSSARY.md). This document fixes **which
 
 | Need | Choice | Rejected (see §2) |
 |---|---|---|
-| Database | **Postgres on Neon**, scale-to-zero off, direct (non-pooled) connections for the worker, the event stream and migrations | Supabase as the platform; PlanetScale, Railway or Fly Postgres kept as named fallbacks |
+| Database | **Plain Postgres**, no vendor-specific feature (RT5); direct (non-pooled) connections for the worker, the event stream and migrations. **Current deploy choice (Record 2 P11):** run by the operator on the same VPS as the processes | Supabase as the platform. Managed Postgres (Neon, the original #74 choice with scale-to-zero off; PlanetScale, Railway or Fly Postgres) stays a valid later move with no code change |
 | Object storage | **Cloudflare R2**, private bucket, per-Account and per-project key prefixes, signed URLs minted by `media.access` | Supabase Storage; S3 + CloudFront, Backblaze B2, Tigris as fallbacks; any managed video service |
-| Hosting | **Fly.io**: one image, two process groups (`web`, `worker`), worker always on | Render, Railway, Hetzner + Coolify as fallbacks; Vercel, Cloudflare, Cloud Run, App Runner |
+| Hosting | **One plain Docker image, two process roles (`web`, `worker`), the worker long-running and stateless.** **Current deploy choice (Record 2 P11):** one VPS (for example Hetzner) running `web`, `worker` and Postgres as containers. This is a deploy choice, not architecture | Fly.io (the original #74 choice), Render or Railway stay valid later moves with no code change; Vercel, Cloudflare, Cloud Run, App Runner rejected |
 | Durable execution | **The Job row is the queue.** An own scheduler on Postgres (`FOR UPDATE SKIP LOCKED`, leases, one due time per Job), behind the `Scheduler` port. No separate engine | DBOS Transact, pg-boss, Hatchet, Inngest, Temporal, Restate, Trigger.dev, Vercel, Cloudflare and AWS workflow products |
 | Progress to the client | **Server-sent events from the `web` process, replayed from the Account's event table by `Last-Event-ID`**; the same query answers a bounded poll as fallback | WebSockets, Ably, Supabase Realtime, engine-native realtime, LISTEN/NOTIFY as the transport |
 | Not decided here | The authentication product (#75). Better Auth, Clerk or WorkOS all fit; Supabase Auth is out with Supabase | |
 
-Estimated cost at the research scenario (5 creators, about 3,000 jobs a month): Fly about $8 to $15, Neon about $21, R2 about $3, so **roughly $35 to $40 a month**. All are estimates from the #73 price sheets.
+Estimated hosting cost on the current default: **about $10 to $25 a month before provider bills** (Record 2 P11; an estimate, see the last section for a dated price check). The original Fly + Neon stack was estimated at the research scenario (5 creators, about 3,000 jobs a month) at Fly about $8 to $15, Neon about $21, R2 about $3, so roughly $35 to $40 a month, from the #73 price sheets.
+
+**What is architecture and what is a deploy choice.** The execution substrate, the progress channel, the isolation rules and RT1 to RT6 are architecture and hold on any host. The host and the database operator are deploy choices: the VPS is the current one, and the portability rules (plain Docker image, stateless worker, plain Postgres, vendor SDKs only behind `BlobStore` and host configuration, RT5) keep Fly, Render, Railway and managed Postgres valid later moves without code changes. Where §§2 and 3 below name Fly or Neon, they record the comparison as #74 made it.
 
 ## 1. What the platform must satisfy
 
@@ -30,7 +32,7 @@ Estimated cost at the research scenario (5 creators, about 3,000 jobs a month): 
 
 ## 2. Designs compared
 
-Four complete stacks were worked through against the lifecycle's rules, multi-creator isolation, the crash window, cost and what a restart does.
+Four complete stacks were worked through against the lifecycle's rules, multi-creator isolation, the crash window, cost and what a restart does. The comparison was made with Fly + Neon as the host for A, C and D; the choice of A does not depend on that host, and its hosting row and cost are superseded by Record 2 P11 (§0).
 
 | | **A. Lean Postgres (chosen)** | **B. Supabase bundle** | **C. Postgres library** (DBOS Transact; pg-boss is its lighter variant) | **D. Managed engine on our compute** (Hatchet; Inngest, Temporal and Restate are the same shape) |
 |---|---|---|---|---|
@@ -49,7 +51,7 @@ Four complete stacks were worked through against the lifecycle's rules, multi-cr
 | What we write | The scheduler, roughly 300 lines beyond lifecycle logic that every option needs, plus crash tests | Fewer lines; more bypass discipline | The same lifecycle logic, in workflow shape | The same, plus the relay |
 | Verdict | **Chosen** | Rejected | Rejected; the named fallback if A's scheduler proves a burden | Rejected |
 
-Also excluded without a full pass: **vendor-compute engines** (Trigger.dev Cloud, Vercel Workflows, Cloudflare Workflows), because prompts and BYOK keys would run on vendor machines (§3 fact 4) and Vercel, Cloudflare, AWS and Google offer no per-key fairness; **Cloud Run, App Runner and ECS**, for operational weight or closure (App Runner is closed to new customers); **Hetzner + Coolify** as the default, because we would own database backups and restore drills, which #75 should not inherit as a platform chore (it stays the named exit path).
+Also excluded without a full pass: **vendor-compute engines** (Trigger.dev Cloud, Vercel Workflows, Cloudflare Workflows), because prompts and BYOK keys would run on vendor machines (§3 fact 4) and Vercel, Cloudflare, AWS and Google offer no per-key fairness; **Cloud Run, App Runner and ECS**, for operational weight or closure (App Runner is closed to new customers); **Hetzner + Coolify** as the default, because we would own database backups and restore drills, which #75 should not inherit as a platform chore. *Superseded by Record 2 P11:* the creator chose a self-operated VPS as the default and accepted owning OS patching, Postgres upgrades, backups and uptime; the backup floor is OPERATIONAL-BASELINE §8.
 
 ### 2.1 Why not the shapes that look smaller
 
@@ -67,9 +69,9 @@ Also excluded without a full pass: **vendor-compute engines** (Trigger.dev Cloud
 | 3 | Direct or session connections for workers? | **Yes.** The worker, the event tail and migrations use direct connections. The web request path may use a pooler, because no code depends on session state (RT2) |
 | 4 | Where may BYOK keys be decrypted? | **Only in our `web` and `worker` processes.** This excludes vendor-compute engines |
 | 5 | Is Conductor-class recovery needed? | **No.** Any worker recovers any expired lease, so one always-on worker suffices and a second is safe |
-| 6 | Supabase as the database? | **No.** Postgres on Neon, storage on R2, own SSE; authentication is #75's |
+| 6 | Supabase as the database? | **No.** Plain Postgres (#74 chose Neon; the current default is Postgres on the VPS, P11), storage on R2, own SSE; authentication is #75's |
 | 7 | Custom domain for private media? | **No.** Signed URLs on the storage host suffice for V2; signing on a custom domain needs a Worker or WAF rule on R2, deferred |
-| 8 | VPS or PaaS? | **PaaS (Fly).** A VPS is cheapest, but self-operated backups are the cost |
+| 8 | VPS or PaaS? | #74 answered **PaaS (Fly)**, because self-operated backups are the cost of a VPS. **Superseded by Record 2 P11: one VPS is the current default**, the operator owns backups (floor in OPERATIONAL-BASELINE §8), and a PaaS stays a valid later move |
 | 9 | Appetite for roughly 300 new lines of scheduler? | **Yes**, since the Job row's state machine must be written regardless |
 
 ## 4. The execution substrate
@@ -80,10 +82,10 @@ One image and one module graph (ADR 0016), two process roles, each wired by its 
 
 | Role | Runs | Scale |
 |---|---|---|
-| **web** | `api` (commands, queries), the event stream, **webhook ingress**, the text fast path's inline claim, `views` | 2 or more machines for zero-downtime deploys |
-| **worker** | The scheduler tick (claim, then act); provider adapters (`submit`, `observe`, `cancel`, `lookup`, `fetch`); `media.put` (hash, probe with ffmpeg); local-work executors (export build, Segment assembly, still extraction); the outbox maintenance; price and circuit-breaker upkeep | 1 always-on machine; 2 or more is safe (§4.4); never scaled to zero |
+| **web** | `api` (commands, queries), the event stream, **webhook ingress**, the text fast path's inline claim, `views`; it also serves the CineBlock tab (D61), which is a tab of the same application under the same session and Account, not a second app | 2 or more instances for zero-downtime deploys (on the VPS, two `web` containers) |
+| **worker** | The scheduler tick (claim, then act); provider adapters (`submit`, `observe`, `cancel`, `lookup`, `fetch`); `media.put` (hash, probe with ffmpeg); local-work executors (export build, Segment assembly, still extraction); the outbox maintenance; price and circuit-breaker upkeep | 1 long-running process in its own container (on any host, never scaled to zero for idleness); 2 or more is safe (§4.4) |
 
-CPU-heavy local work may later move to a third process group of the same image with no other change.
+Nothing here relies on a platform's always-on machine feature: on the VPS the worker is an ordinary container restarted by the container runtime, and RT6 means a stopped worker costs only liveness. CPU-heavy local work may later move to a third process role of the same image with no other change.
 
 ### 4.2 The `Scheduler` port and the one due time
 
@@ -124,22 +126,22 @@ The spend cap is *not* here. It stays in the creating transaction (`spend.admit`
 
 ### 4.4 Restarts and duplicate execution
 
-The lifecycle fixes the rules; the platform's job is to make them hold when machines stop. Exclusivity is a **row lease with a fencing token, never a database session**, so a dropped connection, a Neon compute restart, a deploy or a crashed machine costs only the lease interval.
+The lifecycle fixes the rules; the platform's job is to make them hold when machines stop. Exclusivity is a **row lease with a fencing token, never a database session**, so a dropped connection, a Postgres restart (or a managed host's compute restart), a deploy or a crashed process costs only the lease interval.
 
 | Failure | What prevents the harm |
 |---|---|
 | Two workers claim the same Job | `FOR UPDATE SKIP LOCKED` inside the serialised claim; the lease token fences every later write |
 | A worker stalls, its lease expires, another takes over, the first wakes | The first's writes affect zero rows and are dropped. If it already called the provider, the Job-id idempotency key (where declared), lookup or reconciliation (lifecycle §6, §7) covers it |
 | Crash after the provider accepts, before the reference is stored | The lifecycle's rule, unchanged by any platform: write-ahead intent committed first, Job-id key, lookup, else `submission_unconfirmed` and a visible one-click retry |
-| Deploy sends SIGTERM | The worker stops claiming and releases or lets expire what it holds. Fly's `kill_timeout` is set generously (maximum 300 seconds) but **no correctness depends on it**, since every host's grace window is shorter than a 30-minute job |
+| Deploy sends SIGTERM | The worker stops claiming and releases or lets expire what it holds. The host's stop grace period (the container stop timeout on the VPS; `kill_timeout`, at most 300 seconds, on Fly) is set generously but **no correctness depends on it**, since every host's grace window is shorter than a 30-minute job |
 | Fetch interrupted | The Job stays `fetching`; the re-run is idempotent (storage key from Job id, content hash checked) |
 | Webhook arrives twice, late, or after a terminal state | A receipt row unique on (provider, delivery id) drops the duplicate; the terminal compare-and-set drops the late one |
 | Settlement runs twice | Attachment is unique per Job; actual cost is set, never added |
 | Event delivered twice | Consumers are idempotent by event id (R13) |
-| Database failover or compute restart | Connections drop; no state was held in a session; the next tick resumes |
+| Postgres restart, failover or compute restart | Connections drop; no state was held in a session; the next tick resumes |
 | The `worker` role is down | Nothing is lost and no state is wrong; progress stalls until it returns. The alert is the oldest overdue due time (§7) |
 
-A web machine that dies during an inline fast-path claim is the same case as a stalled worker.
+A `web` instance that dies during an inline fast-path claim is the same case as a stalled worker.
 
 ### 4.5 Webhook ingress
 
@@ -200,7 +202,7 @@ Tools (error tracker, log sink, dashboards) are #75's. The runtime guarantees th
 | RT2 | No code depends on session state: tenant context is transaction-local, no session advisory locks, no `SET` without `LOCAL`, no reliance on prepared statements, `LISTEN` only in the wake adapter on a direct connection | Lint on `pg_advisory_lock(`, bare `SET`, `LISTEN` |
 | RT3 | Background work rebuilds Scope from the Account on the Job or event; the `scheduler` identity reads ids only; no superuser or service-role identity at runtime | Role grants checked in CI; the two-Account harness (#76) run through the worker and webhook paths |
 | RT4 | Events carry ids and statuses, not content | Schema test on the event type |
-| RT5 | No vendor-specific database or host feature (branching, pg_cron, pgmq, platform queues, the Neon Data API, and roles created through the console, API or CLI, which Neon gives BYPASSRLS; roles are created only by SQL migration, see PERSISTENCE-AND-MEDIA.md) at runtime; vendor SDKs live only in platform adapters (`BlobStore`, host configuration) | Import-boundary check |
+| RT5 | No vendor-specific database or host feature (branching, pg_cron, pgmq, platform queues, platform private networking or machine APIs; on a managed host such as Neon, its Data API and roles created through its console, API or CLI, which Neon gives BYPASSRLS; on every host roles are created only by SQL migration, see PERSISTENCE-AND-MEDIA.md) at runtime; vendor SDKs live only in platform adapters (`BlobStore`, host configuration) | Import-boundary check |
 | RT6 | A commit's correctness never depends on the worker being up; only liveness does | Conformance test: stop the worker, run commands, restart, assert state |
 
 ## 9. Reversal triggers
@@ -209,9 +211,9 @@ Tools (error tracker, log sink, dashboards) are #75's. The runtime guarantees th
 |---|---|
 | The scheduler grows beyond the claim, due-time and admission logic (many distinct long workflows, not the one lifecycle) | Adopt DBOS Transact behind the `Scheduler` port, or pg-boss for the claim primitive; the Job row stays |
 | One Account's event-emitting commits contend on its counter | Move to commit-horizon cursors (a transaction-id safe read position) without changing the stream protocol |
-| Neon's pricing, availability or ownership changes materially | Move to PlanetScale Postgres, Railway Postgres or Fly Postgres; nothing at runtime depends on Neon-only features (RT5) |
-| Fly proves unreliable | Render, Railway or a VPS; the image is plain Docker and the worker is stateless |
-| Hundreds of concurrent streams strain the event tail | One shared tail per `web` machine with fan-out; then a managed channel for fan-out only (the events table stays the replay source) |
+| Operating Postgres on the VPS (upgrades, backups, uptime) outgrows the operator, or the machine's capacity is reached | Move the database to managed Postgres (Neon, PlanetScale, Railway or Fly Postgres) by dump and restore; nothing at runtime depends on a host feature (RT5) |
+| The VPS or its provider proves unreliable | Another VPS provider, or Fly, Render or Railway; the image is plain Docker and the worker is stateless |
+| Hundreds of concurrent streams strain the event tail | One shared tail per `web` instance with fan-out; then a managed channel for fan-out only (the events table stays the replay source) |
 | Projects reach low terabytes, or ZIP exports dominate egress | Re-price storage (Backblaze B2, Tigris, S3); the `BlobStore` port is S3-shaped |
 
 ## 10. Not decided here
@@ -223,8 +225,8 @@ Schema and migrations, the row-level rule mechanism, media key layout, content a
 | Ticket | Receives |
 |---|---|
 | **Persistence and media storage** (#72) | The runtime needs a relational transactional store with `FOR UPDATE SKIP LOCKED`; forced row-level rules for the `app` role and the `scheduler` identity of §5; a per-Account event counter and event table; receipts unique on (provider, delivery id); a Jobs store with one due time and lease token per Job; direct connections for the worker; R2 as the object store behind an S3-shaped `BlobStore` port with project-separable prefixes. Vendor and plan are recorded here; schema, key layout, content addressing against purge, retention and garbage collection remain #72's |
-| **Operational baseline** (#75, resolved in [`OPERATIONAL-BASELINE.md`](OPERATIONAL-BASELINE.md)) | Authentication candidates narrowed (Supabase Auth out; Better Auth, Clerk, WorkOS remain; the invite flow is the `accounts` seam); the three database identities; keys decrypted only in `web` and `worker`; the §7 signals and the oldest-overdue alert; Neon branches usable for CI and restore drills; the §9 exit paths as the restore story |
-| **Build sequence** (#77) | The platform to stand up first (Fly app with two process groups, Neon, R2); the scheduler and the event tail as early tracer-bullet pieces, since the first Job end to end exercises both |
+| **Operational baseline** (#75, resolved in [`OPERATIONAL-BASELINE.md`](OPERATIONAL-BASELINE.md)) | Authentication candidates narrowed (Supabase Auth out; Better Auth, Clerk, WorkOS remain; the invite flow is the `accounts` seam); the three database identities; keys decrypted only in `web` and `worker`; the §7 signals and the oldest-overdue alert; the operator-owned backups the VPS default implies (Record 2 P11, P12); the §9 exit paths |
+| **Build sequence** (#77) | The platform to stand up first (one VPS running `web`, `worker` and Postgres as containers, R2, and the backup floor of OPERATIONAL-BASELINE §8); the scheduler and the event tail as early tracer-bullet pieces, since the first Job end to end exercises both |
 | **Verification** (#76) | RT1 to RT6; the `Scheduler` fake and shared conformance suite; kill-a-worker-mid-step tests on virtual time; duplicate, late and out-of-order webhooks; stream replay after reconnect; two-Account runs through worker, webhook and stream |
 | **Providers** (#66) | Webhook signature verification is an adapter capability; adapters receive credential handles and never read global keys |
 
@@ -234,4 +236,6 @@ No requirement was found unworkable or contradictory; **no `CONSTITUTION AMENDME
 
 ## Record 2 amendment (P11): hosting default
 
-The creator reopened the hosting choice. **Default target: one VPS** (for example Hetzner) running the web process, the worker and Postgres, with **Cloudflare R2** kept for private media; estimated about $10 to $25 a month before provider bills (unverified). This replaces Fly.io + Neon as the default (about $35 to $40 a month), which remain valid alternatives. **Portability is a requirement:** plain Docker images, a stateless worker, plain Postgres with no vendor-specific database or host feature (RT5 stays in force), and vendor SDKs only behind platform adapters (`BlobStore`, host configuration). The operator accepts owning OS patching, Postgres upgrades, backups and uptime. Where this document names Fly or Neon as the platform, read them as the alternative.
+The creator reopened the hosting choice. **Default target: one VPS** (for example Hetzner) running the web process, the worker and Postgres, with **Cloudflare R2** kept for private media; estimated about $10 to $25 a month before provider bills (unverified). This replaces Fly.io + Neon, #74's original choice (about $35 to $40 a month), as the default; Fly, Render, Railway and managed Postgres remain valid later moves without code changes. **Portability is a requirement:** plain Docker images, a stateless worker, plain Postgres with no vendor-specific database or host feature (RT5 stays in force), and vendor SDKs only behind platform adapters (`BlobStore`, host configuration). The operator accepts owning OS patching, Postgres upgrades, backups and uptime. The body above states the VPS as the current deploy choice; Fly and Neon appear where they record #74's comparison or a later alternative.
+
+*Price check, 2026-10-23 (audit research, not re-verified here):* the estimate is plausible against Hetzner's EU list prices that day (CX33, 4 vCPU and 8 GB, €8.99 a month; CX43, 8 vCPU and 16 GB, €16.49 a month; both including IPv4, excluding VAT) plus R2 at $0.015 per GB-month with free egress. US locations cost several times more, and Hetzner listed shared types as currently unavailable that day. It remains an estimate; re-check at build time.
