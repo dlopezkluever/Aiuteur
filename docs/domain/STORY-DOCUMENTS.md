@@ -1,8 +1,8 @@
 # Story documents: representation, provenance, revisions, targeted rewrite and sync
 
-Resolution of Wayfinder ticket #51. Vocabulary is in [`GLOSSARY.md`](../../GLOSSARY.md). The representation trade-off is [ADR 0008](../adr/0008-story-documents-are-block-documents-with-provenance-runs.md); the sync decision is [ADR 0009](../adr/0009-treatment-beat-sheet-sync-is-explicit-and-never-guesses.md). The creator's sync choice is R10 in [`CREATOR-RATIFICATION-RECORD.md`](../product/CREATOR-RATIFICATION-RECORD.md). This is a design contract, not a schema; names of fields are illustrative.
+Resolution of Wayfinder ticket #51. Vocabulary is in [`GLOSSARY.md`](../../GLOSSARY.md). The representation trade-off is [ADR 0008](../adr/0008-story-documents-are-block-documents-with-provenance-runs.md); the sync decision is [ADR 0009](../adr/0009-treatment-beat-sheet-sync-is-explicit-and-never-guesses.md). The creator's sync choice is R10 in [`CREATOR-RATIFICATION-RECORD.md`](../product/CREATOR-RATIFICATION-RECORD.md), ratified with this representation as P4 and refined by D58 (directional update actions, Keep my edits default, Notes) in [`CREATOR-RATIFICATION-RECORD-2.md`](../product/CREATOR-RATIFICATION-RECORD-2.md), which controls where they differ. This is a design contract, not a schema; names of fields are illustrative.
 
-Authority: Constitution §§4.2–4.4, 5.3, 13.2–13.3, 16 (principles 2, 3, 4, 11, 12); R10; [`DOMAIN-MODEL.md`](DOMAIN-MODEL.md) (Revision, Option, Slot); [`../ai/AI-RESPONSIBILITY-MAP.md`](../ai/AI-RESPONSIBILITY-MAP.md) (guards G1–G10, handles, splice). V1 is cited only as failure evidence (legacy 06 §§3, 5–7, 10–12; legacy 10 §6).
+Authority: Constitution §§4.2–4.4, 5.3, 13.2–13.3, 16 (principles 2, 3, 4, 11, 12); R10; Record 2 P4, D58, X3, X4; [`DOMAIN-MODEL.md`](DOMAIN-MODEL.md) (Revision, Option, Slot); [`../ai/AI-RESPONSIBILITY-MAP.md`](../ai/AI-RESPONSIBILITY-MAP.md) (guards G1–G10, handles, splice). V1 is cited only as failure evidence (legacy 06 §§3, 5–7, 10–12; legacy 10 §6).
 
 No `CONSTITUTION AMENDMENT REQUIRED`: nothing here conflicts with a CORE or IMPORTANT requirement.
 
@@ -53,11 +53,12 @@ Run       { text, provenance: creator | imported | ai_generated | ai_edited,
 - Adjacent runs with the same (provenance, generation) merge. Display may coalesce whitespace-only runs; stored text is exact.
 - **Block lifecycle** is explicit in Revisions: *split* (the first part keeps the id, the second gets a new id with `split_from`), *merge* (the earlier block keeps its id, the other is retired with `merged_into`), *move* (id unchanged), *delete* (retired; recoverable from the Revision).
 - **Derived forms** are computed on demand and never authoritative: plain text for AI context (with block-id handles inline), Markdown, screenplay, PDF.
+- **Notes are not blocks** (Record 2 D58.5). A creator's Note on a passage or beat is a separate, retire-only record anchored to block ids. It has no runs and no provenance, is outside document Revisions and derived forms, and is never in AI context unless the creator ticks "use my notes" on that one request, which records which Notes it sent ([`../ux/WRITING-EXPERIENCE.md`](../ux/WRITING-EXPERIENCE.md) §2.6).
 - **AI output enters only through the commit path** (G1 schema, G2 references, G4 splice, G7 provenance). Block structure from the model is validated against the target fragment’s kinds; invalid output is rejected, never coerced.
 
 ### 2.3 Treatment options
 
-The domain model’s Treatment is the chosen one, with Options (unchosen alternatives). In this representation a treatment Option is a complete block document with its own Revisions, offered by a Generation and editable while unchosen. **Choosing** copies the Option’s blocks (ids preserved) into the Treatment as one new Revision labelled `chosen from <Option>`, with provenance unchanged. The Option and its history stay recoverable. “Just give me one” is a single Option chosen at once. Whole-treatment regeneration is a new Generation whose output replaces the Treatment head as a new Revision (pre-operation capture, §4) or adds Options, at the creator’s request. Unchosen Options are never synchronized. The number of Options and their presentation belong to Writing experience (#58).
+The domain model’s Treatment is the chosen one, with Options (unchosen alternatives). In this representation a treatment Option is a complete block document with its own Revisions, offered by a Generation and editable while unchosen. **Choosing** copies the Option’s blocks (ids preserved) into the Treatment as one new Revision labelled `chosen from <Option>`, with provenance unchanged. The Option and its history stay recoverable. “Just give me one” is a single Option chosen at once. Whole-treatment regeneration is a new Generation whose output replaces the Treatment head as a new Revision (pre-operation capture, §4) or adds Options, at the creator’s request. Replacing the head defaults to **Keep my edits** (protected spans, §3, are kept); **Replace everything** is an explicit choice, and the replaced text stays in history (Record 2 D58.4). Unchosen Options are never synchronized. The number of Options and their presentation belong to Writing experience (#58).
 
 ### 2.4 Imported content standing in for a phase
 
@@ -83,7 +84,9 @@ Granularity is the **run**: the maximal stretch of one provenance inside a field
 
 Provenance is **computed by the commit path from the splice** (G7), never reported by a model. The provenance highlight (IMPORTANT) groups `ai_generated` and `ai_edited` as “AI-made” by default (§13.3) and may distinguish them.
 
-**Protected span** (AI map §4.2, refined here): in any AI operation on a document, runs with provenance `creator`, `imported` or `ai_edited` are protected. They are passed to the model as handles and restored by code; the model cannot alter them. Protection derives from provenance only; nothing else (such as a block-level flag) is needed, and a block with one typed word can still be rewritten around it. `ai_generated` runs the creator never touched are replaceable by sync and by region regeneration. Region regeneration modes (“keep my dialogue”, “keep my edits”, “replace everything”) are the AI map’s; how they are presented belongs to Writing experience (#58).
+**Protected span** (AI map §4.2, refined here): in any AI operation on a document, runs with provenance `creator`, `imported` or `ai_edited` are protected. They are passed to the model as handles and restored by code; the model cannot alter them. Protection derives from provenance only; nothing else (such as a block-level flag) is needed, and a block with one typed word can still be rewritten around it. `ai_generated` runs the creator never touched are replaceable by sync and by region regeneration. Region regeneration modes (“keep my dialogue”, “keep my edits”, “replace everything”) are the AI map’s; for whole-document regeneration “keep my edits” is the default and “replace everything” must be chosen explicitly (Record 2 D58.4). Presentation is in Writing experience (#58).
+
+**Hand edits and Established Facts** (Record 2 X3). Facts bind AI drafting and revision of these documents: every AI operation here (generation, targeted rewrite, sync, conversion additions) is fact-checked (G6) with R6 outcomes. A creator’s own edit is never rejected, held or questioned on account of a Fact; if it contradicts one, the edit stands and the Fact is quietly marked superseded (a Revision of the Fact, with Undo), with no question raised (AI map §4.3 items 0 and 4).
 
 ## 4. Revisions
 
@@ -122,7 +125,7 @@ Inputs: document, base Revision, selection (block id + offset to block id + offs
 
 ## 6. Treatment ↔ Beat Sheet synchronization (before Master Narrative acceptance)
 
-Decision (R10): **explicit only**. Aiuteur detects and shows disagreement automatically but never changes either document unless the creator presses Sync. Rationale and alternatives are in ADR 0009.
+Decision (R10, refined by Record 2 D58.7 and X4): **explicit only**. Aiuteur detects and shows disagreement automatically but never changes either document unless the creator presses one of the update actions below. "Sync" names these actions collectively; it is not a symmetric control. The primary direction is Beat Sheet → Treatment. Rationale and alternatives are in ADR 0009.
 
 ### 6.1 What links
 
@@ -134,26 +137,28 @@ Computed per link by comparing current hashes to the base: *in agreement*, *trea
 
 ### 6.3 What Sync does
 
-Sync is pressed per item or for the whole pair. Each action is a normal AI operation (fixed pipeline, an L proposal committed by guards, AI map §9), so every sync is one Generation and one `sync` Revision per target document, undoable:
+An update action is pressed per item or for the whole pair. Each action is a normal AI operation (fixed pipeline, an L proposal committed by guards including the fact check G6, AI map §9), so every sync is one Generation and one `sync` Revision per target document, undoable:
 
-- **Update beat from passage(s)** and **update passage(s) from beat**: rewrite the target block with its protected spans passed as handles.
+- **Update Treatment to match Beat Sheet** (primary, prominent on the Beat Sheet page): rewrite the linked passage(s) to reflect the beat's newer decisions, preserving unrelated Treatment detail.
+- **Update Beat Sheet from Treatment** (the reverse, for when the creator has gone back to edit the Treatment): rewrite the linked beat from its passage(s).
+- Both rewrite only the target blocks, with their protected spans passed as handles.
 - **Add the missing beat or paragraph** for an uncovered passage or beat; insertion never touches existing blocks.
 - **Keep both as they are:** reset the base to the current content; no text changes.
 
-Whole-pair Sync is a batch of per-link Generations, so completed items survive a later failure. Text actions are normally under the trivial-spend threshold; the ordinary spend rules and the 10-Generation confirmation apply.
+A whole-pair update is a batch of per-link Generations, so completed items survive a later failure. Text actions are normally under the trivial-spend threshold; the ordinary spend rules and the 10-Generation confirmation apply.
 
 ### 6.4 Protection and conflicts
 
 - Sync never deletes or reorders a block, and never alters a protected span (§3). A block containing only replaceable `ai_generated` text is updated freely.
-- If the needed change would alter a protected span, the model returns a structured “needs protected change” outcome and the result is **held** as an Option, per R10 (“a protected-span change is held”). The creator can use it (applied as an ordinary requested rewrite of that range), adjust it by hand, or keep both. A damaged splice or altered protected text is rejected (G3, G4), as always.
-- When both sides changed, nothing is chosen for the creator. The pair shows the drift with three explicit choices: update beat from passage, update passage from beat, keep both.
+- If the needed change would alter a protected span, the model returns a structured “needs protected change” outcome and the result is **held** as an Option, per R10 (“a protected-span change is held”), and shown for one-click approval (D58.7). The creator can use it (one click; applied as an ordinary requested rewrite of that range), adjust it by hand, or keep both. A damaged splice or altered protected text is rejected (G3, G4), as always.
+- When both sides changed, nothing is chosen for the creator. The pair shows the drift with three explicit choices: Update Treatment to match Beat Sheet, Update Beat Sheet from Treatment, keep both.
 - Sync is recoverable: each result is a Revision, and held results are Options.
 
 ### 6.5 The disagreement check
 
 Before **drafting the Master Narrative** and before **accepting** it, if the Treatment and Beat Sheet both exist and drift is present, Aiuteur shows the disagreement and asks which document to follow. It never guesses and never silently picks a primary.
 
-- At drafting, the choice names the primary input; the drafting Generation records the exact Treatment and Beat Sheet Revisions it used. The creator may also run Sync first, or proceed with “follow Treatment” or “follow Beat Sheet”.
+- At drafting, the choice names the primary input; the drafting Generation records the exact Treatment and Beat Sheet Revisions it used. The creator may also update first (the actions of §6.3), or proceed with “follow Treatment” or “follow Beat Sheet”.
 - At acceptance, the choice is recorded as a creator Decision; if the creator chooses to follow a document, the Master Narrative is not rewritten by this; the creator can redraft or edit. Acceptance proceeds only by the creator’s explicit click, as now.
 - If the pair is *not aligned* (for example both imported), Aiuteur says it cannot compare and offers Align; it does not report agreement it cannot know.
 - Both documents are skipped or only one exists: no check is needed.
@@ -170,7 +175,7 @@ Editor adapter round trip is identity. Import preserves source text verbatim. A 
 
 **Scene identity (#52, resolved in [`SCENE-IDENTITY.md`](SCENE-IDENTITY.md): Scene id equals the container block id; mapping precedes id assignment; the questions below are answered there).** Master Narrative = ordered `scene` container blocks with opaque, permanent ids that survive edits, moves and AI rewrites inside the scene. Split, merge and retire are recorded per Revision. Downstream records refer to (document, Revision, block id) for anchors and to the Scene’s own identity for production. No identity or structure is parsed from text. Dialogue blocks are addressable inside scenes. Left to #52: whether Scene id equals the container block id; matching across whole-narrative regeneration and screenplay re-conversion (the AI map asks for deterministic first, ambiguity surfaced); scene heading attrs; what happens downstream when a scene block is merged or removed (must retire, never delete).
 
-**Writing experience (#58).** Option count and presentation; drift notes, Sync affordances and the disagreement prompt (quiet, M1); region-regeneration mode presentation; highlight rendering; idle threshold feel and save indicators; per-beat alternatives (transient proposals, not document content).
+**Writing experience (#58, resolved in [`../ux/WRITING-EXPERIENCE.md`](../ux/WRITING-EXPERIENCE.md) from Record 2 D58).** Option count and presentation; drift notes, the update actions and the disagreement prompt (quiet, M1); region-regeneration mode presentation; Notes; highlight rendering; idle threshold feel and save indicators; per-beat alternatives (transient proposals, not document content).
 
 **Persistence and architecture.** Working copy vs Revision; idempotency keys; hash compare-and-set; Generation results retained even when held; derived text view with handles for the compiler; project-separable storage (M7).
 

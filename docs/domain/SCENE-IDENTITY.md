@@ -2,7 +2,7 @@
 
 Resolution of Wayfinder ticket #52. Vocabulary is in [`GLOSSARY.md`](../../GLOSSARY.md). The identity trade-off is [ADR 0011](../adr/0011-scene-identity-is-the-container-block-id-and-mapping-precedes-id-assignment.md). This is a design contract, not a schema; field names are illustrative.
 
-Authority: Constitution §§4.3–4.4, 5.1–5.2, 5.6, 7.1, 16 (principles 3, 4, 11); [`CREATOR-RATIFICATION-RECORD.md`](../product/CREATOR-RATIFICATION-RECORD.md) R1, R2, R3, M1, M3; [`DOMAIN-MODEL.md`](DOMAIN-MODEL.md) §4.1; [`STORY-DOCUMENTS.md`](STORY-DOCUMENTS.md) §§2.2, 8; [`LINEAGE-AND-STALENESS.md`](LINEAGE-AND-STALENESS.md); [`../ai/AI-RESPONSIBILITY-MAP.md`](../ai/AI-RESPONSIBILITY-MAP.md). V1 is cited only as failure evidence (legacy 06 §8; legacy 04 §8; legacy 10 §§5, 7).
+Authority: Constitution §§4.3–4.4, 5.1–5.2, 5.6, 7.1, 16 (principles 3, 4, 11); [`CREATOR-RATIFICATION-RECORD.md`](../product/CREATOR-RATIFICATION-RECORD.md) R1, R2, R3, M1, M3; [`CREATOR-RATIFICATION-RECORD-2.md`](../product/CREATOR-RATIFICATION-RECORD-2.md) D52, P7, P9, X5 (controls where it differs; see the closing section); [`DOMAIN-MODEL.md`](DOMAIN-MODEL.md) §4.1; [`STORY-DOCUMENTS.md`](STORY-DOCUMENTS.md) §§2.2, 8; [`LINEAGE-AND-STALENESS.md`](LINEAGE-AND-STALENESS.md); [`../ai/AI-RESPONSIBILITY-MAP.md`](../ai/AI-RESPONSIBILITY-MAP.md). V1 is cited only as failure evidence (legacy 06 §8; legacy 04 §8; legacy 10 §§5, 7).
 
 No `CONSTITUTION AMENDMENT REQUIRED`. Nothing here conflicts with a CORE or IMPORTANT requirement. The "may not reopen" items are all kept: one human-editable Master Narrative, no camera direction in it, no scene silently deleted with its work.
 
@@ -84,7 +84,7 @@ Re-homing moves only the Shot's parent. Frames and Takes stay on their Shot. Cap
 
 Mapping is needed whenever a new Master Narrative head is produced from *incoming structure that carries no ids*: **whole-narrative regeneration** and **revised-screenplay import (re-conversion)**. Creator direct edits and region operations already carry ids and need no mapping. Mapping is decided **before the Revision is committed**, because ids are permanent: a wrong identity merge cannot be repaired afterwards, only the work can be moved.
 
-A revised screenplay **replaces the head with mapping**; it is not text-merged into the creator's edits. The previous head stays as the prior Revision and is restorable. Verbatim rules are unchanged (dialogue and story verbatim as `imported` runs; AI additions separate).
+A revised screenplay **replaces the head with mapping**; it is not text-merged into the creator's edits. When the computed mapping would retire, split or merge scenes that already have production work, the import first offers **Duplicate into a new version** (recommended) or **Apply to this project** (Record 2 D52.2, closing section); everything below in §4 describes applying in place. The previous head stays as the prior Revision and is restorable. Verbatim rules are unchanged (dialogue and story verbatim as `imported` runs; AI additions separate).
 
 ### 4.2 Deterministic first, AI second, ambiguity to the creator
 
@@ -133,7 +133,7 @@ Not confirmed: exact and strong matches with no change of structure, pure insert
 - **Whisper only** (M1): the Outline lists a collapsed, low-contrast group "Removed from Story (n)" holding retired scenes that have work. Retired scenes without work are reachable from narrative history. At the position in the Master Narrative where the scene used to be, a quiet note reads "Scene removed. 12 shots of work kept". No banner or modal. The review-all tray includes them.
 - A retired Scene is **viewable and exportable** (Frames, Takes, history) and is excluded from batch scopes, Board runtime and the default export order. New generation inside a retired scene is not offered until it is brought back or its work is moved, so the creator never spends on work outside the film.
 - **Bring back.** Restoring a narrative Revision reactivates the scene by id automatically. A direct "Bring back this scene" action appends a Revision that re-inserts a container with the **same id** and its last text from the Revision where it last appeared; the creator picks the position (default: the former slot).
-- **Adopt work.** "Move this scene's work to Scene X" re-homes all its Shots into an active scene as one Decision group; creator-initiated, undoable, never automatic. Shot anchors that no longer resolve are marked `input-retired`.
+- **Adopt work.** "Move this scene's work to Scene X" re-homes all its Shots into an active scene as one Decision group; creator-initiated, undoable, never automatic. They are placed after Scene X's existing shots, in their old order (as for merge). Frames and Takes stay on their Shots. Shot anchors are kept as recorded, never re-pointed or guessed onto Scene X's text: anchors to blocks retired with the scene do not resolve and are marked `input-retired` (the lost-anchor case of §3 and [`SHOT-MODEL.md`](SHOT-MODEL.md) §3.2). Re-anchoring an adopted Shot to Scene X's text is the creator's ordinary shot edit. This differs from Ad-hoc shots' "Move to scene", where the Shot had no anchor to begin with.
 
 ### 5.2 Split scenes
 
@@ -152,7 +152,7 @@ Text before the first heading, or any imported content segmentation cannot place
 - **No new staleness reason.** Structure effects use existing reasons (`narrative-changed`, `input-retired`) and the existing Acknowledgements ([`LINEAGE-AND-STALENESS.md`](LINEAGE-AND-STALENESS.md) §3.1). Mapping never re-stamps a Basis; only the creator's reconcile does.
 - **Locks.** A lock on a scene attaches to its id. Delete, split, merge, mapping retire and rewrite of a locked scene are edits to a locked scope: confirmation with impact; AI-applied changes are held as Options. Locks follow `merged_into`.
 - **Looks and Facts.** Anchors to a retired scene are inert, not removed, and return on restore. Redirects follow `merged_into`.
-- **Duplicate project.** Container ids remap with everything else.
+- **Duplicate project.** Full duplicate: container ids remap with everything else. Duplicate without production (D52.2): no scene containers are carried; the new Master Narrative's scenes get new ids from the imported screenplay. How the source's scene-anchored Look assignments and Fact anchors carry into the new version is not yet decided.
 
 ## 7. Considered alternatives
 

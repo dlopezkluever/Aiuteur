@@ -16,5 +16,5 @@ A Scene is the identity of a `scene` container block in the Master Narrative; th
 
 - The Master Narrative editor must treat cut and paste inside the app as a move, and the splice guard must keep scene containers and boundaries out of targeted-rewrite output.
 - Every Shot's parent is a Scene id and its anchor is a block id; re-homing is a recorded Decision (automatic only for the creator's own structural edits).
-- Retired scenes are never destroyed inside a project (project purge excepted, M7); the Outline shows them only as a quiet group.
+- Retired scenes are never destroyed inside a project (project purge excepted, M7); the Outline shows them only as the quiet "Removed from Story" group (Record 2 D52.4), distinct from Ad-hoc shots (X5).
 - Mapping thresholds are tuned on golden fixtures in verification (#76).
