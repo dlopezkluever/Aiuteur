@@ -27,7 +27,7 @@ Status: audit record for the next creator grilling session. It records findings 
 | PASS | 0 |
 | PASS WITH CLARIFICATION | 11 |
 | CORRECTED | 14 (one, #72, also needed a downstream recheck; done) |
-| CREATOR REVIEW REQUIRED | **2 items** (raised from #58 and #68; their tickets are counted above) |
+| CREATOR REVIEW REQUIRED | 2 items raised (from #58 and #68), both **RESOLVED** by Record 3; **0 open** |
 
 **The foundation is broadly sound.** No core design had to be reworked: identity rules, lineage derived from captured inputs, server-side locks, the one history gate, the layered compiler, the fail-closed catalogue, the job lifecycle and isolation in the database.
 
@@ -121,7 +121,18 @@ The questions and recommendations below are preserved as the original audit inpu
 - **Recommendation:** (b).
 - **Affected:** BUSINESS §3 and §9 (marked awaiting review), AI map §6.0 and §11, SHOT-MODEL §3.1, the #60 redo.
 
-These were the only two creator-review items. Neither remains open.
+These were the only two creator-review items. Both are **RESOLVED**:
+
+| Item | Final creator ruling (Record 3) |
+|---|---|
+| CR-1 RESOLVED | Entering an eligible empty Treatment auto-generates the Settings count (default 3). Eligible means: no Treatment, no prior generated options, no upload explicitly designated in Input as the Treatment. Stage entry authorizes ordinary low-cost initial generation: no second button, priced label, popup or small-cost confirmation. Exceptional rules still apply ($2.00+, 10+ Generations, unknown price, cap/ceiling, bulk by filter). The audit's button recommendation is rejected. |
+| CR-2 RESOLVED | A scene with no plan auto-drafts only below $0.05 with no exceptional condition; at $0.05 or more it shows **Draft plan · $x**. An existing (including emptied) plan is never auto-redrafted; frames, images, worlds, Takes and audio never start automatically; no silent cheaper-model substitution to keep auto-drafting. |
+
+### 6.1 Corrections caused by Record 3
+
+- Record 3 session (commit `8cb0648`): WRITING-EXPERIENCE, INTAKE-AND-INTERVIEW, BUSINESS-AND-OPERATIONS, GLOSSARY, ADR 0010, AI-RESPONSIBILITY-MAP, ADR 0007, MODULE-ARCHITECTURE, JOB-LIFECYCLE, SHOT-MODEL, NAVIGATION and this report. It reverses this audit's `67d1f47` Treatment-button change and the "only one ratified auto-trigger" wording.
+- Post-Record-3 reconciliation pass: ADR 0012 and TRUST-SIGNALS-AND-LOCKS §4 now state the CR-2 below-$0.05 gate on the automatic first draft. Live issue #60 received a comment superseding its pending-review bullet, and the #49 Notes pointer was updated.
+- Targeted checks run: corpus searches for "Draft treatment options", "only/one ratified auto-trigger", "awaiting creator review", "economy model", and every auto-draft/initial-plan mention. No stale hit remains outside historical quotes in §§3–6 of this report.
 
 ## 7. Deferred decisions (confirmed not decided by the audit)
 
@@ -132,6 +143,7 @@ These were the only two creator-review items. Neither remains open.
 - The project-level "always include" constraint.
 - Cross-project adoption of production work.
 - Mapping and option-count ranges.
+- A possible future creator setting to reduce spend gates (Record 3 §3): deferred, neither approved nor designed; no setting or default exists.
 
 **Spec-level gaps the audit noticed and left undecided:**
 - whether ad-hoc shots count toward coverage readiness;
@@ -181,4 +193,4 @@ No deferred item is needed for the architecture to be coherent.
 
 ## 12. Recommended next step
 
-**Creator grilling of §6 is complete.** Record 3 controls the #58 empty-Treatment state and the #60 initial-plan spend boundary. The affected docs are reconciled. Prototype work and Wayfinder orchestration were not started, and the frontier is unchanged. The live #49 and #60 pending-review pointers still need the master agent's update when authorized; this doc-only session made no GitHub writes.
+**Creator grilling of §6 is complete.** Record 3 controls the #58 empty-Treatment state and the #60 initial-plan spend boundary. The affected docs are reconciled. Prototype work and Wayfinder orchestration were not started, and the frontier is unchanged. The live #49 and #60 pointers were updated in the post-Record-3 reconciliation pass. **No creator grilling remains; the non-prototype corpus is ready for the dedicated prototype round** (#60 required; #58, #59, #62 recommended; #61 optional), which this audit does not start.

@@ -45,7 +45,7 @@ A lock blocks edits to the locked thing (new Revisions, retiring, moving the cho
 
 An offer is a single quiet inline choice (lock / not now), never repeated and never required. Not locking is a normal state, not a missing one.
 
-**Shot-plan locks and AI drafting.** The automatic first draft runs only when a scene has **no** shot plan (Record 2 D60.5), so it never meets the point-4 offer, which comes later at frame generation. Any AI result that would change a locked shot plan (a redraft, "Draft all" across scenes, or a first draft for a scene the creator voluntarily locked while empty) is **held as an Option**, never applied (§3; D60.6). None of these ever generates frames, images, worlds or takes (X8).
+**Shot-plan locks and AI drafting.** The automatic first draft runs only when a scene has **no** shot plan and its estimate is below $0.05 (Record 2 D60.5, Record 3 CR-2; otherwise the creator clicks **Draft plan · $x**), so it never meets the point-4 offer, which comes later at frame generation. Any AI result that would change a locked shot plan (a redraft, "Draft all" across scenes, or a first draft for a scene the creator voluntarily locked while empty) is **held as an Option**, never applied (§3; D60.6). None of these ever generates frames, images, worlds or takes (X8).
 
 ## 5. Friction scales with downstream work
 
