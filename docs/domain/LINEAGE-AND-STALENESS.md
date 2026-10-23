@@ -112,7 +112,7 @@ The reason is a structured value `(reason code, subject, change summary, via?)`.
 | Code | Meaning | Subject names |
 |---|---|---|
 | `narrative-changed` | The Master Narrative passage this work was made from changed | Scene, passage |
-| `fact-changed` | An Established Fact in force when it was made changed or was withdrawn | the fact |
+| `fact-changed` | An Established Fact that a *text drafting* Generation listed changed or was withdrawn. Media Generations do not capture Facts (Record 2 X3). | the fact |
 | `identity-changed` | A Character, Location, Prop or Extra type's description or active image changed | entity, slice (description / image) |
 | `look-changed` | A Look's content changed, or the Look in the Presence changed | entity, Look |
 | `coverage-changed` | The active View a shot used, or the coverage definition, changed | Location, View |
@@ -137,7 +137,7 @@ Not reasons: "model default changed", "locked/unlocked", "restored" (restore is 
 | Upstream change | Marks (chosen/current work that captured it) | Reason | What is not touched | Exits |
 |---|---|---|---|---|
 | **Narrative**: a passage of the Master Narrative gets a Revision | Shots whose Basis includes that passage; Presences derived from it; Looks/Dialogue lines anchored to it; Frames/Takes that captured the passage text or a Shot slice drafted from it only through `upstream-pending` | `narrative-changed` (direct on the Shot); `upstream-pending` on Frames/Takes | The Shot's text, Frames, Takes, Scenes, entities | Regenerate or redraft the Shot from the new passage; reconcile; keep; restore the narrative |
-| **Established Fact** changes or is withdrawn | Generations that listed the fact (text and image work) | `fact-changed` | Everything else | Regenerate, keep |
+| **Established Fact** changes or is withdrawn | Text drafting Generations that listed the fact (not media) | `fact-changed` | Everything else | Regenerate, keep |
 | **Entity** canonical description or active image changes | Frames, Takes, Views, Looks that captured that slice; any text work that captured the description | `identity-changed` | Attempts of other entities; unchosen Attempts; the entity's earlier Revisions | Regenerate with the entity, keep, restore the Revision; write-back/deviation if the change originated downstream (§5) |
 | **Look** changes, or a different Look is assigned in a Presence | Shots/Frames/Takes that captured that Look in that Presence | `look-changed` | Other Looks of the entity; the base identity | As above |
 | **Location coverage / active View** changes | Frames and Takes that used the View or the direction | `coverage-changed` | Frames of other directions | As above |

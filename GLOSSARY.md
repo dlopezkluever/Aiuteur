@@ -596,3 +596,13 @@ A legacy idea that design may adopt, adapt or replace; neither mandated nor bann
 **Media**:
 The stored image, video or audio content itself, distinct from the object that gives it meaning. Media is immutable; reusing it inside a project shares it, while a duplicated project or a copy-on-use gets its own copy.
 _Avoid_: File, asset
+
+## Record 2 terms
+
+- **Removed from Story**: Outline group for scenes retired by a narrative change that keep all their work; offers Bring back and Adopt work.
+- **Ad-hoc shot**: a shot with no parent scene and no narrative anchor, kept in the project's Ad-hoc shots section; excluded from runtime and playback, exported separately, movable into a scene.
+- **Identity readiness**: whether an entity is visually defined enough to use (canonical description plus approved reference). Never gates.
+- **Production coverage readiness**: whether the views the current shot plan needs exist. Quiet, never gates.
+- **Base Look**: the default appearance of an entity; it is the canonical identity, not a separate object.
+- **Superseded Fact**: an Established Fact quietly marked superseded when the creator's own edit contradicts it (a Revision, with Undo).
+- **World model**: a Catalogue provider class used by CineBlock to generate a navigable scene from an image; creator-initiated, operator-paid until BYOK.

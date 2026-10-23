@@ -21,3 +21,7 @@ Decision: a pure compiler turns a snapshot of owned truth and a model capability
 - Over-limit requests are blocked with exits (another model, edit, turn off an optional layer); "send anyway" is not offered because the received text could not then be described.
 - Provider-side rewriting is declared, disabled where controllable and otherwise disclosed.
 - Reproducibility means an exact record and a deterministic compile, not identical output.
+
+## Amendment (Creator Ratification Record 2, P10/X3)
+
+The per-Fact "carry into visual generation" pin and pinned Facts in the `binding` layer are removed. Established Facts bind AI drafting and revision of text and World Definition (fact-checked, R6). Media generation reads canonical creative state only (passage, shot, entities and current Looks, Visual Style, references, composition, exact dialogue, provider requirements); no Fact is injected. Contextual state overrides generic state. Global visual rules belong in Visual Style; per-shot Override `add(note)` covers one-offs.

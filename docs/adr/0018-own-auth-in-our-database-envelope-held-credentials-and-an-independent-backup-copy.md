@@ -30,3 +30,9 @@ Decision, for 1 to 50 invited Accounts:
 - A restore from any backup must replay the purge log, and dump retention is the bound on how long a purged project can survive in backups.
 - The deployer's infrastructure access is not a promise-breaker for creators' privacy between each other, and the baseline says so plainly.
 - Vendor facts are dated 2026-10-21; re-check Better Auth's invitation support, the backup vendor's delete-less key capability and the Neon history window at build time.
+
+## Record 2 amendment (P12, P8-purge): backups and restore
+
+**Floor from day one** (a single VPS disk failure would otherwise lose every creator's work, violating Constitution §16.1 and R1): an automated **daily database dump plus continuous WAL archiving to storage off the machine** (R2 is acceptable). **One successful restore test before any creator other than the owner is invited.** **Deferred, not decided:** number of backups and copies, retention, a second independent vendor, restore-drill cadence, the no-delete backup credential design, and the full manual drill gate described above. Read the second-vendor copy, weekly verification and full-drill gate in this document as deferred options. Cap defaults and the hidden operator ceiling size remain parked and must be set before the first invitation.
+
+**Purge promise (when purge ships, M7):** gone from Aiuteur at once; any backup copies expire within a stated retention window, which is told to the creator at purge time.

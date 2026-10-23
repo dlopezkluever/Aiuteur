@@ -116,3 +116,10 @@ Each receiving ticket places its surface **inside this shell**.
 | **Trust signals and locks** (#63) | Flags are whispers in the Outline, Board and workspace (M1). The on-demand review-all tray is cross-cutting; its entry is the quiet footer line already specified in `docs/ux/TRUST-SIGNALS-AND-LOCKS.md`. The Interview Ledger (`docs/ux/INTAKE-AND-INTERVIEW.md`) lives beside the Interview conversation. Lock indicators sit on the scope they lock and do not interrupt navigation. |
 | **Intake and Interview** (#57) | The first-run path is the normal Input phase (§7). Input must show how each item was understood and propose the entry point; the routing lives there, with no router screen before it. |
 | **Module architecture** (#71, resolved in [`MODULE-ARCHITECTURE.md`](../architecture/MODULE-ARCHITECTURE.md)) and **persistence** (#72) | Status, progress, runtime totals, needs-attention filters and out-of-date markers shown by the shell are derived reads of server truth. The Board needs a whole-project, shot-level summary read that is cheap at 250 shots, and Outline/Board status must not depend on loading each shot's full record. |
+
+## Record 2 amendments
+
+- The Outline gains **Ad-hoc shots** (intentionally created shots outside the narrative; SHOT-MODEL) and **Removed from Story** (retired scenes that keep work; SCENE-IDENTITY).
+- The whole-film overview is to be redesigned from the V1 Script Hub (scene cards with number and slug, status, last approved end-frame thumbnail, asset dependencies, Master Narrative excerpt). The earlier Board renditions are rejected and #60 is open for the redo.
+- CineBlock is a module of Aiuteur that opens in its own tab or window under the same account and session (D61).
+- Prototypes are structural sketches only; V1 is the visual and interaction reference (Record 2 section 3.1, X10).

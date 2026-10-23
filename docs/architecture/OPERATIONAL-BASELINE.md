@@ -327,3 +327,9 @@ Not part of the baseline, and not to be invented without a decision:
 ## 14. Constitution check
 
 No requirement was found unworkable or contradictory; **no `CONSTITUTION AMENDMENT REQUIRED` is raised.** §15.5 (collaboration out) holds: the only capability that is not a creator's own is the deployment's operator, defined by configuration plus a second factor, with content-free views; there are no roles or permissions. §18.4 holds between creators and on every operator surface; §9 states the limit honestly. Principle 3 ("nothing is lost inside a project") is met by point-in-time history, an independent copy of data and media at a second vendor, an offline route to the keys, and drills that prove restoring. Principle 12 is met: no extra state store, no queue, and every check reads the database that is already the truth. M4 to M7 are met by §2, §3 and §8.
+
+## Record 2 amendment (P12, P8-purge): backups and restore
+
+**Floor from day one** (a single VPS disk failure would otherwise lose every creator's work, violating Constitution §16.1 and R1): an automated **daily database dump plus continuous WAL archiving to storage off the machine** (R2 is acceptable). **One successful restore test before any creator other than the owner is invited.** **Deferred, not decided:** number of backups and copies, retention, a second independent vendor, restore-drill cadence, the no-delete backup credential design, and the full manual drill gate described above. Read the second-vendor copy, weekly verification and full-drill gate in this document as deferred options. Cap defaults and the hidden operator ceiling size remain parked and must be set before the first invitation.
+
+**Purge promise (when purge ships, M7):** gone from Aiuteur at once; any backup copies expire within a stated retention window, which is told to the creator at purge time.

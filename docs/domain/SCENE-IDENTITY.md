@@ -103,7 +103,7 @@ The creator confirms one **mapping review** (a single list, not a dialog per sce
 
 1. an **ambiguous** or model-proposed match involving a scene that has dependants;
 2. an old scene **with dependants** that the incoming structure would retire, split or merge;
-3. a matched scene whose current text contains creator-written or `ai_edited` runs and whose incoming text would replace it (default "take incoming", per-scene "keep current"; the old text stays in history either way).
+3. a matched scene whose current text contains creator-written or `ai_edited` runs and whose incoming text would replace it (default **Keep current**, per-scene **Take incoming**; the other version stays in history either way; Record 2 D52.3, reversing the earlier default).
 
 *Dependants* means anything that references the scene id besides the narrative itself: Shots, Look assignments, locks, anchors from Established Facts or entities. A scene with none never prompts, so a project with no production never sees a review.
 
@@ -130,7 +130,7 @@ Not confirmed: exact and strong matches with no change of structure, pure insert
 ### 5.1 Removed (retired) scenes
 
 - Retirement is **derived** (no container in the head). The work is never touched, never marked deleted, never auto-regenerated, and never spends.
-- **Whisper only** (M1): the Outline lists a collapsed, low-contrast group "Not in the story now (n)" holding retired scenes that have work. Retired scenes without work are reachable from narrative history. At the position in the Master Narrative where the scene used to be, a quiet note reads "Scene removed. 12 shots of work kept". No banner or modal. The review-all tray includes them.
+- **Whisper only** (M1): the Outline lists a collapsed, low-contrast group "Removed from Story (n)" holding retired scenes that have work. Retired scenes without work are reachable from narrative history. At the position in the Master Narrative where the scene used to be, a quiet note reads "Scene removed. 12 shots of work kept". No banner or modal. The review-all tray includes them.
 - A retired Scene is **viewable and exportable** (Frames, Takes, history) and is excluded from batch scopes, Board runtime and the default export order. New generation inside a retired scene is not offered until it is brought back or its work is moved, so the creator never spends on work outside the film.
 - **Bring back.** Restoring a narrative Revision reactivates the scene by id automatically. A direct "Bring back this scene" action appends a Revision that re-inserts a container with the **same id** and its last text from the Revision where it last appeared; the creator picks the position (default: the former slot).
 - **Adopt work.** "Move this scene's work to Scene X" re-homes all its Shots into an active scene as one Decision group; creator-initiated, undoable, never automatic. Shot anchors that no longer resolve are marked `input-retired`.
@@ -175,7 +175,7 @@ Golden fixtures: renamed headings; a scene split in the revision; two scenes mer
 
 **Shot model (#55).** A Shot's parent is a Scene id (the container block id). Shot anchors reference block ids. Re-homing is a Decision with the rules of §3. Shot split and merge are resolved in [`SHOT-MODEL.md`](SHOT-MODEL.md) §5 and are independent of scene structure. Shots of retired scenes stay valid.
 
-**Writing experience (#58).** Scene operations in the editor (insert, split at cursor, merge, move, delete) and their whispers; the mapping review as one surface; the "Not in the story now" group; Bring back and Adopt work; duration field presentation; in-app cut and paste must be a move. Quiet by default (M1).
+**Writing experience (#58).** Scene operations in the editor (insert, split at cursor, merge, move, delete) and their whispers; the mapping review as one surface; the "Removed from Story" group; Bring back and Adopt work; duration field presentation; in-app cut and paste must be a move. Quiet by default (M1).
 
 **Navigation and Board (#60).** The Outline shows active scenes by derived number and the collapsed retired group; per-scene runtime from selected Takes; scene batch scopes exclude retired scenes.
 
@@ -184,3 +184,10 @@ Golden fixtures: renamed headings; a scene split in the revision; two scenes mer
 **Persistence and architecture (#72, #71).** A Scene is a projection over the head Revision's containers plus the retire and re-home Decisions; indices on block id and Shot parent; a mapping applies in one transaction with its Decision; scene structure events are derived from block lifecycle (`split_from`, `merged_into`).
 
 **Verification (#76).** The invariants and fixtures of §8.
+
+## Record 2 amendments (D52, P7, X5)
+
+- **Normal iteration stays in the same project.** Rewriting or regenerating a scene, moving passages and targeted edits never push the creator to a new project; downstream work is preserved and flagged (R2).
+- **Major revised-screenplay import recommends a duplicate; the creator chooses.** Trigger (computed): the incoming scene mapping would retire, split or merge scenes that already have production work; the threshold is a spec-level tunable. The import surface leads with two choices, each with impact counts: **Duplicate into a new version** (highlighted; the current project is untouched) or **Apply to this project** (downstream work may become possibly out of date; nothing deleted). The new version copies Input and source material, Interview and Facts, Treatment and Beat Sheet (as development history), World Definition, settings and other upstream material. It does not carry scenes, shot plans, shots, frames or takes; the screenplay becomes the basis of the new Master Narrative. The two projects show a quiet "made from" link. There is no cross-project adoption of production work in V2. Below the trigger, import applies in place through the mapping review.
+- **Removed from Story** is the Outline group for retired scenes with work. It stays organized so the old scene and its shots, frames and takes are visible, with Bring back and Adopt work. It is distinct from **Ad-hoc shots** (SHOT-MODEL).
+- **P7.** Shots re-home automatically only on the creator's own structural edits, with a subtle undoable notice (for example "3 shots moved to Scene 5 · Undo"); AI or import changes never move production work without confirmation in the mapping review.

@@ -29,3 +29,7 @@ Decision, for an invite-only, multi-creator deployment of 1 to 50 Accounts:
 - Nothing at runtime may use vendor-specific features (RT5), so Neon, Fly and R2 each have a plain-Postgres, plain-Docker or S3-shaped exit.
 - Persistence (#72) owns schema, row-level mechanism, key layout and retention within these constraints; the Operational baseline (#75) owns authentication (Supabase Auth is out), secrets custody, backups and alerts, receiving the three identities and the oldest-overdue-due-time liveness signal.
 - Vendor facts are dated 2026-10-21; re-check Neon, Fly and R2 pricing and limits at build time.
+
+## Record 2 amendment (P11): hosting default
+
+The creator reopened the hosting choice. **Default target: one VPS** (for example Hetzner) running the web process, the worker and Postgres, with **Cloudflare R2** kept for private media; estimated about $10 to $25 a month before provider bills (unverified). This replaces Fly.io + Neon as the default (about $35 to $40 a month), which remain valid alternatives. **Portability is a requirement:** plain Docker images, a stateless worker, plain Postgres with no vendor-specific database or host feature (RT5 stays in force), and vendor SDKs only behind platform adapters (`BlobStore`, host configuration). The operator accepts owning OS patching, Postgres upgrades, backups and uptime. Where this document names Fly or Neon as the platform, read them as the alternative.

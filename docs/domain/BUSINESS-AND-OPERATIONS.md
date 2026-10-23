@@ -24,7 +24,7 @@ Every Generation has a **spend class** computed by code from its estimate (§4).
 |---|---|---|---|
 | **Trivial** | Estimate below **$0.05** for the Generation (text actions are expected here; video never) | Nothing extra | None. May auto-retry under JOB-LIFECYCLE §5.3 |
 | **Meaningful** | Everything else, and **all video** at any price | The **estimated price on the initiating control** before the click | The click is the approval (**one-click spend**) |
-| **Meaningful, with a confirm step** | Meaningful, and any of: the action's **total estimate is $2.00 or more**; it creates **10 or more Generations**; it is a **bulk regenerate by filter**; **any price is unknown**; it **would reach a cap** (§6) | A separate confirmation with the estimate, the number of Generations, the largest item and, for a cap, what is left | Required before anything is created |
+| **Meaningful, with a confirm step** | Meaningful, and any of: the action's **total estimate is $2.00 or more**; it creates **10 or more Generations, counting Takes, not Segments** (a long shot's Segments count as one Take; Record 2 P3; the $2.00 total still sums every Segment); it is a **bulk regenerate by filter**; **any price is unknown**; it **would reach a cap** (§6) | A separate confirmation with the estimate, the number of Generations, the largest item and, for a cap, what is left | Required before anything is created |
 
 Rules that complete the table:
 
