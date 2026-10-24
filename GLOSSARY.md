@@ -144,6 +144,14 @@ _Avoid_: Angle, camera direction
 The fact that an entity, in a particular Look, appears in a Scene or Shot. A Presence refers to the entity and Look; it never holds its own copy of their description.
 _Avoid_: Scene asset, asset instance, assignment
 
+**Asset roster**:
+A shot's editable list of the entities in it, each with when it is on screen (throughout, enters, leaves, opening frame only, ending frame only), its state at opening and at ending, and an optional action note. The AI fills it in from the Master Narrative and World Definition; the creator adds, removes and edits. Each frame's entities follow from it.
+_Avoid_: Scene assignment, shot assets list
+
+**Shot-only state**:
+A transient change to an entity within one shot (glass shatters, clothes soaked) recorded as a note on the asset roster. It shapes that shot only and never carries forward. A change that should persist is a Look change instead.
+_Avoid_: Transformation (for a change that does not persist), temporary Look
+
 **Visual Style**:
 The project-wide look: medium, palette, mood, lighting and so on. Required, easy to set. Identity outranks style.
 _Avoid_: Style capsule, art style
@@ -183,7 +191,7 @@ One attributed utterance, with delivery notes, inside a shot. It has its own ide
 _Avoid_: Line (alone), caption
 
 **Composition reference**:
-A blocking capture, sketch, storyboard frame or reference image or video attached to a shot to control its framing and staging.
+A blocking capture, sketch, storyboard frame, reference image or video, or another Frame of the project (a reference shot) attached to a shot or one of its frames to control framing and staging.
 A CineBlock capture is auto-linked by shot id on Send back, retired (never deleted) with its ✕, and always passes through image generation; it is never the frame itself.
 
 **CineBlock** **(Wayfinder)**:
@@ -213,7 +221,7 @@ A scene's ordered list of Shot ids, changed by Revisions, which also holds the p
 _Avoid_: Shot list (as an object), storyboard
 
 **Continuity link**:
-A shot's declared relation to the previous shot (cut, continues, or same place with a new view), with an optionally pinned source Frame or Take end. Resolved by one rule for single and batch generation, and for the first shot of a scene against the previous scene's last shot.
+A shot's declared relation to the previous shot (cut, continues, same place with a new view, or match: a compositional match cut such as graphic, action or eyeline), with an optionally pinned source Frame or Take end. Resolved by one rule for single and batch generation, and for the first shot of a scene against the previous scene's last shot.
 _Avoid_: Start continuity, chain
 
 **Segment**:
@@ -455,11 +463,18 @@ The persistent left sidebar inside a project: the film as a document, listing ev
 _Avoid_: Phase rail, wizard, stage list
 
 **Board** **(Wayfinder)**:
-The whole-film centre view, scene by scene, where scope is selected for batch actions and from which any scene opens. Its form is pending the #60 redo from the V1 Script Hub (Record 2 D60.3); earlier per-shot-mark renditions are rejected.
+The whole-film centre view, also called the Script Hub: a scene list drawn per scene, where selecting a scene shows its narrative portion, assets, runtime, progress and key frames, scope is chosen for batch actions, and any scene opens. Never drawn one mark per shot.
 _Avoid_: dashboard
 
+**Ending image**:
+The image that stands for a scene in overviews: its last shot's approved ending frame, else a still from that shot's selected take, else its main location's identity image. Frames are optional, so it is never assumed to be a frame.
+_Avoid_: End frame (for this meaning)
+
+**Prompt ingredients**:
+The inputs a generation's prompt was built from, shown beside the prompt: the entities and their Looks or states, references, continuity source, camera direction and frame role. Used to see why a result came out as it did without rewriting the prompt.
+
 **Scene workspace** **(Wayfinder)**:
-The main centre workspace for one scene, where the creator preps and makes its shots: shot list, plan, optional direction, frames, takes, optional audio. Shot work is never confined to a side drawer.
+The main centre workspace for one scene, where the creator preps and makes its shots: script context, shot list, plan and asset roster, optional direction, frames, takes, optional audio. Shot work is never confined to a side drawer. Whether it is one workspace with modes or staged workspaces is still being decided.
 
 **Peek** **(Wayfinder)**:
 A lightweight side preview of a shot or scene. It shows and links; it is never the only way to do anything and never initiates spend.

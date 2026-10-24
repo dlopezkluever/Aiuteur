@@ -4,6 +4,8 @@ Resolution of Wayfinder ticket #59. Authority: the Product Constitution (§4.2 P
 
 ## 1. Decision
 
+**Record 4 W59.** The fresh prototype `prototype/v2-59-world` is ratified as the starting point (some visual decisions will change): home tiles grouped by entity type, per-entity Identity / Looks / Coverage tabs, one needs line per entity naming the shots that need it, the coverage wall as an optional second view, and Complete coverage one disclosure away. [Record 4](../product/CREATOR-RATIFICATION-RECORD-4.md) controls where it refines this document.
+
 **Identity first; production coverage later, driven by the actual shots.**
 
 ```diagram
@@ -32,7 +34,9 @@ Per visual entity (Character, Location, Prop):
 | **Alternate Looks** | Optional, only when the story or creator needs one (funeral clothes, injured; a place fire-damaged, decorated, abandoned). | Looks area with an **Add Look** action. AI-proposed Looks (from Mentions, with change points) appear here to accept, edit or dismiss. Never forced. |
 | **Coverage** (Locations) | Additional named production Views, mostly needed once a shot plan exists. | Coverage area; see §4. |
 
-Extra types have a description (optional image) and no Looks. A lightweight entity is generated from its text; depth is changeable either way at any time.
+Extra types have a description (optional image) and no Looks. A lightweight entity is generated from its text; depth is changeable either way at any time. In the surface a lightweight entity reads as an intentional **"Lightweight"** state, neither Identity ✓ nor missing (Record 4 W59.3).
+
+**Looks may be description-only** (Record 4 W59.4). A Look needs no image to be used: generation composes the base identity image with the Look's description of what differs, and the creator can edit that description at any time. When an image is wanted it is generated from the identity image plus the Look description, or uploaded. A Look can also be added or switched from a shot's asset roster (SHOT-MODEL §4a).
 
 **Baseline requirement.** A non-deferred Location needs **one approved reference image** (generated or uploaded). It need not be an "establishing shot": a broad view, one wall, a photo or a concept image all work, because its job is "this is what the place looks like". One approved identity image is enough to start a Character or Prop. More references can always be added.
 
@@ -53,7 +57,7 @@ Preserved from V1's Stage 5, adapted (Constitution Phase 6 design reference, X10
 
 1. **Identity first.** The Location has its canonical reference image (§2). That is the only thing World Definition requires of it.
 2. **After shot planning**, the shots' resolved Directions (the one rule in `ENTITIES-AND-LOOKS.md` §5.3) name the views production needs: "toward the window", its reverse, "from the doorway", "table close". These are **named production views called for by the shots**, not fixed front/side/back counts.
-3. **Production coverage readiness** shows quietly per Location: `Hale Kitchen: Identity ✓ · 3 production views needed`. When the shot plan changes and reveals a new need, the marker reappears (`1 new view needed`). The marker explains and offers the fix; it never blocks and never spends (X8, X9).
+3. **Production coverage readiness** shows quietly per Location as one needs line **naming the shots** that need it: `Hale Kitchen: Identity ✓ · 3 views needed for 7C, 7E, 9A`, with the per-shot checklist on expand (Record 4 W59.2). A needed view stays marked until a View exists or the creator chooses a fallback or Skip. When the shot plan changes and reveals a new need, the marker reappears (`1 new view needed`). The marker explains and offers the fix; it never blocks and never spends (X8, X9).
 4. **Generate the missing views**: one control at the Location (and the same action offered project-wide from the second view, §5). Views are generated **from the approved canonical reference** to hold identity. The V1 angle-generation interface is the model to keep, adapted to named, shot-driven views.
 5. **Bulk acceptance.** The generated views arrive as a **contact sheet reviewed together** with one **"Accept all N"** action, reversible (Undo), then **per-tile fixes afterwards**: Redo, Upload, Skip, or promote an approved Frame. Every view is a draft Attempt the creator reviews (R5); a missing or weak view falls down the fallback ladder, reported quietly.
 6. **Optional, any time, including before any shots exist.** "Generate more views" / "Complete coverage", or setting up as many Directions and Views by hand as the creator likes. This is the opt-in path, not the default, and nothing blocks it.
@@ -71,7 +75,7 @@ Coverage is a sparse matrix of Direction × Look (ADR 0003), so Looks multiply c
 ## 5. Layout (functional only)
 
 - **Entity workspace** (§3.3): the per-entity surface, with Identity / Looks / Coverage areas and the extraction review, from prototype A. This is the main surface.
-- **World Definition home** (when not inside one entity): typically **tiles**, one image per entity grouped by type, with a **carousel** through that entity's generated or set images, and the quiet Identity / Production-coverage readiness per tile. Unreviewed, deferred and lightweight entities read as such, quietly.
+- **World Definition home** (when not inside one entity): **tiles**, one image per entity grouped by type, with a **carousel** through that entity's generated or set images, and the quiet Identity / Production-coverage readiness per tile. Unreviewed, deferred and lightweight entities read as such, quietly.
 - **Project-wide coverage view**: a scrollable second view in the manner of the lower half of prototype B (every Location by its production Views), acceptable as an alternative overview and the place for project-wide "generate the missing views" and "Accept all N". B's top table/list is not adopted.
 - The coverage wall and the per-entity workspace are **two views over the same canonical World Definition data**; a change in one is the other.
 - A scene or shot needing a missing entity or view shows it quietly in the scene workspace and links here; it never blocks (NAVIGATION §8).
@@ -82,7 +86,7 @@ A night or other variant of a place may be **either** an alternate Look of the s
 
 ## 7. Trust signals in this surface
 
-Per [`TRUST-SIGNALS-AND-LOCKS.md`](TRUST-SIGNALS-AND-LOCKS.md): AI-made choices (style default, Directions the AI picked or proposed at shot planning, merge suggestions) are quiet inline tags, overridable in one click. Possibly-out-of-date marks on images after a style or description change are whispers, never fading the work. Readiness is explanation, not a gate. Nothing in World Definition uses banners, modals or alarm styling.
+Per [`TRUST-SIGNALS-AND-LOCKS.md`](TRUST-SIGNALS-AND-LOCKS.md): AI-made choices (style default, Directions the AI picked or proposed at shot planning, merge suggestions) are quiet inline tags, overridable in one click, until the creator approves the containing thing (identity approved, the world is set); after that they show only through the AI vs mine toggle and the on-demand list (Record 4 Y2). Accepted descriptions carry no persistent "AI generated" badges (Y1). Possibly-out-of-date marks on images after a style or description change are whispers, never fading the work. Readiness is explanation, not a gate. Nothing in World Definition uses banners, modals or alarm styling.
 
 ## 8. Constitutional check
 

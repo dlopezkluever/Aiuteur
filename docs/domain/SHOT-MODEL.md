@@ -89,6 +89,22 @@ Presence at shot level is **derived**, and only the differences are stored.
 5. **No duplication.** There is no per-shot copy of a Presence list: if the Scene's Presence or a Look assignment changes, the Shot's derived Presence changes with it, and work that captured the old resolution drifts through Generation inputs (`look-changed`, `identity-changed`).
 6. **Identity edits below the level.** A Look override that expresses a new appearance ("Marcus has a scar here") raises the identity choice (ENTITIES §6): create or edit a Look (write-back) or keep a deviation on this Presence. Readiness for a needed entity follows ENTITIES §7 and never gates.
 
+### 4a Asset roster and state plan (Record 4 W60 §§5.5–5.6)
+
+The creator sees and edits the shot's entities as one **asset roster**: the derived Presences plus overrides above, each extended with a **state plan**. The AI initializes it from the anchored passage and World Definition; every entry is inspectable and editable, and manual add and remove are overrides (item 3).
+
+| Roster field | Meaning | Class |
+|---|---|---|
+| **on screen** | throughout · enters during · leaves during · opening frame only · ending frame only | shot-owned |
+| **state at opening**, **state at ending** | a **Look** (persistent) or a **shot-only state note** (transient); default: the resolved Look at opening, no change at ending | Look: see below; note: shot-owned |
+| **action note** | the asset's action or blocking in this shot | shot-owned |
+
+- **Frame asset sets derive from the roster.** A Frame role's entities are those on screen at that role's moment (opening, ending, or a keyframe's position), each in its state there. The frame work may override composition details per Frame role; it does not edit the roster.
+- **Persistent change (a transformation).** An ending state that is a different Look means the entity changes Look during this shot. Opening frames use the opening Look, ending frames the ending Look, and the video prompt describes the change. It is stored as a **Look assignment** (ENTITIES §4.1) at a position refined to the end of this shot's anchored passage, so it **carries forward** to later shots until changed again. Because it changes story state it is narrative-bearing: it raises the write-back or deviation choice (R3) once, with write-back the natural answer. A target Look that does not exist yet is created with **Add Look** from the roster (description-only is allowed, ENTITIES §3).
+- **Transient change.** A shot-only state note ("glass shattered", "soaked") shapes this shot's ending frames and prompts only. It is not a Look, is not a change point and **never carries**. It is the default kind of ending state.
+- **Switching Look for a later shot.** "From here on: Look Y" in the roster writes an open-ended Look assignment at this shot's position. A change that happens off screen is set the same way from World Definition at any narrative position (ENTITIES §4.1).
+- The roster, its state plan and each Frame role's derived set are inputs a Generation captures, so changing them drifts work through lineage like any other slice.
+
 Location and Direction: the Shot stores only the creator's explicit Location and Direction. Absent those, location derives from the setting Mention and Direction is the AI's choice at planning, persisted as an AI-made choice that does not re-derive silently ([`ENTITIES-AND-LOOKS.md`](ENTITIES-AND-LOOKS.md) §5.3). The Shot points to a **Direction slot**, never to a View Attempt.
 
 ## 5. Shot identity under split, merge, reorder and redraft
@@ -246,10 +262,11 @@ The **Continuity link** is a Shot-owned slice with two parts:
 1. **Intent** (the creator's or an AI-made choice, overridable):
    - **cut**: no visual dependency on the previous shot (a new place, a time jump);
    - **continues**: the opening should match how the previous shot ended;
-   - **same place, new view**: keep the previous frame's background and place, recompose for the new view or pose.
+   - **same place, new view**: keep the previous frame's background and place, recompose for the new view or pose;
+   - **match** (Record 4 W60 §5.7): a compositional match cut, with a kind such as graphic, action or eyeline (the final list is spec-level) and an optional free-text cut note. It echoes the previous ending's shape, motion or eyeline in a new place or subject.
 2. **Source** (optional pin): a specific Frame, or a Take's end still. Absent a pin, the source is **derived**: the previous active shot in narrative order, which for the first shot of a Scene is the last active shot of the previous Scene (the scene-boundary rule, Constitution §9.2). The derived source is, in order: the previous shot's approved ending Frame; else the last still extracted from its selected Take; else none (reported quietly, never blocking).
 
-How the intent is used is one rule everywhere: **continues** feeds the source as the opening Frame's base (reused as-is when the camera and view match, edited when they differ), **same place, new view** feeds it as a base for a recomposed Frame, **cut** feeds nothing. In the **skip-frames** path the same source is captured on the video Generation as a derived still input (not a Frame of this shot), so direct-to-video shots chain too. The captured source is part of the Generation's inputs, so a change to the previous shot's approved Frame or selected Take marks this shot's work `frame-changed` with the source named (no new reason code is needed).
+How the intent is used is one rule everywhere: **match** feeds the source as a framing Composition reference (§8, uses: framing and staging), never as a base image; **continues** feeds the source as the opening Frame's base (reused as-is when the camera and view match, edited when they differ), **same place, new view** feeds it as a base for a recomposed Frame, **cut** feeds nothing. In the **skip-frames** path the same source is captured on the video Generation as a derived still input (not a Frame of this shot), so direct-to-video shots chain too. The captured source is part of the Generation's inputs, so a change to the previous shot's approved Frame or selected Take marks this shot's work `frame-changed` with the source named (no new reason code is needed).
 
 The intent is drafted by L as part of shot drafting (AI map: no regex decides). A redraft does not change an intent the creator touched (§5.4).
 
@@ -321,7 +338,7 @@ A **Composition reference** is an Editable link: (Shot, media, target, uses, sub
 
 | Part | Rule |
 |---|---|
-| **media** | Reference Media (supplied), or a previs or sketch capture (an Attempt from a tool, e.g. CineBlock; see §10). Immutable. |
+| **media** | Reference Media (supplied), a previs or sketch capture (an Attempt from a tool, e.g. CineBlock; see §10), or **any existing Frame of the project** (a **reference shot**, Record 4 W60 §5.7: e.g. shot 1's over-the-shoulder frame of Bob used to compose shot 4's clean medium shot, with notes saying how to recompose). Immutable. |
 | **target** | The whole shot, or one Frame role (a start composition for the opening role, an end composition for the ending role, a sketch for a keyframe). |
 | **kind** | **layout**: authored for this shot (sketch, blocking capture, storyboard frame, photo of a set). **footage**: found material to recreate (a reference image or video whose subjects are replaced). |
 | **uses** | Which facets the creator wants from it: framing, staging and pose, motion or camera movement, lighting and style. Defaults depend on the kind. |
@@ -406,3 +423,14 @@ Golden fixtures: a 22-second shot on a model capped at 8 s (stitch) and on one w
 ## Record 2 / #61 alignment (D61)
 
 CineBlock is a module of Aiuteur opened in its own tab under the same account, not a separate tool. The "e.g. CineBlock" capture sources and the reserved CineBlock hook in sections 8 and 10 refer to that module: captures reach shots through the internal package contract (auto-linked by shot id) and are always an input to image generation, never the frame itself. See `SHOT-PLANNING-INPUTS.md` and ADR 0024.
+
+## Record 4 amendments
+
+[Record 4](../product/CREATOR-RATIFICATION-RECORD-4.md) W60 ratifies the scene workspace's **capabilities** (its layout is pending the two-variant comparison, W60 §5.9). Model consequences applied above:
+
+- **Asset roster and state plan** (§4a): on-screen timing per asset, state at opening and ending, action notes; frame asset sets derive from it.
+- **Persistent vs transient change** (§4a): a Look change during a shot is a Look assignment at the shot's end that carries forward; a shot-only state note never carries.
+- **Match** continuity intent (§6.4) and **reference shots** from any Frame (§8.1).
+- **Prompts and their ingredients** are shown per Frame role and in the take composer: the compiled prompt (collapsed, overridable as today) and the inputs it was built from (assets and their Looks or states, references, continuity source, camera, frame role). Ingredients are read from the Generation package (GENERATION-PACKAGE), never stored on the Shot.
+- **Detail.** Shot drafts carry full action prose from the anchored passage, the initialized roster, camera facets and a frame strategy; terse drafts are a defect, not a style.
+- **Plan accepted** is kept (it is where AI-made choice marks stop showing inline, Record 4 Y2). A hand edit to a locked plan uses edit-through (Y5). A scene with no shots reads "No shots yet" on screen.

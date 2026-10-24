@@ -4,6 +4,8 @@ Resolution of Wayfinder ticket #58. Authority: the Product Constitution, then [`
 
 [`CREATOR-RATIFICATION-RECORD-3.md`](../product/CREATOR-RATIFICATION-RECORD-3.md) controls initial Treatment drafting and its spend authorization (CR-1, §2). Entering an eligible empty stage authorizes ordinary initial drafting without a separate button or penny-level price gate.
 
+[`CREATOR-RATIFICATION-RECORD-4.md`](../product/CREATOR-RATIFICATION-RECORD-4.md) **W58** ratifies the fresh prototype `prototype/v2-58-writing` as the starting point and implementation guidance (minor polish later): options in a pager with the brief summary and attribute tags at the top, compare on request, one regeneration box below the document, one quiet sync bar, and the acceptance sheet with Lock checked. It also removes persistent "AI added" tags from accepted prose (Y1, §5) and adds the priced **Draft treatment options** action on a skipped Treatment (§3).
+
 Constitutional anchors: §4.2 Phases 3–5, §4.4 (4, 5), §5.4, §5.6, §13.2–13.4, §17.2, Appendix A Q28 and Q29. **No `CONSTITUTION AMENDMENT REQUIRED`.** Multiple options by default, "just one" allowed, direct-apply edits, optional guidance and acceptance as a commitment point are all kept.
 
 ## 1. Selected direction
@@ -32,10 +34,10 @@ The Treatment opens in the centre from the Outline. Its phase page begins with o
 - **Initial options generate on entry (Record 3 CR-1).** Entering Treatment automatically drafts the configured number of options (§2.2) only when there is **no Treatment**, **no existing generated Treatment options**, and **no uploaded file explicitly designated in Input to serve as the Treatment**. Existing options suppress automatic drafting even when none has been chosen. A creator-written Treatment also suppresses it. Returning to existing work never regenerates it, and an in-flight draft follows the existing duplicate-generation guard.
 - **Upload designation is explicit.** An unrelated upload, or AI classification alone, does not take the Treatment's place. A file designated as the Treatment in Input opens as imported creator content with no competing options generated. The regeneration box (§2.4) remains available on both uploaded and generated Treatments for selected-section replacement or whole-document regeneration with optional new suggestions. Explicit Beat Sheet → Treatment updates remain available (§4.3).
 - **Ordinary cost needs no extra action.** Three drafts costing about **$0.18 in total** generate on entry. No Draft button, small-cost popup or `Treatment · ~$0.18` navigation label is shown. Exceptional spend conditions still stop generation for the inline ticket (§8). Skipping and bypassing remain available; viewing those intentional states does not backfill a Treatment (§3).
-- One option is open at a time, in the full document column. A quiet switcher ("Option 2 of 3", previous and next, or a short list of option names) moves between them. It shows where the creator is, not how many to make.
-- Each option carries a **V1-style summary and attributes**: a short summary, plus a few attributes the creator can grasp at a glance (for example tone, structural emphasis, how it ends, estimated runtime). Attributes are generated with the option, are labelled AI-made, and are read-only labels, never document text. Runtime is an estimate and says so.
+- One option is open at a time, in the full document column. A quiet **pager** ("Option 2 of 3", previous and next) moves between them (Record 4 W58.1). It shows where the creator is, not how many to make.
+- Each option carries a **V1-style summary and attributes** at the top of the document: a short summary, plus a few attributes the creator can grasp at a glance (for example tone, structural emphasis, how it ends, estimated runtime). Attributes are generated with the option, are labelled AI-made, and are read-only labels, never document text. Runtime is an estimate and says so.
 - **Choose this one** is the primary action on an option. Choosing is one action: the Option's blocks become the Treatment as one Revision labelled `chosen from <option>`; the others stay recoverable (STORY-DOCUMENTS §2.3, R1). Unchosen options are editable while unchosen and are never synchronized.
-- Comparison is available at the choosing moment (X1): the switcher can show options side by side as an optional action, never mandatory chrome.
+- Comparison is available at the choosing moment (X1): the pager can show options side by side as an optional action, never mandatory chrome.
 - With the account setting at 1, the page opens one option and the action reads "Use this treatment". That is the "just give me one" path.
 
 ### 2.2 Option count is an account setting
@@ -47,7 +49,8 @@ The Treatment opens in the centre from the Outline. Its phase page begins with o
 ### 2.3 New alternative treatment
 
 - An obvious **New alternative** action opens the regeneration box (§2.4). The creator may optionally say what to change or what earlier options misunderstood. Empty guidance is allowed.
-- The new Option appears **in place of the one currently open**. Every earlier option remains available in the switcher. Nothing is discarded (R1).
+- The new Option appears **in place of the one currently open**. Every earlier option remains available in the pager. Nothing is discarded (R1).
+- **After a choice** (Record 4 W58.3), no option is open: the new alternative lands as a new **unchosen** option opened in the pager. The chosen Treatment is untouched until the creator presses **Choose this one**; the earlier Treatment stays in history.
 - It adds one Option per press; it never replaces the set.
 
 ### 2.4 Regeneration
@@ -78,7 +81,7 @@ Every regeneration is one Generation and one Revision; the previous text is in h
 
 ## 3. Interview-skipped, bypassed and imported states
 
-These show on the phase page and in the Outline status, never as a modal (NAVIGATION §3). A bypassed Treatment shows "covered by your screenplay" and offers "fill it from the Master Narrative" on request only (reverse generation, X4). An imported Treatment opens as the creator's own text (`imported` runs).
+These show on the phase page and in the Outline status, never as a modal (NAVIGATION §3). A **skipped** Treatment, before Master Narrative acceptance, offers **Draft treatment options · $x** beside **Write it myself** (Record 4 W58.5). It is an explicit priced action under the normal spend rules; Record 3's stage-entry authorization covers only the empty, never-skipped stage. Viewing a skipped page still drafts nothing. A bypassed Treatment shows "covered by your screenplay" and offers "fill it from the Master Narrative" on request only (reverse generation, X4). An imported Treatment opens as the creator's own text (`imported` runs).
 
 ## 4. Beat Sheet workspace
 
@@ -118,14 +121,14 @@ R10 stands: Aiuteur detects and shows drift automatically, quietly, and changes 
 - Scenes are `scene` container blocks with a heading label and an approximate duration shown as an AI estimate or the creator's own value ([`SCENE-IDENTITY.md`](../domain/SCENE-IDENTITY.md) §2.1). The sum against the intended runtime is shown in the top strip, never blocking.
 - **Drafting** first runs the **disagreement check** if the Treatment and Beat Sheet differ (R10, STORY-DOCUMENTS §6.5): a quiet inline ask on the page "Treatment and Beat Sheet differ in N places. Which should the Master Narrative follow?" with **Follow the Treatment**, **Follow the Beat Sheet**, **Update first** (opens the sync actions), never a modal and never guessed. The drafting Generation records the exact Revisions it used.
 - **Editing and targeted rewrite** behave as §2.4: highlight, optional instruction, direct apply; a selection crossing a scene boundary is applied per scene and cannot move a boundary (SCENE-IDENTITY §2.3). Hand edits of structure (insert, delete, split, merge, reorder scenes) are ordinary edits.
-- **Screenplay conversion additions.** AI additions made while converting a screenplay (descriptive detail between existing blocks, `ai_generated`) are marked inline with a quiet "AI added" tag. Each has **Keep** and **Remove** (Remove retires the block; recoverable). A quiet line offers **Keep all**. The creator's own words are never changed by conversion. Reviewing additions is **optional and never gates** anything, including acceptance. Untouched additions stay marked "AI added" until the creator keeps or edits them; keeping does not launder provenance.
+- **Screenplay conversion additions.** AI additions made while converting a screenplay (descriptive detail between existing blocks, `ai_generated`) carry **no persistent inline tag** (Record 4 Y1): the Master Narrative reads as clean canonical prose. They are visible through the **Highlight AI vs mine** toggle. An optional review (from the acceptance sheet's one-line status, or on demand) opens with the toggle on and offers **Keep** and **Remove** per addition and **Keep all** (Remove retires the block; recoverable). The creator's own words are never changed by conversion. Reviewing additions is **optional and never gates** anything, including acceptance. Keeping does not launder provenance.
 - Once production exists, edits to the Master Narrative show the small inline note of what will be marked possibly out of date (TRUST-SIGNALS §5) and follow the lock rules.
 
 ## 6. Acceptance: one concise sheet
 
 Accepting is the commitment point (§13.4, §5.6). It is one **concise sheet** opened by **Accept Master Narrative**, not a stepwise flow. It contains only:
 
-1. **The disagreement ask**, only if the Treatment and Beat Sheet still disagree and no choice was recorded: Follow the Treatment, Follow the Beat Sheet, or Update first. The choice is recorded as a creator Decision. Following a document does not rewrite the Master Narrative; the creator can redraft or edit. If both documents are skipped or only one exists, nothing is asked.
+1. **The disagreement ask**, only if the Treatment and Beat Sheet still disagree and no choice was recorded: Follow the Treatment, Follow the Beat Sheet, or Update first (which opens the sync actions and then returns the creator to the sheet, Record 4 W58.4). The choice is recorded as a creator Decision. Following a document does not rewrite the Master Narrative; the creator can redraft or edit. If both documents are skipped or only one exists, nothing is asked.
 2. **A one-line AI-additions status** ("4 AI additions not reviewed"), with a link to review. **Never gates.** Absent when there are none.
 3. **A "Lock" checkbox, checked by default** (Record 1 #63 item 3; this corrects the prototypes). Accept and lock stay separately addressable (LINEAGE §6.4).
 4. **Accept** and **Not yet**.
@@ -171,7 +174,7 @@ Whole-version restore is too coarse when only one passage was lost. While previe
 | **AI responsibility map (#64)** | Initial Treatment drafting is a ratified stage-entry trigger with the eligibility and authorization rules of §2.1. Option generation returns summary and attributes with each Option. "Update Treatment to match Beat Sheet" is a sync operation with protected-span handles; alternatives for a selection are Options on one Generation. |
 | **Verification (#76)** | The invariants in STORY-DOCUMENTS §7, plus: initial options generate only on eligible entry (§2.1), ordinary $0.18 drafting has no extra price gate, and exceptional conditions still stop it; existing work is never changed by browsing and sync never runs automatically; restore adds a head; passage bring-back leaves every other block byte-identical; Notes never appear in a prompt unless "use my notes" was ticked, and then only the notes in scope; acceptance never requires reviewing AI additions; lock is on by default in the sheet. |
 | **Scene hub (#60 redo)** | After acceptance the active scenes are the production list; the Master Narrative's excerpt text is the source of scene excerpts in the overview. |
-| **Trust signals (#63)** | The whisper pattern and review-all tray cover drift and "AI added" tags; no new alert style. |
+| **Trust signals (#63)** | The whisper pattern and review-all tray cover drift; AI additions are shown only through the AI vs mine toggle (Record 4 Y1); no new alert style. |
 
 ## 10. Decided here, stated plainly
 

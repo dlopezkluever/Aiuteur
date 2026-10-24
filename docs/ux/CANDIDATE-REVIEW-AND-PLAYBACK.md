@@ -10,10 +10,12 @@ Three throwaway prototypes compared structures on one scene of six shots (A view
 
 The creator chose **C, sequence-first, with a main viewer** (D62). The agent's recommendation of A as base is replaced.
 
+**Record 4 (W62).** In the fresh strong-model prototype round (`prototype/v2-62-review`), the creator ratified **variant A** as the base for this sequence-first model: a runtime-proportional scene timeline, the main viewer, the selected shot's Takes beneath, the **Scene / Whole film** toggle, Mark final, Fix this shot, and generating Takes while keeping timeline context. [Record 4](../product/CREATOR-RATIFICATION-RECORD-4.md) controls where it changes this document: whole-film mode is a per-scene ribbon (§2), frames move out of review into the #60 frame work (§3.2), Make another take is a wide composer, and nothing sits in a persistent right-hand sidebar.
+
 1. **One surface for review and playback: the scene timeline.** It is the scene's shots in story order, each a cell showing its selected take (or a gap slate, §4). The **main viewer** shows what is under the playhead. The same timeline and viewer serve review in the scene workspace and the scene mode of Review & Export. That planning's scene runtime view is the same component is an intent carried into the #60 redo (X6), not decided here.
 2. **The selected shot's other takes sit under the timeline.** Each take is a thumbnail with its duration and quiet labels.
 3. **Swapping a take in is selecting it.** Clicking a take under the timeline puts it in the cut, the sequence plays with it, and it is the shot's selected take. There is **no separate preview state**. Selection is reversible, creator-only and recorded (TRUST-SIGNALS §6); another click on another take changes it, and **Unselect** is available.
-4. **Side-by-side compare is optional**, up to **three** takes of one shot, with a Select action on each (X1). It is never mandatory chrome.
+4. **Side-by-side compare is optional** (it replaces the viewer with panes), up to **three** takes of one shot, with a Select action on each (X1). It is never mandatory chrome.
 5. **Spend is an inline ticket at the initiating control** (§5). No modal.
 6. **Failures are quiet** (§6).
 
@@ -33,13 +35,15 @@ The creator chose **C, sequence-first, with a main viewer** (D62). The agent's r
 ├──────────────────────────────────────────────────────────────────────┤
 │ SELECTED SHOT (7C): other takes   [T1][T2][T3 arrived after cancel]  │
 │  Compare (up to 3) · Reject · Mark final · Play in context           │
-│  Make another take: model · guidance (optional) · Generate · $x.xx   │
-│  ▸ Prompt and references (optional)                                  │
+│  Make another take ▸  opens the wide take composer (model, guidance, │
+│  prompt and its ingredients, references, price)                      │
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
 - **Shot work and playback are the same surface.** In the scene workspace (centre) the viewer, timeline and the selected shot's takes are the review area of the shot work area. Review & Export shows the same timeline and viewer, larger, with the scene-or-film scope switch and the export package beside it.
-- **Whole-film mode.** The film timeline spans every active scene in story order; choosing a scene opens that scene's timeline. Playback walks selected takes across scenes in story order. How it is drawn at 150–250 shots is left to the UX design and stays consistent with the whole-film overview being redone in #60 (Record 2 D60.3); the rejected Board renditions (every shot as a mark, one row per scene, D60.1) are not its model.
+- **Whole-film mode** (Record 4 W62.1, Y3). A **scene ribbon** spans every active scene in story order: one block per scene, width = runtime, with a quiet picked / needs-a-pick / missing bar. It is never drawn one mark per shot (D60.1). Choosing a scene opens that scene's timeline under the ribbon. **Next / previous unsettled shot** steps through the film. A filter dims scenes with no matching shot and "next match" steps through the rest. Playback walks selected takes across scenes in story order. The Script Hub uses the same ribbon.
+- **Make another take** opens a **wide take composer** using nearly the full workspace width: model and price, optional guidance, the prompt with its ingredients (assets and Looks or states, references, continuity source, camera, frame role), and references. It is never a cramped row (Record 4 W62.3).
+- **No persistent right-hand sidebar.** "What's unsettled" is a count in the scene header that opens its list on demand; recorded-decision lists are on demand too (W62.4).
 - **Fix this shot** opens the shot in the scene workspace with **Back to review** returning to the same playhead (NAVIGATION §4, §8). Previous and next shot and scene are one key or click.
 - **Play in context** plays the previous shot's selected take, the take under review, then the next shot's selected take. Because a swap is a selection, "in context" is simply the normal playback started a shot earlier; the button is a convenience for starting there. No separate preview state exists.
 - **The Peek** never reviews candidates and never starts spend.
@@ -51,8 +55,8 @@ The creator chose **C, sequence-first, with a main viewer** (D62). The agent's r
 ### 3.1 Takes
 
 - **Selecting, rejecting, restoring.** Select puts one non-rejected Take of the shot in the pointer. **Reject** marks a Take rejected (it moves to a quiet "Rejected (n)" group with **Restore**); rejecting the selected Take deselects it in the same action group (SHOT-MODEL §12.9). Nothing is deleted (R1).
-- **Mark final** is the optional voluntary lock of TRUST-SIGNALS §6; shown as a quiet "final" mark on the cell, with one-click unlock.
-- **Nothing is auto-selected** (JOB-LIFECYCLE §11, Constitution §14.3), even for the first Take of a shot. A new Take arrives unselected with a quiet "ready, not selected" notice.
+- **Mark final** is the optional voluntary lock of TRUST-SIGNALS §6; shown as a quiet "final" mark on the cell, with one-click unlock. Changing the pick on a final shot uses the lock's edit-through confirmation, not a forced "unlock first" (Record 4 W62.7).
+- **Nothing is auto-selected** (JOB-LIFECYCLE §11, Constitution §14.3), even for the first Take of a shot. A new Take arrives unselected with a quiet "ready, not selected" notice; the notice opens the Take and never selects it.
 - **Changing the pick flags** what was built from the previous one, quietly (R2): a whisper dot with the exits of TRUST-SIGNALS §2. Nothing regenerates.
 - **Take labels** (quiet text, never alarm styling): the model used, "guided" when the Take was regenerated with guidance (hover shows it), **"arrived after cancel"** and **"arrived late"** for late results (M2: quiet notice, attached unselected), "prompt overridden" (R3), the delivered duration when it differs from the plan, and "from the merged shot" (SHOT-MODEL §5.3).
 - **Long shots.** One Shot is one Take whatever its Segments. It is priced and started as one Take ("about 18 s · 3 parts · $x", SHOT-MODEL §7.2). While a long shot is partly realized the cell reads **"2 of 3 parts made"**; a failed part offers **Retry · $x** with that part's price and the parts after it wait (R8); no Take exists until assembly succeeds (SHOT-MODEL §7.3). **Regenerate from part k** is offered when the creator reports a problem after the first parts, and states the saving ("reuses 1–2, makes 3: $x").
@@ -61,7 +65,7 @@ The creator chose **C, sequence-first, with a main viewer** (D62). The agent's r
 
 ### 3.2 Frames
 
-Frames (images for a Frame plan role) are reviewed in the same centre area, where the viewer shows the Frame under review and the area under the viewer lists the role's other Frames. A Frame role is a Slot: **Approve** is the Frame's counterpart of Select, a reversible creator Decision, with the same compare (up to 3), reject/restore and quiet-label rules. Reused, edited, extracted and captured Frames show their source (SHOT-MODEL §6.3). Approving a Frame never starts video. A shot in "Framing" can generate its video anyway through "Generate without the unapproved opening frame" (SHOT-MODEL §6.2), which is one recorded skip Decision, not a gate.
+**Record 4 W62.2: frames are not made or reviewed on this screen.** They have their own full-width frame work in the scene workspace (#60, Record 4 W60 §5.7), with neighbour-frame comparison and a scene frame gallery; once frames are set the creator moves on to Takes here. The rules below still define frame approval wherever it happens. Frames (images for a Frame plan role) are reviewed with the role's other Frames listed beside the one under review. A Frame role is a Slot: **Approve** is the Frame's counterpart of Select, a reversible creator Decision, with the same compare (up to 3), reject/restore and quiet-label rules. Reused, edited, extracted and captured Frames show their source (SHOT-MODEL §6.3). Approving a Frame never starts video. A shot in "Framing" can generate its video anyway through "Generate without the unapproved opening frame" (SHOT-MODEL §6.2), which is one recorded skip Decision, not a gate.
 
 ## 4. Sequence playback
 
@@ -83,7 +87,7 @@ Frames (images for a Frame plan role) are reviewed in the same centre area, wher
 - **Possibly out of date never changes playback.** The take plays as picked; the whisper dot is the only mark (M1). Dots on cells and a quiet scene-header count are the in-sequence signal; the review-all tray (TRUST-SIGNALS §1) remains the bulk surface.
 - **Runtime** (scene header): planned (targets) beside as made (selected Takes' delivered durations, SHOT-MODEL §7.5); both can show; nothing blocks or trims.
 - **Progress** (planned, framed, generated, selected, missing, possibly out of date) is the same derivation as the whole-film overview and Outline, never stored (NAVIGATION §3).
-- **Nothing blocks.** Missing, unselected, failed or out-of-date shots block neither playback nor export; they appear in a quiet list under the timeline ("What's unsettled · 5") with one action each.
+- **Nothing blocks.** Missing, unselected, failed or out-of-date shots block neither playback nor export. Their actions sit on the gap cell (Pick, Generate · $x, Retry · $x) and in the on-demand "What's unsettled · 5" list opened from the scene header (Record 4 W62.4–5).
 - **Scrubbing, jumping.** Clicking any cell seeks and plays from it; previous and next buttons move by shot. A cell's Fix action opens the shot.
 - **Audio** follows the selected Takes' own audio; joins between Takes are straight cuts. No in-app editing timeline (LATER); this is a viewing and fixing surface, not an editor.
 
@@ -110,7 +114,7 @@ All thresholds are #68's ($0.05 trivial, $2.00, 10 Takes per Record 2 P3, bulk b
   - platform configuration: told plainly as a studio problem, not the creator's content;
   - partial batch: "11 of 14 ready"; a failed member's Retry is on its own cell, and "Continue the batch" re-queues cancelled dependents without new approval.
 - **Unread failures** are kept (a creator who was away finds them on return) as a quiet count in the top strip that opens the list of failed items with Retry on each; the same list is where "arrived after cancel" and "arrived late" Takes are announced.
-- **Dismiss** hides a failure's mark for that shot without deleting its run history.
+- **Dismiss** hides a failure's mark for that shot and lowers the unread count, without deleting its run history.
 
 ## 7. Cancel, late results and adoption
 
