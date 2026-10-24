@@ -1,0 +1,6 @@
+# Grill handoff: #60 scene production v3
+Open `index.html`; use ⚙ controls to switch Prep A/B/C and Generate 1/2/3 and jump states. Walk: Hub (scene 7) → Prep 7G (Marta wet→dry, Voss exits, Create Look on 7J, 7F match) → Generate 7B/7H/7G/7C (continuity row, gallery→reference, CineBlock, prompts, Generate Take) → Review 7C (Fix this shot → back).
+**Wrong before:** Plan was a database form; assets were text; frames split from Take generation; #60 Takes duplicated #62. **Now:** Prep = what's in each shot (visual); Generate = one pipeline to a Take; Review = #62-A for sequence judgment, quick fix vs full shot work. Take creation sits in Generate because it follows approved frames + video prompt directly; Review answers a different question.
+**Strongest (agent recommendation, not decision):** Prep A (+B overview), Generate 2.
+**Should still change:** compact cast cards for many assets; real shot-scale/continuity overview polish; readiness visibility in Generate 2/3.
+**Creator decisions remaining:** preferred Prep/Generate layouts; whether storyboard overview is a toggle; where Accept plan lives; write-back vs deviation placement; match kinds; gallery ordering; whether Generate shows all-scene takes or only the selected shot's; how much of Review's quick fix lives in Generate.
