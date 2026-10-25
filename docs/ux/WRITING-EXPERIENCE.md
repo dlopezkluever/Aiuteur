@@ -1,5 +1,8 @@
 # Writing experience: Treatment, Beat Sheet, Master Narrative, acceptance and version recovery
 
+> Prototype status: `v2-58-writing` predates later decisions in places. Read [PROTOTYPE-RECONCILIATION.md](../product/PROTOTYPE-RECONCILIATION.md) (RD-23 to RD-28) before using it.
+
+
 Resolution of Wayfinder ticket #58. Authority: the Product Constitution, then [`CREATOR-RATIFICATION-RECORD.md`](../product/CREATOR-RATIFICATION-RECORD.md) (Record 1: R2, R10, M1, M3, #63) and [`CREATOR-RATIFICATION-RECORD-2.md`](../product/CREATOR-RATIFICATION-RECORD-2.md) (Record 2: **D58**, X1, X4, X10, §3.1), which controls where they differ. Vocabulary is in [`GLOSSARY.md`](../../GLOSSARY.md). Semantics come from [`STORY-DOCUMENTS.md`](../domain/STORY-DOCUMENTS.md) (#51, ADRs 0008 and 0009) and [`SCENE-IDENTITY.md`](../domain/SCENE-IDENTITY.md) (#52); the shell is [`NAVIGATION.md`](NAVIGATION.md) (#56); flags and locks are [`TRUST-SIGNALS-AND-LOCKS.md`](TRUST-SIGNALS-AND-LOCKS.md) (#63). This document names surfaces and behaviour, never components, routes or pixel layout.
 
 [`CREATOR-RATIFICATION-RECORD-3.md`](../product/CREATOR-RATIFICATION-RECORD-3.md) controls initial Treatment drafting and its spend authorization (CR-1, §2). Entering an eligible empty stage authorizes ordinary initial drafting without a separate button or penny-level price gate.
