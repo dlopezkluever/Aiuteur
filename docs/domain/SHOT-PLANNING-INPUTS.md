@@ -173,7 +173,7 @@ All three apply as **one action group**; Undo retires the attachments and any sh
 
 | Ticket | Receives |
 |---|---|
-| **Scene and shot workspace** (#60 redo) | The entry action "Block with CineBlock" at frame generation, the leftovers list and import tray as quiet surfaces, the ✕ retire on a reference, reference thumbnails on shots with the composition whisper. Ad-hoc shots (X5) can carry composition references like any shot; CineBlock addresses scene shots only. |
+| **Scene and shot workspace** (#60, resolved by [Record 5](../product/CREATOR-RATIFICATION-RECORD-5.md)) | Entry is **Block scene in CineBlock** / **Block this shot** in Generate's Frames References tab (Record 4 W60 §5.8, Record 5 GN3); returned captures, uploaded references and storyboard panels (matched, then unmatched from the import tray) are browsable as thumbnails with an origin badge in the **reference library** (Record 5 RL). Also: the leftovers list and import tray as quiet surfaces, the ✕ retire on a reference, reference thumbnails on shots with the composition whisper. Ad-hoc shots (X5) can carry composition references like any shot; CineBlock addresses scene shots only. |
 | **Candidate review** (#62) | A Frame made from a capture shows its reference thumbnail; comparison per role is unchanged. |
 | **Generation package** (#65) | The capture as a layout input with replace-the-placeholders instructions; mapped Presences as the only identity sources; delivery-quality report; no Established Fact is injected (X3). |
 | **Providers and models** (#66) | The `world.generate` class (already in the Catalogue); world-size range pricing for `marble-1.1-plus`; operator-paid until BYOK. |

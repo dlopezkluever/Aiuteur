@@ -49,6 +49,8 @@ Prototypes remain structural decision support. The creator's direction for this 
 
 ### 5.1 Status
 
+> **Superseded in part by [Record 5](CREATOR-RATIFICATION-RECORD-5.md) (2026-10-25).** The interaction model and layout below were pending at the time of this record; Record 5 ratifies them (Script Hub → Scene Prep → Generate → Review). §§5.2–5.8 stand unchanged.
+
 **Capability and behaviour requirements are ratified (§5.2–§5.8). The scene workspace's interaction model and layout are NOT ratified.** They are pending a targeted prototype comparison of two variants (§5.9). None of the `prototype/v2-60-scene-hub` directions A, B or C is ratified as the workspace. Creator findings: C gives the script so much room that shot preparation is cramped; B is the strongest base for the hub; A's card-per-scene excerpts are overwhelming and uninformative; all three lack the planning, asset, frame and CineBlock capabilities below.
 
 ### 5.2 Script Hub (whole-film overview)
@@ -107,6 +109,8 @@ The opening, ending and keyframe asset sets **derive from the roster**. The fram
 
 ### 5.9 The pending comparison
 
+> **Resolved by [Record 5](CREATOR-RATIFICATION-RECORD-5.md).** The v3 prototype (`prototype/v2-60-scene-production-v3`) went beyond both variants; the creator ratified a staged model of **Scene Prep** (V1 stages 7+8) and **Generate** (V1 stages 9–12, including Take creation) followed by **Review** (W62-A), with no separate Takes tab. The text below is kept as the brief that was given.
+
 Build two variants with the **same dense, realistic scene and shot data** and **full feature parity**; neither may be simplified to favour the other:
 
 - **Variant U (unified):** one Scene Workspace with **Plan · Frames · Takes** modes, a persistent shot strip and selected-shot context.
@@ -138,7 +142,7 @@ Both must demonstrate §5.2–§5.8 and the transition into W62-A Takes. The cre
 
 ## 8. Recorded in this session
 
-Applied: this record; `docs/ux/NAVIGATION.md`, `CANDIDATE-REVIEW-AND-PLAYBACK.md`, `WRITING-EXPERIENCE.md`, `WORLD-DEFINITION.md`, `TRUST-SIGNALS-AND-LOCKS.md`; `docs/domain/SHOT-MODEL.md`, `ENTITIES-AND-LOOKS.md`; `docs/ai/AI-RESPONSIBILITY-MAP.md`; `docs/architecture/PERSISTENCE-AND-MEDIA.md`; `GLOSSARY.md`. Not done: live GitHub issue and map edits, orchestration of #69/#76–#79, `/to-spec`, `/to-tickets`, implementation. The #60 prototype comparison is next.
+Applied: this record; `docs/ux/NAVIGATION.md`, `CANDIDATE-REVIEW-AND-PLAYBACK.md`, `WRITING-EXPERIENCE.md`, `WORLD-DEFINITION.md`, `TRUST-SIGNALS-AND-LOCKS.md`; `docs/domain/SHOT-MODEL.md`, `ENTITIES-AND-LOOKS.md`; `docs/ai/AI-RESPONSIBILITY-MAP.md`; `docs/architecture/PERSISTENCE-AND-MEDIA.md`; `GLOSSARY.md`. Not done: live GitHub issue and map edits, orchestration of #69/#76–#79, `/to-spec`, `/to-tickets`, implementation. The #60 prototype comparison is next (done: [Record 5](CREATOR-RATIFICATION-RECORD-5.md)).
 
 ## 9. Constitution check
 

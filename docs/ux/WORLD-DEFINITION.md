@@ -38,6 +38,8 @@ Extra types have a description (optional image) and no Looks. A lightweight enti
 
 **Looks may be description-only** (Record 4 W59.4). A Look needs no image to be used: generation composes the base identity image with the Look's description of what differs, and the creator can edit that description at any time. When an image is wanted it is generated from the identity image plus the Look description, or uploaded. A Look can also be added or switched from a shot's asset roster (SHOT-MODEL §4a).
 
+**Voice** (Record 5 VP1). A Character's persistent **Voice** is defined here, beside its Looks: the creator uploads a short sample or as much material as they have, and the Voice applies to that character across the whole film. It is optional and deferrable (ENTITIES-AND-LOOKS §7), and its domain seam, consent record and realization are #69's. Recording or uploading a performance of a specific line happens in Generate (Record 5 VP2), not here.
+
 **Baseline requirement.** A non-deferred Location needs **one approved reference image** (generated or uploaded). It need not be an "establishing shot": a broad view, one wall, a photo or a concept image all work, because its job is "this is what the place looks like". One approved identity image is enough to start a Character or Prop. More references can always be added.
 
 ## 3. Extraction review and the entity workspace
@@ -96,9 +98,10 @@ No requirement is unworkable. §4.2 Phase 6 (V1 Stage 5 reference, deferral, lig
 
 | Ticket | Receives |
 |---|---|
-| **Scene hub and shot planning** (#60 redo) | For each shot, planning picks an existing named Direction or proposes a new named one; a new Direction's empty View becomes a production coverage need (D59.11). The creator may also add Directions and Views by hand at any time (§4.1). Directions the AI chooses are persisted AI-made choices; a shot's Direction is shot-owned (P2). Planning never waits on World Definition (R5). |
+| **Scene hub and shot planning** (#60) | For each shot, planning picks an existing named Direction or proposes a new named one; a new Direction's empty View becomes a production coverage need (D59.11). The creator may also add Directions and Views by hand at any time (§4.1). Directions the AI chooses are persisted AI-made choices; a shot's Direction is shot-owned (P2). Planning never waits on World Definition (R5). |
 | **Entities and Looks** (#53) | Updated §§2.2a, 3, 5, 7 and ADR 0003 (this pass). |
 | **Trust signals** (#63) | Lock offers at identity approval and "world is set". |
 | **Spend** (#68) | Contact-sheet generation is one creator action with one estimate; inline ticket per X2. |
 | **AI responsibility map** (#64) and **Generation package** (#65) | Generations: extraction and Mention derivation, description compile, Look proposal, Direction derivation from the shot plan, View generation from the canonical reference. Identity before style; the package reads canonical state, never Established Facts (X3). |
+| **Voice and performance seams** (#69) | The Voice area on the Character (Record 5 VP1): sample upload, the authorisation and consent record it needs, and how the Voice reaches Takes. |
 | **Module architecture** (#71) / **Persistence** (#72) | Production coverage readiness is a derived read of shot Directions against Views; the project-wide coverage view needs a cheap whole-project summary. |

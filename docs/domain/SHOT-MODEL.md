@@ -383,7 +383,7 @@ Each hook is optional, absent by default, and needs no redesign of the core when
 
 | Ticket | Receives |
 |---|---|
-| **Scene and shot workspace** (#60) | The Shot plan as the list and plan-accepted Decision; the initial-draft and Draft all rules (§3.1); derived states of §6.2 for whatever status the redone overview and scene workspace show (their form is the #60 redo's, Record 2 D60.1–D60.3); split and merge as single actions with undo and a whisper ("2 shots now; 1 follows its text"); redraft as Options; unanchored and uncovered indicators; the narrative choice as one quiet line; runtime figures (§7.5). |
+| **Scene and shot workspace** (#60) | The Shot plan as the list and plan-accepted Decision; the initial-draft and Draft all rules (§3.1); derived states of §6.2 for the status the Script Hub and scene workspace show (Record 4 W60, Record 5); split and merge as single actions with undo and a whisper ("2 shots now; 1 follows its text"); redraft as Options; unanchored and uncovered indicators; the narrative choice as one quiet line; runtime figures (§7.5). |
 | **Shot planning inputs** (#61) | The hooks of §10; Composition reference fields; subject mapping; capture metadata as optional. |
 | **Candidate review and playback** (#62) | Take as an assembly of Segments (a partial realization shows "2 of 3 parts made" with retry); Take comparison on delivered duration; selection as a Decision; reject/un-reject; regenerate from part k; "arrived after cancel" labels on Segments; frame comparison per role. |
 | **Generation package** (#65, resolved in [`GENERATION-PACKAGE.md`](GENERATION-PACKAGE.md)) | The slices of §9; segment planning inputs and the realization plan recorded on Generations (§7.2); continuity source resolution (§6.4); composition delivery (§8.4); prominence hints; per-segment prompts as verified partitions; deterministic assembly as a Record; derived still inputs for skip-frames chaining. |
@@ -416,7 +416,7 @@ Golden fixtures: a 22-second shot on a model capped at 8 s (stitch) and on one w
 
 ## Record 2 amendments
 
-- **Ad-hoc shots (X5).** A Shot may have no parent Scene. The per-project **Ad-hoc shots** section holds intentionally created shots outside the narrative (establishing, B-roll, inserts, transitions, pickups, atmospheric, experimental). While ad-hoc a shot anchors to no passage and never raises the write-back/deviation question; it uses World Definition, entities, Looks, style, references and the normal frame and take tools. It has no narrative position, so Looks do not follow the story: the creator picks each entity's Look, defaulting to base. Ad-hoc shots are excluded from runtime totals and sequence playback, exported in a separate "Ad-hoc" folder, and can be moved into a scene with **Move to scene...**, after which normal anchoring applies. They are distinct from Removed from Story. UX belongs to the #60 redo.
+- **Ad-hoc shots (X5).** A Shot may have no parent Scene. The per-project **Ad-hoc shots** section holds intentionally created shots outside the narrative (establishing, B-roll, inserts, transitions, pickups, atmospheric, experimental). While ad-hoc a shot anchors to no passage and never raises the write-back/deviation question; it uses World Definition, entities, Looks, style, references and the normal frame and take tools. It has no narrative position, so Looks do not follow the story: the creator picks each entity's Look, defaulting to base. Ad-hoc shots are excluded from runtime totals and sequence playback, exported in a separate "Ad-hoc" folder, and can be moved into a scene with **Move to scene...**, after which normal anchoring applies. They are distinct from Removed from Story. They use the Scene Prep and Generate surfaces with no Review step ([Record 5](../product/CREATOR-RATIFICATION-RECORD-5.md) §2).
   - *Consequences of existing rules, not new behaviour.* With no narrative order, an ad-hoc shot's Continuity link has no derived source (§6.4); a pinned source still works. After **Move to scene...** the shot is an ordinary unanchored shot of that Scene (§3.2) until the creator anchors it; derivation of Presence and Looks resumes (ENTITIES §4.3), and the creator's explicit Look picks are kept as visible local Presence overrides (R4, §4), never silently dropped; the creator clears any they do not want. An entity left at the default (base, never picked) carries no override and follows derivation.
 - **Captures always go through image generation (D61).** A CineBlock capture is a composition reference only: never the frame itself and never sent directly to video. Placeholders are replaced by the project's real entities in the frame generation step.
 
@@ -426,7 +426,7 @@ CineBlock is a module of Aiuteur opened in its own tab under the same account, n
 
 ## Record 4 amendments
 
-[Record 4](../product/CREATOR-RATIFICATION-RECORD-4.md) W60 ratifies the scene workspace's **capabilities** (its layout is pending the two-variant comparison, W60 §5.9). Model consequences applied above:
+[Record 4](../product/CREATOR-RATIFICATION-RECORD-4.md) W60 ratifies the scene workspace's **capabilities** (its layout, then pending W60 §5.9, is ratified by [Record 5](../product/CREATOR-RATIFICATION-RECORD-5.md)). Model consequences applied above:
 
 - **Asset roster and state plan** (§4a): on-screen timing per asset, state at opening and ending, action notes; frame asset sets derive from it.
 - **Persistent vs transient change** (§4a): a Look change during a shot is a Look assignment at the shot's end that carries forward; a shot-only state note never carries.
@@ -434,3 +434,13 @@ CineBlock is a module of Aiuteur opened in its own tab under the same account, n
 - **Prompts and their ingredients** are shown per Frame role and in the take composer: the compiled prompt (collapsed, overridable as today) and the inputs it was built from (assets and their Looks or states, references, continuity source, camera, frame role). Ingredients are read from the Generation package (GENERATION-PACKAGE), never stored on the Shot.
 - **Detail.** Shot drafts carry full action prose from the anchored passage, the initialized roster, camera facets and a frame strategy; terse drafts are a defect, not a style.
 - **Plan accepted** is kept (it is where AI-made choice marks stop showing inline, Record 4 Y2). A hand edit to a locked plan uses edit-through (Y5). A scene with no shots reads "No shots yet" on screen.
+
+## Record 5 amendments
+
+[Record 5](../product/CREATOR-RATIFICATION-RECORD-5.md) ratifies the scene workspace's interaction model (Scene Prep → Generate → Review). It adds **no** field, object or rule to this model. Consequences for the model's readers:
+
+- The **Storyboard** in Scene Prep is a view of the Shot plan (§3.1) whose cards show each shot's approved opening Frame (§6.1), else nothing; for a skip-frames shot, a still of its selected Take. It is not an imported storyboard (§10).
+- **Plan accepted** (§3.1) is offered only in Scene Prep.
+- The **Cast & Looks** matrix is a derived read of Presences, Look assignments and shot-only state notes across the scene (§4, §4a).
+- The **reference library** in Generate lists existing media that can become a Composition reference (§8.1): Frame Attempts of the project, Reference Media, storyboard panels (matched or in the import tray) and CineBlock captures. Picking one creates the Composition reference; nothing new is stored on the Shot.
+- The **Performance link** (§10) is set from Generate's Takes drawer, per Dialogue line; a line with a chosen Performance shows a quiet mark in Scene Prep. Voice and performance mechanics remain #69's.

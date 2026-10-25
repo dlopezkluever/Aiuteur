@@ -474,7 +474,24 @@ _Avoid_: End frame (for this meaning)
 The inputs a generation's prompt was built from, shown beside the prompt: the entities and their Looks or states, references, continuity source, camera direction and frame role. Used to see why a result came out as it did without rewriting the prompt.
 
 **Scene workspace** **(Wayfinder)**:
-The main centre workspace for one scene, where the creator preps and makes its shots: script context, shot list, plan and asset roster, optional direction, frames, takes, optional audio. Shot work is never confined to a side drawer. Whether it is one workspace with modes or staged workspaces is still being decided.
+The main centre workspace for one scene, where the creator preps and makes its shots, in three steps shown as a pipeline: Scene Prep, Generate and Review (Record 5). Shot work is never confined to a side drawer.
+
+**Scene Prep** **(Wayfinder)**:
+The scene workspace step where shots are planned and what is in each is set: the Storyboard on arrival, the Shot editor under a horizontal shot strip, the fold-down Cast & Looks matrix and the asset drawer.
+_Avoid_: Plan tab, Shots & Assets
+
+**Storyboard (view)** **(Wayfinder)**:
+Scene Prep's arrival view: one card per shot of the Shot plan in story order, showing its opening frame. A view of the plan, distinct from an imported storyboard, whose panels become Composition references.
+
+**Generate** **(Wayfinder)**:
+The scene workspace step for one selected shot, with a Frames | Takes toggle: Frames makes and approves its frames; Takes makes its Takes with the take composer and shows that shot's Takes.
+_Avoid_: Frames & Prompts, Takes tab
+
+**Take composer** **(Wayfinder)**:
+The one control set for making a Take: video prompt and ingredients, frame inputs, references, guidance, model, price, dialogue performances, Generate Take. Shown in Generate's Takes drawer and opened wide from Review's Make another take.
+
+**Reference library** **(Wayfinder)**:
+The visual drawer opened by Add reference image: the film's frames (this scene first), uploaded Reference Media, storyboard panels and CineBlock captures, each badged by origin. Picking one attaches a Composition reference.
 
 **Peek** **(Wayfinder)**:
 A lightweight side preview of a shot or scene. It shows and links; it is never the only way to do anything and never initiates spend.
