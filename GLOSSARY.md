@@ -161,7 +161,13 @@ Optional guidance for the voice of the written documents and dialogue.
 _Avoid_: Style capsule (for writing)
 
 **Voice**:
-A Character's persistent voice identity.
+A Character's persistent voice identity: a plain-words description plus the creator's Supplied voice samples, defined in World Definition and applied across the film. It is not a provider object; a provider voice handle is created lazily per project (`docs/domain/VOICE-AND-PERFORMANCE.md` §1.1, §6.4).
+
+**Line audio**:
+The one chosen audio for a Dialogue line: a Performance, a Transformed performance or a Spoken line. With none chosen the line is native dialogue. Never trimmed or stretched to fit the shot.
+
+**Voice authorisation**:
+The creator's recorded, versioned, revocable attestation that they may use a voice (their own, permitted, licensed or synthetic), required before voice transformation or cloning. Revoking stops new use and marks dependants `authorisation-revoked`; it deletes nothing.
 
 **Subject mapping**:
 For Reference Media attached to a shot, the assignment of each subject in the media to a project entity (and Look), to removal, or to a generic extra. The media contributes composition, staging, motion or style, never identity.
@@ -248,7 +254,7 @@ _Avoid_: Final take
 The creator endorsing a frame, or an entity's identity, as standing. Distinct from Accept (documents) and Select (takes).
 
 **Performance**:
-A creator-recorded or uploaded voice or dialogue performance that a take can follow.
+A creator-recorded or uploaded voice or dialogue performance that a take can follow. Supplied, immutable creator material, never an Attempt; its voice-transformed version is a separate Attempt.
 _Avoid_: Recording, reference audio
 
 **Export package**:

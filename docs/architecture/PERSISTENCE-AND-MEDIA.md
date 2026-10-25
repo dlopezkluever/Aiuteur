@@ -286,7 +286,7 @@ Uploads use a signed upload to a staging key; the server verifies before the Med
 
 ### 7.5 Provider-held resources
 
-A cloned voice or similar provider-side object is **not Media**. It is an `external_resource` row owned by the **Account** (handle, provider, owning project, immutable once created), referenced by projects. Duplication shares the handle (voice identity is immutable, so nothing can diverge); purge of a project releases its reference; the provider-side resource is deleted when its last reference goes or on Account purge. This is the one place reference counting exists, because we do not control those bytes. If #69 or #66 finds a provider that can cheaply re-clone from the stored sample, re-creating per project replaces sharing without any other change.
+A cloned voice or similar provider-side object is **not Media**. It is an `external_resource` row owned by the **Account** and scoped to **one project and one Voice** (handle, provider, project, Voice id), created lazily on first use. **Amended by #69** ([`VOICE-AND-PERFORMANCE.md`](../domain/VOICE-AND-PERFORMANCE.md) §6.4, ADR 0025): the handle is never shared across projects; duplication copies the Voice, its samples and authorisation history and not the handle; Voice retire, authorisation revoke, project purge and Account purge each release it (the provider-side voice is deleted). No reference counting remains.
 
 ### 7.6 Deletion rights
 
@@ -465,7 +465,7 @@ A throwaway Postgres 16.2 spike (schema plus a Python harness; branch [`research
 | **Verification** (#76, resolved in [`VERIFICATION-AND-OBSERVABILITY.md`](VERIFICATION-AND-OBSERVABILITY.md)) | The Store conformance suite on real and in-memory adapters; the two-Account harness; the derived-table verifier; GP-S and GP-L (250 shots) with D10 and the budgets; fault injection between fetch, promote and settle; purge and duplicate completeness tests; content-free Generation outcome rows in the operator view set; Record data (tier B content) kept for the life of the project |
 | **Build sequence** (#77) | Build order for persistence: the spine, the gate and `unit_head` first (every slice depends on them); media ingest with the first generated take; duplication and purge last |
 | **Contract freeze** (#78) | Freeze: the `Store` and `BlobStore` interfaces, the kind-declaration shape (slices, extracted columns, remap paths, closure rule, separability rule), `media.access`, the vocabulary-to-CHECK generation, the event envelope. Table and column names are not frozen |
-| **Voice and performance** (#69) | `external_resource` and its share-on-duplicate, release-on-purge rule |
+| **Voice and performance** (#69, resolved) | `external_resource` per project and Voice, lazy, released on retire, revoke and purge (§7.5 amended); tables in VOICE-AND-PERFORMANCE §12 |
 | **Providers and models** (#66, closed) | Snapshots as global reference rows keyed by content hash; Model, Offering and snapshot ids on the Generation; effective-model reason codes on the Generation |
 
 ## 16. V1 failures answered

@@ -121,7 +121,8 @@ The reason is a structured value `(reason code, subject, change summary, via?)`.
 | `shot-changed` | The Shot slice a Frame or Take was made from changed (action, camera, duration, dialogue, continuity context) | slice names |
 | `frame-changed` | The approved Frame, or a source Frame used as a video or edit input, differs; or the selected Take a source still was taken from is no longer selected (SHOT-MODEL §6.4) | Frame, role (or Take) |
 | `prompt-override-changed` | The shot-level prompt or reference override differs from the one sent | override |
-| `performance-changed` | The Performance followed, or the Dialogue line it was linked to, changed | line, Performance |
+| `performance-changed` | The chosen Line audio (Performance, Transformed performance or Spoken line) followed, or the Dialogue line it was linked to, changed | line, audio |
+| `authorisation-revoked` | The creator revoked the Voice authorisation that a Performance or Voice used by this work depended on (VOICE-AND-PERFORMANCE §2.4). Non-destructive; nothing is deleted or blocked | Performance or Voice |
 | `settings-changed` | A Project settings value that the work read (aspect, format, rating, runtime) changed | the setting |
 | `input-retired` | A captured input has been retired (or restored from retirement) | the object |
 | `upstream-pending` | (via) A captured input is itself possibly out of date and unresolved | the intermediate item |
@@ -312,7 +313,7 @@ A duplicate is a **new project, born complete and independent**. The original is
 |---|---|
 | Identity | Every object, Revision, Attempt, Decision and Generation gets a **new id**; a `duplicated-from` map (old id → new id, plus source project id) is kept as informational history. No shared mutable state, no live link. |
 | Content | All Revisions (full history), all Attempts (including unchosen and rejected), Source Material, Reference Media, Performances, retired objects (still retired), Interview turns, Established Facts. |
-| Media | Immutable blobs, **physically copied** to the new project's prefix so nothing is shared across projects ([`PERSISTENCE-AND-MEDIA.md`](../architecture/PERSISTENCE-AND-MEDIA.md) §8, ADR 0022). Provider-held resources (e.g. a cloned voice) are Account-owned handles shared on duplicate and released on purge ([`PERSISTENCE-AND-MEDIA.md`](../architecture/PERSISTENCE-AND-MEDIA.md) §7.5). |
+| Media | Immutable blobs, **physically copied** to the new project's prefix so nothing is shared across projects ([`PERSISTENCE-AND-MEDIA.md`](../architecture/PERSISTENCE-AND-MEDIA.md) §8, ADR 0022). Provider-held resources (e.g. a cloned voice) are Account-owned handles scoped to one project, not copied on duplicate (the copy creates its own on first use) and released on retire, revoke and purge ([`PERSISTENCE-AND-MEDIA.md`](../architecture/PERSISTENCE-AND-MEDIA.md) §7.5). |
 | Lineage | Captured inputs, Basis stamps, Acknowledgements and Deviation records are remapped to the copied ids, so every marker, deviation and "kept" status reproduces exactly. Because markers are derived, nothing needs repair. |
 | Decisions | Slot choices, approvals, Accept, locks, Phase dispositions are copied as events with the same state; always unlockable in the copy. |
 | Generations | Copied as immutable records with provenance intact. Cost is flagged **inherited** and excluded from the new project's new-spend total (#68). Generations still in flight are **not** copied and their results land only in the original; Jobs are not copied. |
@@ -351,5 +352,5 @@ A duplicate is a **new project, born complete and independent**. The original is
 | **Job lifecycle** (#67) | A result for a locked scope is held as an Option; Jobs carry no markers; duplicates do not copy in-flight work. |
 | **Spend and cost** (#68) | Bulk regenerate is spend; inherited cost on duplicates is excluded from new spend; money-at-risk reads Generation cost. |
 | **AI responsibility map** (#64) | Optional AI assist to suggest "this edit looks like an identity or narrative change"; AI redraft "from current narrative" re-stamps Basis; AI results never write over creator work. |
-| **Voice and performance** (#69) | `performance-changed` reasons; ad-lib handling by write-back or deviation of the Dialogue line. |
+| **Voice and performance** (#69, resolved in [`VOICE-AND-PERFORMANCE.md`](VOICE-AND-PERFORMANCE.md)) | `performance-changed` reasons; one new reason `authorisation-revoked`; a Voice change is `identity-changed` (slice `voice`); ad-lib handling by write-back or deviation of the Dialogue line. |
 | **Review and export** (later tickets) | Export is a snapshot, never marked; "differs from current selections" is derivable. |

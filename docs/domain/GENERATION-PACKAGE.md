@@ -143,7 +143,7 @@ Precedence in a compiler can mean only what the compiler controls: **what is inc
 | `style` | the Visual Style's reference images | the Style | folded into style text when the style has text; else fewer images |
 | `edit.base` | the Frame being edited | the edit | none: without it the operation is not an edit |
 | `extend.source` | the Segment being extended | the Segment | the extracted last still as `frame.first` (SHOT-MODEL §7.2) |
-| `audio.performance`, `audio.voice` | supplied Performance, Voice definition | a line, a character | none |
+| `audio.performance`, `audio.voice` | chosen Line audio (Performance, Transformed performance or Spoken line), Voice samples | a line, a character | none (`audio.voice` degrades to the Voice description layer) |
 | `added` | a creator-added reference (§8.4) | named by the creator | none |
 
 ### 6.2 Selecting and ordering
@@ -341,7 +341,7 @@ What Aiuteur promises, and what it does not.
 The same contract applies to the two other families the AI map names.
 
 - **Text operations** (documents, descriptions, shot drafting, the fact check, partitioning) use the same Package, Fit and Rendered request types, with text layers: `scaffold:operation`, `binding` (**all** Established Facts, as AI map §4.3 requires for drafting; this is the only package family that carries Facts, §4.2), `base` (the document or selection, read-only context, with verbatim handles per AI map §4.1), `instruction` (the creator's words), `writing style`, and operation-specific inputs (the AI map §8 "Inputs" column). Precedence: Facts, then protected spans and verbatim handles, then the creator's instruction, then Writing Style. **Writing Style** (Constitution §6.2, IMPORTANT) may shape voice, diction and format of new text only; it cannot add or change events, facts or dialogue content, and it carries no weight against a Fact or a protected span. It is a captured input of text Generations (`writing-style-changed`, which marks text work only, LINEAGE §3.1). Context that does not fit is not truncated: the operation's pipeline decomposes (AI map §6.1) and each Generation lists which context it carried.
-- **Audio operations** (a Performance, voice transformation, speech): `dialogue` is a Verbatim part (the line is the supplied text, never rephrased), the voice reference and delivery are layers, and the authorisation check is a precondition (AI map §9, #69). Details belong to #69; the Package, Fit report, Rendered request and call log are unchanged.
+- **Audio operations** (a Performance, voice transformation, speech): `dialogue` is a Verbatim part (the line is the supplied text, never rephrased), the voice reference and delivery are layers, and the authorisation check is a precondition (AI map §9, #69). Resolved in [`VOICE-AND-PERFORMANCE.md`](VOICE-AND-PERFORMANCE.md) §6.1: a Voice adds the layer `voice:<presence>` (Tier 1, after `identity:*`; description composed from the Voice) and the `audio.voice` reference; a chosen Line audio is carried as `audio.performance` by Media id, line id and slice range, and satisfies P3 for that line by reference. The Package, Fit report, Rendered request and call log are unchanged.
 
 ## 15. Guards on the Package (testable without a model)
 
@@ -374,7 +374,7 @@ P2 is computed from the request, not from the Package, deliberately: a guard tha
 | **Business and operations** (#68) | The estimate reads billed quantities from the Rendered request (duration, count, references where priced), so it cannot diverge from what is sent. |
 | **Interview and Ledger** (#57) | **No pin, no toggle** (Record 2 P10/X3, rejecting the earlier per-Fact pin). Facts bind AI drafting (description compilation, shot drafting and the like are fact-checked, G6) and media generation reads canonical state, not Facts. Global visual rules live in Visual Style; one-off needs use the per-shot Override `add(note)`. |
 | **Entities and Looks** (#53), **Shot model** (#55) | Compose reads Presences, Looks, View ladder results, camera slice, Composition references with mappings, Frame roles, Continuity link; nothing new is required of them. The Shot's `prompt override` and `model override` slices take the shapes in §8.2. |
-| **Voice and performance** (#69) | §14 audio packages; dialogue as a Verbatim part; Performance and voice references as roles. |
+| **Voice and performance** (#69, resolved in [`VOICE-AND-PERFORMANCE.md`](VOICE-AND-PERFORMANCE.md)) | §14 audio packages; dialogue as a Verbatim part; `voice:<presence>` layer; Line audio and voice references as roles. |
 | **Persistence** (#72) | Package, Fit report, Rendered request and call log are Record data on the Generation (append-only, never pruned with Jobs); media by id and hash; derived stills are Media with lineage; the Override is an ordinary slice. |
 
 ## 17. Invariants and fixtures the spec should test
