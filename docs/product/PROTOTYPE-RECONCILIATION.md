@@ -2,14 +2,14 @@
 
 **This is the single entry point for interpreting prototype evidence.** Read it before opening any prototype, branch, screenshot or README.
 
-Audit date: 2026-10-25, against `main` after Creator Ratification Record 6 and the final audit (#79). Wayfinder map: [#49](https://github.com/dlopezkluever/aiuteur/issues/49).
+Audit date: 2026-10-25, against `main` after Creator Ratification Record 6 and the final audit (#79). Reworked the same day around the canonical #60 prototype (`5436744`), which is now the primary scene-flow reference. Wayfinder map: [#49](https://github.com/dlopezkluever/aiuteur/issues/49).
 
 Prototypes are throwaway UX explorations. Nearly all of them were built before the final ratified decisions. Treat them as evidence of what was tried and which interaction shapes the creator accepted, never as a statement of what V2 does.
 
 ## 1. Rules for `/to-spec`, `/to-tickets` and implementation agents
 
 1. **Authority is never a prototype.** Order: Product Constitution (as amended) → Creator Ratification Records 1–6 (later records control earlier ones) and the final audit → ADRs and `GLOSSARY.md` → `docs/domain`, `docs/ux`, `docs/architecture`, `docs/ai` → prototypes. Where a prototype differs from any of these, the prototype is wrong. Corpora in `_inputs/` are evidence, not authority.
-2. **Use only REFERENCE and PARTIAL REFERENCE prototypes** (§3), and only for the surfaces listed there, always together with the delta registers (§4).
+2. **Use only REFERENCE and PARTIAL REFERENCE prototypes** (§3), and only for the surfaces listed there, always together with the delta registers (§4). **For Script Hub, Storyboard, Scene Prep, Generate and Review, the canonical prototype (#1) is the reference.** PARTIAL REFERENCE prototypes marked "gap evidence only" may be opened solely for a behaviour that [PROTOTYPE-COVERAGE-GAPS.md](PROTOTYPE-COVERAGE-GAPS.md) points at.
 3. **Never use an ARCHIVED prototype** for behaviour, layout, copy, data shape or acceptance criteria. Do not open the branch to resolve a question. The reasons they were rejected are in §3, and the surviving ideas are already in the docs.
 4. **A prototype is silent, not negative.** Absence of a capability in a prototype is not evidence the product lacks it (§6).
 5. **Static data is not data.** Every price, model name, cap, threshold, count, id, label, date, timestamp and Take fixture in a prototype is mock. Thresholds are defined in `docs/domain/BUSINESS-AND-OPERATIONS.md` §3, and they are tunable defaults.
@@ -17,22 +17,24 @@ Prototypes are throwaway UX explorations. Nearly all of them were built before t
 7. **Prototype state models are not models.** The prototypes store flags (`stale`, `final`, `ack`, `cov`), mutate arrays in place and take whole-state snapshots for Undo. The real model is derived, append-only and server-enforced (ADR 0004, 0005, 0019, 0020).
 8. When a spec acceptance criterion cites a prototype, it must cite the doc rule beside it and name the prototype delta that applies (`RD-nn`).
 9. If you find a prototype behaviour that is neither covered here nor in an authoritative doc, do not adopt it. Record it as a spec-level question.
+10. **Where the canonical prototype is silent, the docs govern, and the gap appendix lists what is missing.** `/to-spec` must specify every item in [PROTOTYPE-COVERAGE-GAPS.md](PROTOTYPE-COVERAGE-GAPS.md) from authority, not from the prototype, for the sections the prototype covers (Outline shell, Script Hub, scene entry and auto-draft, Storyboard, Shot editor, Cast & Looks, asset drawer and Looks, Directions, composition references and CineBlock, Ad-hoc and Removed from Story, Generate Frames, Generate Takes, dialogue and voice, spend, job lifecycle, reference library, Review, Review & Export hand-off).
 
 ## 2. Prototype inventory and status
 
-Sixteen prototypes were found (the canonical flow, added later, is row 0): fourteen on never-merged `prototype/*` branches and one on `main`. The branch `prototype/ux-v2-shared-kit` is the shared CSS and JS kit, which is infrastructure and not a prototype (§3.4). Branches are kept as historical record. Nothing was deleted, and no prototype code was changed.
+Sixteen prototypes: one on `main` is the **primary #60/#62 reference** (the canonical flow); the others live on never-merged `prototype/*` branches or, for one superseded build, on `main` as history. `prototype/ux-v2-shared-kit` (also on `main` as `prototypes/v2-ux/shared/`) is infrastructure, not a prototype (§3.4). Branches are kept as historical record. Nothing was deleted, and no prototype code was changed.
+
+**For the scene flow (Script Hub, Storyboard, Scene Prep, Generate Frames and Takes, Review) there is one reference: the canonical prototype (#1).** Every older #60 and #62 prototype is either ARCHIVED or kept only as *gap evidence* for something the canonical prototype does not draw (§3.2, and the coverage-gap appendix, [PROTOTYPE-COVERAGE-GAPS.md](PROTOTYPE-COVERAGE-GAPS.md)).
 
 | # | Prototype (branch → path) | Tip | Question tested | Status |
 |---|---|---|---|---|
-| 0 | **#60 CANONICAL flow.** `main` → `prototypes/v2-ux/60-scene-production-canonical/` | main | The whole resolved flow as one application: Outline sidebar → Script Hub → Storyboard → Shot editor → Generate Frames \| Takes → Review (#62-A) | **REFERENCE (active #60 reference; supersedes row 1)** (structure only, same RD deltas) |
-| 1 | **#60 final synthesis (earlier attempt).** `main` → `prototypes/v2-ux/60-scene-production-final/` | main | How Records 5 and 6 look as one scene workspace | **HISTORICAL, superseded by row 0** (no Script Hub, no Outline, duplicate Shot-list in matrix, light Review). Kept as record; not the canonical reference |
+| 1 | **#60/#62 CANONICAL flow.** `main` → `prototypes/v2-ux/60-scene-production-canonical/` | `5436744` | The whole resolved flow as one application: Outline → Script Hub → Storyboard → Shot editor → Generate Frames \| Takes → Review | **REFERENCE (primary)**, structure and placement only |
 | 2 | **#58 fresh.** `prototype/v2-58-writing` → `prototypes/v2-ux/58-writing/` | `573ebb5` | Ratified writing behaviours: option pager, regeneration dock, sync bar, acceptance sheet | **REFERENCE** |
 | 3 | **#59 fresh.** `prototype/v2-59-world` → `prototypes/v2-ux/59-world/` | `cbee026` | Identity-first, shot-driven World Definition | **PARTIAL REFERENCE** |
-| 4 | **#62 fresh.** `prototype/v2-62-review` → `prototypes/v2-ux/62-review/` | `0ca87af` | Sequence-first review and playback (A, B, C) | **PARTIAL REFERENCE** (variant A only) |
+| 4 | **#62 fresh.** `prototype/v2-62-review` → `prototypes/v2-ux/62-review/` | `0ca87af` | Sequence-first review and playback (A, B, C) | **PARTIAL REFERENCE**, gap evidence only (variant A pieces the canonical Review does not draw) |
 | 5 | **#63.** `prototype/63-trust-signals` → `prototypes/63-trust-signals/` | `8792144` | Whisper A / Ledger B / Trace C trust signals | **PARTIAL REFERENCE** (Whisper presentation only) |
 | 6 | **#57.** `prototype/intake-interview-57` → `prototype/intake-interview/` | `010b4b1` | Input staging; Interview A conversation / B cards / C living brief | **PARTIAL REFERENCE** (Input + Interview A + ledger layout) |
-| 7 | **#60 hub round.** `prototype/v2-60-scene-hub` → `prototypes/v2-ux/60-scene-hub/` | `46a8661` | Script Hub and workspace skeleton, Draft all, Options, ad-hoc shots | **PARTIAL REFERENCE** (behaviour illustrations only, no layouts) |
-| 8 | **#60 v3.** `prototype/v2-60-scene-production-v3` → `prototypes/v2-ux/60-scene-production-v3/` | `64bd655` | Hub, Prep A/B/C, Generate 1/2/3, Review (the architecture creator-ratified in Record 5) | **PARTIAL REFERENCE** (Script Hub `hub.js` only; Prep, Generate and Review are ARCHIVED) |
+| 7 | **#60 hub round.** `prototype/v2-60-scene-hub` → `prototypes/v2-ux/60-scene-hub/` | `46a8661` | Script Hub and workspace skeleton, Draft all, Options, ad-hoc shots | **PARTIAL REFERENCE**, gap evidence only (Draft all, Options, Ad-hoc, Removed, Peek, auto-draft fixtures) |
+| 8 | **#60 v3.** `prototype/v2-60-scene-production-v3` → `prototypes/v2-ux/60-scene-production-v3/` | `64bd655` | Hub, Prep A/B/C, Generate 1/2/3, Review (the architecture ratified in Record 5) | **ARCHIVED / DO NOT IMPLEMENT** (its Script Hub is copied unchanged into #1) |
 | 9 | **#60 workspace U/S.** `prototype/v2-60-scene-workspace` → `prototypes/v2-ux/60-scene-workspace/` | `2e9d72b` | Unified tabs vs staged workspace | **ARCHIVED / DO NOT IMPLEMENT** |
 | 10 | **#60 v1.** `prototype/60-scene-hub-shot-planning` → `prototype-60/` | `422667b` | Board, batch drafting (A, B, C) | **ARCHIVED / DO NOT IMPLEMENT** |
 | 11 | **#61.** `prototype/61-shot-planning-inputs` → `prototype-61/` (`boundary.html`, `matching.html`) | `40d3340` | CineBlock boundary A/B/C; import matching rules | **ARCHIVED / DO NOT IMPLEMENT** |
@@ -40,8 +42,9 @@ Sixteen prototypes were found (the canonical flow, added later, is row 0): fourt
 | 13 | **#59 v1.** `prototype/59-world-definition` → `prototypes/59-world-definition/` | `67f8e39` | World Definition A/B/C | **ARCHIVED / DO NOT IMPLEMENT** |
 | 14 | **#58 v1.** `prototype/58-writing-experience` → `prototypes/writing-experience-58/` | `3ec65bb` | Writing layout A/B/C | **ARCHIVED / DO NOT IMPLEMENT** |
 | 15 | **#56.** `prototype/56-navigation-models` → `prototypes/navigation-models-56/` | `6a453fc` | Navigation A/B/C | **ARCHIVED / DO NOT IMPLEMENT** |
+| 16 | **#60 final synthesis (earlier attempt).** `main` → `prototypes/v2-ux/60-scene-production-final/` | main | Records 5 and 6 as one scene workspace | **ARCHIVED / DO NOT IMPLEMENT** (superseded by #1; its Generate code is byte-identical to #1; it had no Script Hub or Outline, duplicated the Shot list under the matrix, and used a light Review stand-in) |
 
-Totals: **3 REFERENCE (one active, one historical on main), 6 PARTIAL REFERENCE, 7 ARCHIVED.**
+Totals: **2 REFERENCE, 5 PARTIAL REFERENCE, 9 ARCHIVED.**
 
 Research branches (`research/*`) are not prototypes and are out of scope here.
 
@@ -49,27 +52,34 @@ Research branches (`research/*`) are not prototypes and are out of scope here.
 
 ### 3.1 REFERENCE
 
-**#0 `60-scene-production-canonical` (main) is the active #60 reference** and applies everything said below about #1 (same deltas RD-01 to RD-22, plus RD-48 to RD-60 for its Review). It differs from #1 in: global Outline sidebar; v3 Script Hub restored; Cast & Looks matrix is a lens on the single Shot strip (no second Shot list); Review re-hosts #62 variant A instead of the light stand-in. Its Script Hub is `hub.js` from #8 and its Review follows #4 variant A.
+**#1 `60-scene-production-canonical` (main), primary.** The creator rebuilt the #60 flow as one application so that it is the primary, and for the scene flow the only, prototype to consult. Use it for *interaction structure, surface placement and information architecture* of:
+- **Shell:** collapsible Outline sidebar (Story and World rows inert), top strip, scene header with the three-step pipeline and counts, `← Script Hub`, previous and next scene.
+- **Script Hub** (`hub.js`, byte-identical to v3's): runtime-width scene ribbon, scene list, summary panel, key-frame carousel, ending image, Open scene, Cards toggle.
+- **Storyboard** on scene entry, with Accept plan there only.
+- **Scene Prep:** one horizontal Shot strip, Shot editor, Cast & Looks matrix as a collapsed lens on that strip, asset drawer, Location cards with ordered Directions, split, merge and reorder placement.
+- **Generate:** Frames | Takes toggle, Frames drawer (References, Prompts, Scene frames), one-panel Takes drawer and Take composer, reference library by origin, neighbour row, compare pairs, cut editor, Dialogue section and the Record 6 voice paths, inline spend ticket placement, quiet readiness line.
+- **Review:** runtime-proportional timeline with gap slates, viewer and transport, Scene | Whole film scope, filter chips, unsettled stepping, swap = select separate from Mark final, Compare of up to 3, Make another take in the shared composer, Fix this shot ▾ and Back to Review.
 
-**#1 `60-scene-production-final` (main), historical.** Use for *interaction structure, surface placement and information architecture* of the scene workspace: Storyboard arrival and Accept plan placement, horizontal shot strip, Shot editor, fold-down Cast & Looks, asset drawer, Frames | Takes toggle, Frames drawer tabs, one-panel Takes drawer, Take composer contents and order, reference library by origin, neighbour row, compare pairs, cut editor, Dialogue section placement, Generate ↔ Review boundary, inline spend ticket placement, quiet readiness line. It follows Records 5 and 6 closely, and no component of it was rejected later.
-- Caveats that bind its status. Neither Record 5 nor Record 6 names this prototype. Record 5 ratified the *composition of v3's parts*, and this build is an agent synthesis made afterwards, never creator-reviewed. "Canonical" is a repository label, not a creator ratification. It is **not** a reference for behaviour, data model, prices, spend, lineage, locks, or voice authorisation. See RD-01 to RD-22.
-- Its README's "two prototype-level choices not in the docs" are mis-described. *Split at the middle of the action sentences* conflicts with SHOT-MODEL §5.2 (RD-13). *Revoice offered on native Takes only* is in VOICE §4.2 and Record 6 V6.2(3), but the code is looser than the doc (RD-12).
+Provenance and limits:
+- Its `gen.js`, `assets.js`, `data.js` and `art.js` are byte-identical to the archived final synthesis (#16). `review.js` is a **fresh rewrite** informed by #4 variant A, not a re-host: it dropped #4's Frames mode, cap-breach and late-arrival fixtures, Trim button and "from the merged shot" label.
+- It was built after Records 5 and 6 and has not been reviewed by the creator beyond being the chosen reference. "Canonical" is a repository label, not a ratification of its behaviour.
+- **It is not a reference for behaviour, data model, prices, spend, lineage, locks, retire/merge/split semantics, voice authorisation or staleness.** Apply §4.0 (what still applies), RD-01 to RD-22, RD-48 to RD-60, RD-61 to RD-69 where its surface touches them, and RD-70 to RD-93 (new).
+- **It does not draw everything the real product needs in the sections it covers.** Draft all, Peek, Cmd-K, live Ad-hoc and Removed from Story, the export package, failure classes, Cancel, the review-all tray, shot-plan lock offers, Extra types, composition-reference editing, Fit and the Package inspector and much else are absent. The complete list, with authority and any other prototype that shows the thing, is [PROTOTYPE-COVERAGE-GAPS.md](PROTOTYPE-COVERAGE-GAPS.md). **Absence from the canonical prototype never means absence from V2.**
+- Known prototype defects not to copy: matrix-to-strip scroll sync is one-way; Split crashes on a newly added dialogue line; gap-cell labels, buttons and tickets clip at narrow widths; the Hub's Open scene button overflows at 1280 and 1440 px; a double click on a timeline gap cell can start two generations.
 
 **#2 `v2-58-writing`.** Ratified by Record 4 W58 as "the starting point and implementation guidance". Use for the chosen variant only: option pager with summary and attributes on top and compare on request; one regeneration box below the document; one quiet sync bar with per-beat actions behind the whisper mark; Beat Sheet with Treatment sidebar and Master Narrative with Beat Sheet sidebar; acceptance sheet; Versions preview, restore and bring-back; skipped, bypassed, upload-designated and development-history states; exceptional-spend inline ticket. The strip, compare-as-default, margin and inline variants it also contains were not chosen. It predates parts of Record 4's application and all of Record 6 (RD-23 to RD-28).
 
 ### 3.2 PARTIAL REFERENCE
 
-**#3 `v2-59-world`.** Ratified by Record 4 W59 as the starting point. Use for: home tiles grouped by entity type; extraction review (Keep, Keep lightweight, Defer, Merge, type, Keep all, Add); Identity workspace (attempts, one approved image, Approve identity then quiet lock offer); the "Complete coverage" disclosure; contact sheet with *Accept all N*, Undo toast and per-tile Redo/Upload/Skip; Looks vs separate Location sheet; Visual Style page; coverage wall as optional second view; inline spend ticket. **Not** a reference for the Coverage data model (flat named views, one shot per need, no Direction × Look), shot-to-Direction resolution, single-image mode, Voice, Looks form, or needs wording. The Coverage tab must be rebuilt from ADR 0003 as amended (RD-35 to RD-45).
+**#3 `v2-59-world`.** Ratified by Record 4 W59 as the starting point. Use for: home tiles grouped by entity type; extraction review; Identity workspace; the "Complete coverage" disclosure; contact sheet with *Accept all N*, Undo toast and per-tile Redo/Upload/Skip; Looks vs separate Location sheet; Visual Style page; coverage wall as optional second view; inline spend ticket; Extra entity type. **Not** a reference for the Coverage data model (flat named views, one shot per need, no Direction × Look), shot-to-Direction resolution, single-image mode, Voice, Looks form, or needs wording. The Coverage tab must be rebuilt from ADR 0003 as amended (RD-35 to RD-45).
 
-**#4 `v2-62-review`, variant A only.** Ratified by Record 4 W62 as the base. Use for: runtime-proportional scene timeline; gap-slate vocabulary ("3 takes · none picked · Pick", "No take yet · Generate · $x"); Take-card label set; *swap = select* with Undo toast; compare of up to 3 replacing the viewer; whole-film ribbon with filter dimming; spend ticket reason lines and the no-Start cap breach; part-retry and late-arrival presentation. Variants B and C are ARCHIVED. It carries many behaviours Records 4 and 5 and ADRs 0004 and 0005 forbid (RD-04 to RD-06, RD-48 to RD-60).
+**#4 `v2-62-review`, gap evidence only.** Variant A is the ratified base (Record 4 W62), and the canonical Review now draws it. Consult #4 only for the pieces the canonical Review lacks: **Trim the selection** on a cap-breach ticket, the bulk ticket on the whole-film view, the late-arrival label states, and failed/partial fixtures. Do not use it for layout, or for any behaviour listed in RD-48 to RD-60. Variants B and C are ARCHIVED.
 
-**#5 `63-trust-signals`, Whisper A presentation only.** Use for: the dot with an accessible name, on-tap sentence and three exits; inline impact strip under the edited text; footer bulk line; write-back note with three choices; *Highlight AI vs mine* toggle; dotted "AI chose" tag. Variant B's grouped-by-reason layout is useful only as the *content of the on-demand review-all tray*. Variant C (Trace) and B's permanent side column are ARCHIVED. Its mechanics (stored flags, client-side lock gating, Regenerate path, take pick ignoring Mark final) are wrong (RD-04 to RD-06, RD-61 to RD-69).
+**#5 `63-trust-signals`, Whisper A presentation only.** Use for: the dot with an accessible name, on-tap sentence and three exits; inline impact strip under the edited text; footer bulk line; write-back note with three choices; *Highlight AI vs mine* toggle; dotted "AI chose" tag. Variant B's grouped-by-reason layout is useful only as the *content of the on-demand review-all tray*. Variant C and B's permanent side column are ARCHIVED. Its mechanics (stored flags, client-side lock gating, Regenerate path, pick ignoring Mark final) are wrong (RD-61 to RD-69). The canonical prototype draws none of this shell-level trust UI, so #5 is the only evidence for it.
 
-**#6 `intake-interview-57`.** Use for: the Input staging area (item cards, roles, per-item reading panel with confidence and "why", route strip, optional project settings with source tags), Interview variant A (conversation with suggested-answer chips, skip and undo on each question), the ledger layout, the "I think I understand enough" advisory with *finish anyway*, and the three-button conflict question *for new Source Material only*. Variants B (cards, meters) and C (living brief), the Handoff step, the mock classifier and the sample questions are ARCHIVED (RD-29 to RD-34).
+**#6 `intake-interview-57`.** Use for: the Input staging area (item cards, roles, per-item reading panel with confidence and "why", route strip, optional project settings with source tags), Interview variant A (conversation with suggested-answer chips, skip and undo on each question), the ledger layout, the "I think I understand enough" advisory with *finish anyway*, and the three-button conflict question *for new Source Material only*. Variants B and C, the Handoff step, the mock classifier and the sample questions are ARCHIVED (RD-29 to RD-34).
 
-**#7 `v2-60-scene-hub`, behaviour only.** Record 4 W60 §5.1 ratified none of its three layouts. Its A (cards with excerpts), B (per-shot ticks, drag cells as editing surface) and C (manuscript-first) layouts are ARCHIVED. Useful, as non-binding illustrations of rules the docs own: the **Draft all** scope-then-invoke flow with the inline ticket and Trim to fit / Raise cap for this action / Not now (no Start on cap breach); the **Options panel** for redraft (touched fields kept, omitted shots listed not retired, locked plans hold Options); **Ad-hoc shots** and **Removed from Story** rows with Move to scene / Bring back / Adopt work; the **auto-draft boundary fixtures** (under $0.05 auto, $0.05 and above "Draft plan · $x", unknown price and $2.00 and above use the ticket, emptied or locked plans never auto-draft). See RD-46, RD-47, RD-05.
-
-**#8 `v2-60-scene-production-v3`, Script Hub only (`hub.js`, `screens/01-script-hub.png`).** Record 5 left the Script Hub unchanged, Record 4 §5.2 is the ratified hub, and the final prototype does not draw it. This is the only rendition of §5.2: compact scene list with per-scene ribbon (picked / needs a pick / missing, no per-shot ticks), large summary panel (scrollable Master Narrative portion, assets, planned vs as-made, progress, key-frame carousel, ending image: frame → Take still → world image tagged → none), "No shots yet", Open scene, Cards toggle. It lacks Draft-all scope controls, the Ad-hoc / Removed rows and Peek (see #7 and IO-6). **Everything else in v3 (Prep A/B/C, Generate 1/2/3, Review, `Select this Take`, Takes dock) is ARCHIVED**, and the final prototype supersedes it.
+**#7 `v2-60-scene-hub`, gap evidence only.** Record 4 W60 §5.1 ratified none of its three layouts (cards with excerpts, per-shot ticks, manuscript-first), and the canonical Script Hub supersedes them. Consult it only for behaviour the canonical Hub does not draw, as non-binding illustration of rules the docs own: **Draft all** scope-then-invoke with the inline ticket and Trim to fit / Raise cap for this action / Not now; the **Options panel** for redraft; **Ad-hoc shots** and **Removed from Story** content with Move to scene / Bring back / Adopt work; **Peek**; the **auto-draft boundary fixtures** (under $0.05 auto; $0.05 and above "Draft plan · $x"; unknown price and $2.00 and above use the ticket; an emptied plan never auto-drafts; a locked plan holds the draft as an Option and never applies it). See RD-46, RD-47, RD-05.
 
 ### 3.3 ARCHIVED / DO NOT IMPLEMENT
 
@@ -77,7 +87,9 @@ Each remains historical UX research. Why each is archived, and the hazards a dow
 
 | # | Why archived | Hazards if misread |
 |---|---|---|
-| 9 `v2-60-scene-workspace` | Superseded by Record 5 A5, which ratified v3's architecture "over" Variant U (Plan · Frames · Takes tabs) and Variant S (Shots & Assets → Frames & Prompts → Takes). GLOSSARY bans "Plan tab", "Shots & Assets", "Frames & Prompts", "Takes tab". Its hub duplicates v3's. | Tabbed or staged workspace; vertical shot rail; single `direction` string; no Character Voice; Accept plan in each header. |
+| 8 `v2-60-scene-production-v3` | Record 5 ratified its architecture, and the canonical prototype now carries everything of it that is wanted: its `hub.js` is copied unchanged, and Prep, Generate and Review are rebuilt. | Prep A/B/C and Generate 1/2/3 alternatives; Scale bar; vertical rail; permanent matrix; Takes dock and tray; `Select this Take`; single `direction`; Accept plan in every header; scene-wide Take review inside Generate; pre-Record 6 voice scope. |
+| 16 `60-scene-production-final` | Superseded by #1. Same Generate code, but no Script Hub or Outline, a duplicate Shot list under the matrix and a light Review stand-in. | Same as #1's defects, plus the shell, hub and review omissions that #1 fixed. Its README note about "two prototype-level choices not in the docs" is wrong (RD-12, RD-13). |
+| 9 `v2-60-scene-workspace` | Superseded by Record 5 A5, which ratified v3's architecture "over" Variant U (Plan · Frames · Takes tabs) and Variant S (Shots & Assets → Frames & Prompts → Takes). GLOSSARY bans "Plan tab", "Shots & Assets", "Frames & Prompts", "Takes tab". | Tabbed or staged workspace; vertical shot rail; single `direction` string; no Character Voice; Accept plan in each header. |
 | 10 `60-scene-hub-shot-planning` | Rejected wholesale by Record 2 D60.1 and D60.8. NAVIGATION §8: "All earlier #60 UX (Board renditions, batch-drafting UIs) is rejected." | Board with a mark per shot; pre-flight batch sheet; run-then-undo tray; ghost marks; "no plan yet"; "last approved end frame" as scene image; `Regenerate` for stale. |
 | 11 `61-shot-planning-inputs` | `boundary.html`: all three CineBlock boundaries were rejected by Record 2 D61 (CineBlock is part of Aiuteur, same account and session; ADR 0024). `matching.html`: most rules were ratified into SHOT-PLANNING-INPUTS §6, which controls. No doc cites either file as a reference. | File-export or launch-token CineBlock; manual attach step; Retire that deletes the reference; one button that attaches *and* generates three frames; storyboard rows that create shots; "Ask AI" picking without a verified quote; the hard-coded scoring weights. |
 | 12 `62-candidate-review` | Superseded: creator chose C (D62), then Record 4 W62 ratified `v2-62-review` variant A. | Popover or docked confirmation tray; cap breach that still offers Start; take wall; filmstrip; `ood` flags; hard-coded $25 cap. |
@@ -87,13 +99,27 @@ Each remains historical UX research. Why each is archived, and the hazards a dow
 
 ### 3.4 Shared kit (not a prototype)
 
-`prototypes/v2-ux/shared/` (`kit.css`, `kit.js`, identical to `prototype/ux-v2-shared-kit`) is shared styling and helpers for the `v2-ux` prototypes and is a runtime dependency of the final #60 prototype. It has **no product status**. Colours, the 232 px outline and 40 px strip are not ratified design. `spendKind()` is not the spend policy: it omits the trivial class, the all-video rule and bulk-by-filter. See RD-01. The branch also holds `docs/product/CREATOR-PROTOTYPE-GRILL-HANDOFF.md`, which is not on `main` and is historical.
+`prototypes/v2-ux/shared/` (`kit.css`, `kit.js`, identical to `prototype/ux-v2-shared-kit`) is shared styling and helpers for the `v2-ux` prototypes and is a runtime dependency of the archived final synthesis. It has **no product status**. Colours, the 232 px outline and 40 px strip are not ratified design. `spendKind()` is not the spend policy: it omits the trivial class, the all-video rule and bulk-by-filter. See RD-01. The branch also holds `docs/product/CREATOR-PROTOTYPE-GRILL-HANDOFF.md`, which is not on `main` and is historical.
 
 ## 4. REQUIRED DELTA register
 
-Format per row: **ID** · Prototype / surface · *Prototype shows or assumes* → **Authority requires** · Sources · Consequence. "Final" = #1, "v2-62" = #4, "63" = #5, "57" = #6.
+Format per row: **ID** · Prototype / surface · *Prototype shows or assumes* → **Authority requires** · Sources · Consequence. "Canonical" = #1, "v2-62" = #4, "63" = #5, "57" = #6.
 
-The register covers REFERENCE and PARTIAL REFERENCE prototypes. For ARCHIVED prototypes the hazard list in §3.3 is the guide, and deltas that also appear in them are in the cross-cutting section.
+The register covers REFERENCE and PARTIAL REFERENCE prototypes. For ARCHIVED prototypes the hazard list in §3.3 is the guide, and deltas that also appear in them are in the cross-cutting section. §4.0 says which earlier deltas still apply to the canonical prototype; §4.9 adds the ones its code introduced. Total: **93 REQUIRED DELTAS** (RD-01 to RD-93).
+
+### 4.0 What still applies to the canonical prototype
+
+The canonical prototype (#1) shares its Generate, asset-drawer and data code with the archived final synthesis, and re-implements the shell, Hub, Prep matrix and Review. Both slices were re-audited against its actual code (plus live runs). Status of every earlier delta that touches its surfaces:
+
+- **STILL APPLIES (apply as written):** RD-01, 04, 05, 06, 07, 09, 10, 11, 12, 13, 14 (extended to scenes, RD-79), 16, 17, 18, 19, 20, 22, 35, 36, 37, 55, 56, 57, 58, 59, 60, 61 to 65, 69. RD-03 applies to behaviour only (placement of the three voice paths and the batch is right).
+- **REWORDED for the canonical prototype:**
+  - **RD-02:** ordered Direction chips and an editor exist (Location card, `×n` in the matrix, "n Directions" on the Storyboard card), but the free-text `direction` is still edited under "More detail" and is the only Direction text the frame prompt reads, and `r.dirs` never reaches the prompt or ingredients.
+  - **RD-15:** Characters still get a View gallery; Props no longer show one in the drawer but still carry a View in data and in the ingredient line.
+  - **RD-21:** wider than first stated; the false "drafts itself on entry" copy appears in the Hub summary hint, in Scene Prep's empty state, and the Draft plan button is offered on an emptied plan (RD-71).
+  - **RD-50:** the composer is the shared component, but Add reference image is dead in Review (RD-86).
+  - **RD-52:** the scene header pipeline with counts is drawn; Review & Export has no export package (appendix G19, Review & Export hand-off).
+- **FIXED, or not present, in the canonical prototype** (still true of the older prototypes that show them): RD-08 on Prep surfaces (marks end at acceptance); RD-38; RD-41; RD-44 (one World Definition row); RD-46 label ("No shots yet"; the hint copy is still wrong); RD-47 (ending image order, derived); RD-48 (no persistent right column); RD-49 (no Frames in Review); RD-51 (Back to Review restores scene, shot, playhead, scope and filters; the playhead is not reset by Generate's Open in Review, RD-93); RD-53 (no planned-runtime toggle); RD-54 (unsettled stepping unconditional).
+- **Not applicable to #1** (belong to other prototypes): RD-23 to RD-34, RD-39, RD-40, RD-42, RD-43, RD-45.
 
 ### 4.1 Cross-cutting (apply wherever a prototype shows the surface)
 
@@ -103,37 +129,37 @@ The register covers REFERENCE and PARTIAL REFERENCE prototypes. For ARCHIVED pro
 Sources: BUSINESS-AND-OPERATIONS §3, §4, §6.1, §9; VOICE §6.5; Record 3 §2; Record 4 Y7; ADR 0015.
 Consequence: never copy a figure or model name as data. The three authoritative numbers are $0.05, $2.00 and 10, and they are tunable. Retry is priced from the model that made the failed run.
 
-**RD-02 · Final, v2-62, v2-59 (and every archived #60) · A shot has one free-text `direction`; Directions are not Look-aware.**
-*Shows:* a single `direction` string per shot (often with compass hints "north", "south-west"), edited under "More detail" and read by the frame prompt; ordered Direction chips in Final that never reach the frame prompt, ingredients or composer; hard-coded prompt strings ("north wall view") in v2-62.
+**RD-02 · Canonical, v2-62, v2-59 (and every archived #60) · A shot has one free-text `direction`; Directions are not Look-aware.**
+*Shows:* a single `direction` string per shot (often with compass hints "north", "south-west"), edited under "More detail" and read by the frame prompt; ordered Direction chips in Canonical that never reach the frame prompt, ingredients or composer; hard-coded prompt strings ("north wall view") in v2-62.
 → **Requires:** a shot resolves **one or more ordered Directions**, as many as the space it reveals needs, never a camera-movement label; the AI proposes them from the shot's cinematography as an editable AI-made choice (no advanced setting); a Direction is a named Slot, with label, description and optional opposite, and a View Slot per Look (or base); order is shot-owned and never raises write-back; the Package carries every resolved Direction; Fit picks the subset that best covers the revealed camera path and reports it.
 Sources: Record 6 L6.3–L6.6; ADR 0003 (amended); ENTITIES-AND-LOOKS §5.1–5.3, §7; SHOT-MODEL §2.1; GLOSSARY Direction, View.
 Consequence: model Directions as a first-class ordered list of Slot refs. Drop the free-text field (or demote it to a camera note that never asks). Do not carry compass hints, which imply the LATER spatial model (LS-1).
 
-**RD-03 · Final, v2-62, v2-59, v2-60 hubs/v3 · Dialogue and Character Voice are absent or partial.**
-*Shows:* dialogue as speaker + free text + delivery note (older #60); no Voice (v2-59, v2-62, v3); in Final only a target-Voice boolean (see RD-10 to RD-12).
+**RD-03 · Canonical, v2-62, v2-59, v2-60 hubs/v3 · Dialogue and Character Voice are absent or partial.**
+*Shows:* dialogue as speaker + free text + delivery note (older #60); no Voice (v2-59, v2-62, v3); in Canonical only a target-Voice boolean (see RD-10 to RD-12).
 → **Requires:** Voice is a persistent identity defined in World Definition on a Character (Record 5 VP1, Record 6 V6.1) and is reusable across the film inside the project; native dialogue is the default and needs none of this (V6.5); three explicit, priced, creator-initiated paths per line: **Generate as Character Voice**, **Performance → Character Voice**, **Native → Character Voice** where supported; plus priced **Generate unvoiced lines** for a shot or scene; one chosen Line audio per line; the authorisation gate for cloned voices; `performance-changed` and `authorisation-revoked` markers; recording and upload live in the Takes drawer's Dialogue section, and Scene Prep shows only a quiet 🎙 mark. Do not reuse "Voice" as a speaker label.
 Sources: Record 5 VP1–VP5; Record 6 V6.1–V6.5; ADR 0025 (amended); VOICE-AND-PERFORMANCE §1–§4; GLOSSARY Voice.
-Consequence: use the Final prototype only for Dialogue placement; behaviour comes from the docs.
+Consequence: use the Canonical prototype only for Dialogue placement; behaviour comes from the docs.
 
-**RD-04 · 63, v2-62, Final (and archived v1 #62) · Possibly-out-of-date is stored or hand-set, partial, and uses free text.**
+**RD-04 · 63, v2-62, Canonical (and archived v1 #62) · Possibly-out-of-date is stored or hand-set, partial, and uses free text.**
 *Shows:* stored flags (`stale`, `ack`, `ood`, `f.stale`) set by hand on edit; only later shots' Frames marked; `performance-changed` set on every Take of a shot; free-text reasons ("Built from the earlier pick of 7A"); exits limited to "It still fits"; the dot reused for "ready, not selected"; Undo toasts that reset the flag.
 → **Requires:** derived on read by comparing the input fingerprints captured at dispatch, minus Acknowledgements scoped to exact content; a closed reason vocabulary rendered as one sentence (`shot-changed`, `look-changed`, `identity-changed`, `coverage-changed`, `frame-changed`, `performance-changed`, `authorisation-revoked`, `prompt-override-changed`, `upstream-pending`…); exits **Regenerate / It still fits / Keep as is**; footer bulk line and on-demand review-all tray; staleness never spends; late results arrive already flagged; marks only work that actually captured the changed input.
 Sources: ADR 0004; LINEAGE-AND-STALENESS §2.3, §3.1–3.4; TRUST-SIGNALS §2; GLOSSARY Whisper, Acknowledgement.
 Consequence: nothing stores an outdated status. Only Acknowledgements are written. "Ready, not selected" is a text label, not the dot.
 
-**RD-05 · 63, v2-62, Final, v2-60-scene-hub · Locks and edit-through are wrong or bypassable.**
+**RD-05 · 63, v2-62, Canonical, v2-60-scene-hub · Locks and edit-through are wrong or bypassable.**
 *Shows:* Mark final blocks a pick change with "Unlock it to change the pick" (v2-62); Reject, Unselect and 63's `pick()` bypass or ignore the lock; Mark final as a boolean on the shot; the Review-only confirm bar (Generate's "Use this Take" on a final shot is a silent no-op); lock gating and impact computed in the browser; locked plans disable structure edits behind one-click Unlock (hub); a `locked` scene suppresses the stage-entry auto-draft.
 → **Requires:** every path that moves a Slot choice inside a lock (Select, Unselect, Reject of the selected Take, Restore, compare-pane Select, Generate and Review pointers) passes one server write gate; changing the pick on a final shot is **edit-through**: server-computed impact (tier 0 nothing, tier 1 inline warning naming dependants, tier 2 affected items and money at risk first), one confirmation per editing session, no cascade; "no surface forces unlock first"; Mark final is a normal lock Decision on the Take Slot, one glyph, one unlock gesture; **a locked shot plan receives AI results as held Options, never applied and never suppressed**; a hand edit to a locked plan uses edit-through.
 Sources: ADR 0005, 0012; LAS §6; TRUST-SIGNALS §3–§6; CANDIDATE-REVIEW §3.1, §9.2; Record 4 W62.7, Y5; Constitution §13.4 (a displayed lock must hold everywhere).
 Consequence: one server operation reachable from every surface. Do not read `locked` as a gate on auto-drafting.
 
-**RD-06 · 63, v2-62, Final · Take selection and creation rules.**
-*Shows:* Regenerate from a trust dot creates a Take, selects it, clears the marker and spends nothing visible (63); seed fixtures that pre-select Takes; Takes "from the merged shot" selectable (v2-62); a partial run shown as a selectable Take with Use and compare (Final 7G); "Retry part 3" finishing a whole long Take and "From part 3" as an inert button (v2-62).
+**RD-06 · 63, v2-62, Canonical · Take selection and creation rules.**
+*Shows:* Regenerate from a trust dot creates a Take, selects it, clears the marker and spends nothing visible (63); seed fixtures that pre-select Takes; Takes "from the merged shot" selectable (v2-62); a partial run shown as a selectable Take with Use and compare (Canonical 7G); "Retry part 3" finishing a whole long Take and "From part 3" as an inert button (v2-62).
 → **Requires:** Takes are **never auto-selected**; a pointer references a Take of its own Shot only, so Takes from a merged shot are visible, playable and labelled "from the merged shot" but not selectable; a Take exists **only when assembly succeeds** ("2 of 3 parts made" is a shot state, never a Take); a failed Segment shows its own price on Retry; later Segments are re-queued by "Continue the batch" with no new approval; **Regenerate from part k** states the saving; the Segment plan comes from the model's capability profile.
 Sources: SHOT-MODEL §5.3, §7.3; ADR 0012, 0013; JOB-LIFECYCLE §8, §11; CANDIDATE-REVIEW §3.1, §6, §9.2–9.3; Record 4 W62.8; Record 5 GN4, GN6.
 Consequence: state is derived from the Batch and Segments. A new Take appears only on assembly success. Regenerate always arrives unselected and priced.
 
-**RD-07 · Final, 63, v2-58 · Retire, never delete; Undo and restore add a new head.**
+**RD-07 · Canonical, 63, v2-58 · Retire, never delete; Undo and restore add a new head.**
 *Shows:* Merge splices the later shot out with its Frames and Takes, while the header claims they "stay reachable"; Remove shot is a splice; Undo as whole-state snapshot replacement (`S.versions=p.vl`) that truncates history.
 → **Requires:** Merge keeps the earlier id and **retires** the later with `merged_into`; both shots' Frames and Takes stay on their own shots; Remove is retire (Frames, Takes, anchors, Decisions stay attached; un-retire restores the id; excluded from runtime and default export; the last shot can be retired); restore adds a new current Revision, and history is never rewound; Undo of a sync or a held change is a restore of the prior head.
 Sources: SHOT-MODEL §3.1, §5.1, §5.3, §12; ADR 0012, 0019, 0020; WRITING-EXPERIENCE §2.4, §4.3, §7.2; Constitution (retire, never delete).
@@ -145,13 +171,13 @@ Consequence: retire groups, never `DELETE`. Review totals, runtime and export ex
 Sources: Record 4 Y1, Y2, §2 item 6; TRUST-SIGNALS §1–§2; WRITING-EXPERIENCE §5; NAVIGATION §3; Constitution §13.2; GLOSSARY Whisper, AI-made choice.
 Consequence: pending proposals ("AI noticed", "AI chose" on style) may be marked. Accepted content is not.
 
-**RD-09 · Final, 63, 57, archived #60 · Terminology.**
+**RD-09 · Canonical, 63, 57, archived #60 · Terminology.**
 *Shows:* "Script ▸", "From the script", "Update the script to match"; "Aiuteur chose"; "Regenerate" for a retry and "stale/outdated" in UI; "Voice" as a speaker label; "Plan tab", "Shots & Assets"; Offering shown to the creator; "Establishing" as a default Direction.
 → **Requires:** GLOSSARY `_Avoid_` lines (Master Narrative not script; AI-made choice; Whisper; Scene Prep, Generate; Voice means the identity). *Script Hub* survives as the ratified name for the Board (Record 5, NAVIGATION).
 Sources: GLOSSARY; NAVIGATION §2; Record 5.
 Consequence: low severity. Copy follows the glossary. Whether "Offering" is creator-facing is unspecified.
 
-### 4.2 #1 Final #60 synthesis
+### 4.2 #1 Canonical #60 flow (Generate, Prep, composer, drawer; code shared with archived #16)
 
 **RD-10 · Dialogue → Take · Long Line audio does not lengthen the Take or its price.**
 *Shows:* "This Take will be made long enough" and "Set shot to N s", but `genTake` creates the Take at `s.dur` and `takeEst` prices `s.dur`.
@@ -265,13 +291,13 @@ Sources: PROVIDERS-AND-MODELS §8.1–§8.5; Record 5 GN5.
 
 **RD-45 · Entity state · "Lightweight · text only".** → **Requires:** an intentional **"Lightweight"** state, neither ✓ nor missing. Sources: Record 4 W59.3; WORLD-DEFINITION §2.
 
-### 4.6 #7 and #8 (hub material)
+### 4.6 #7 `v2-60-scene-hub` (hub material; also relevant to the canonical Hub)
 
 **RD-46 · v2-60-scene-hub · "No plan yet", "Plan emptied".** → **Requires:** the screen reads **"No shots yet"**; behaviour is correct (emptied is an existing plan and never auto-drafts); the hub hint "no plan · drafts when opened" is not ratified copy, since the label is "Draft plan · $x" or a silent auto-draft. Sources: Record 4 W60 §5.2.4; SHOT-MODEL §3.1; NAVIGATION Board.
 
-**RD-47 · v2-60-scene-hub · Scene image is "the last selected shot's end frame".** → **Requires:** ending image = last active shot's approved ending Frame, else a still from its selected Take, else the main location identity image (tagged as world image), else none; derived in code, never stored. Sources: Record 4 W60 §5.2.3; NAVIGATION Board. v3's `endingImage` is the closer illustration.
+**RD-47 · v2-60-scene-hub · Scene image is "the last selected shot's end frame".** → **Requires:** ending image = last active shot's approved ending Frame, else a still from its selected Take, else the main location identity image (tagged as world image), else none; derived in code, never stored. Sources: Record 4 W60 §5.2.3; NAVIGATION Board. the canonical `endingImage` is the closer illustration.
 
-### 4.7 #4 `v2-62-review`, variant A
+### 4.7 #4 `v2-62-review`, variant A (and, where noted in §4.0, the canonical Review)
 
 **RD-48 · Persistent right-hand "What's unsettled" column.** → **Requires:** no persistent right column; "What's unsettled" is a count in the scene header that opens its list on demand; recorded-decision lists are on demand; gap actions stay on the gap cell. Sources: Record 4 W62.4–W62.5; CANDIDATE-REVIEW §2.
 
@@ -319,7 +345,61 @@ Sources: PROVIDERS-AND-MODELS §8.1–§8.5; Record 5 GN5.
 
 **RD-69 · Ledger tray as a permanent column.** → **Requires:** the review-all tray opens on demand from the footer line; its grouped-by-reason content is the template. Sources: TRUST-SIGNALS §1–§2.
 
-**Total: 69 REQUIRED DELTAS.**
+### 4.9 New deltas found in the canonical prototype (#1)
+
+Prefix: `#1` unless stated. Detail and line references are in the audit; each row names the authority.
+
+**RD-70 · Storyboard card · Unapproved candidate Frames show as "the opening Frame".** *Shows:* 7D and 7F cards display a generated image while their state reads "Drafted". → **Requires:** the card shows the approved opening Frame, else a blank placeholder; for a skip-frames shot a still of its selected Take or blank. Sources: Record 5 SP1; SHOT-MODEL Record 5 amendments, §6.1. Consequence: only an approved Attempt fills the card.
+
+**RD-71 · Scene entry · "Draft plan" writes straight into an emptied or locked plan.** *Shows:* the button is always offered and applies shots directly; a per-scene `noAuto` flag stops re-draft after Undo. → **Requires:** the entry operation exists only for a scene with **no** Shot plan; an emptied plan is an existing plan; drafting into an existing plan is a redraft (Options, creator-touched fields kept) and into a locked plan is held as an Option. Sources: Record 3 §3; SHOT-MODEL §3.1, §5.4, §12 inv. 13; TRUST-SIGNALS §4. Consequence: the AI path for an emptied scene is redraft or Draft all, and the Undo-of-auto-draft rule is a spec decision (§7).
+
+**RD-72 · Shot editor and neighbour row · The first shot of a scene cannot continue from the previous scene; continuity source ignores approval.** *Shows:* shot 1 is hard-set to Cut, the source picker lists only this scene's shots, the neighbour row says "Start of scene", and the source art ignores whether the Frame is approved. → **Requires:** the unpinned source is derived: the previous active shot's approved ending Frame, else a still of its selected Take, else none, reported quietly; for a scene's first shot it is the previous scene's last active shot; a pin may name any Frame or Take end still. Sources: SHOT-MODEL §6.4, §12; Constitution §9.2.
+
+**RD-73 · Split and merge · Anchors and composition references are mishandled.** *Shows:* split copies the whole anchor to both parts; merge leaves anchors and references untouched, so the retired shot's passage vanishes from the plan. → **Requires:** split partitions the anchor along the cut; merge unions anchors and composition references; references stay with the id-keeping part on split with a quiet Copy offer. Sources: SHOT-MODEL §5.2, §5.3, §12 inv. 4. Extends RD-07, RD-13.
+
+**RD-74 · Dialogue · New lines have no id, and Split crashes on them.** → **Requires:** every dialogue line has its own id from creation; Line audio, Performances and splits are keyed to it. Sources: SHOT-MODEL §2.1, §5.1, §10.
+
+**RD-75 · Cast & Looks matrix · Scroll is one-way, and shot-only states, "from here on" markers and Extra rows are missing.** *Shows:* column widths match the strip, but scrolling the strip does not scroll the matrix; no cell marker for a transient state or a later change point; groups are Character, Location and Prop only. → **Requires:** the matrix is a derived lens whose columns stay aligned with the strip; persistent change, "from here on" change point and transient state read differently; Extra types appear with quantity or density. Sources: Record 5 SP5, SP6; SHOT-MODEL Record 5 amendments, §4a; ENTITIES-AND-LOOKS §3.
+
+**RD-76 · Scene Prep · "World library" is a read-only modal overlay.** → **Requires:** World Definition is one centre surface opened from the Outline; a missing entity or View shows quietly in the scene workspace and links there (entity and area), never blocks; Back returns to the same shot. Sources: NAVIGATION §2, §8; WORLD-DEFINITION §1.
+
+**RD-77 · Script Hub · "As made" runtime and status vocabulary.** *Shows:* "as made" mixes selected delivered durations with unselected targets and is not shown beside the Master Narrative estimate; chips read Planned / In progress / Complete. → **Requires:** the selected Take's delivered duration replaces the target per shot; the scene sum is shown beside the Master Narrative's scene estimate, independent of it; status tells "AI drafted, untouched" from "plan accepted" and counts missing and possibly-out-of-date work. Sources: SHOT-MODEL §7.5, §3.1; Record 4 §5.2.2; NAVIGATION §3.
+
+**RD-78 · Scene identity is the scene number.** *Shows:* `D.scenes[7]`, Hub and Outline labels. → **Requires:** scene ids are opaque; the number is a label counting active scenes only; a retired scene shows "formerly N". Sources: SCENE-IDENTITY §2, §5.1. Same family as RD-14.
+
+**RD-79 · Hub · "Open scene" overflows its panel and the viewport at 1280 and 1440 px.** Visual only; visuals are unapproved, but the one primary Hub action must stay reachable. Do not copy the layout.
+
+**RD-80 · Review tray · Reject of the selected Take on a Mark-final shot bypasses the lock.** *Shows:* the Take is marked rejected and the pick still points at it; Restore silently re-points a lock-protected pick. → **Requires:** Reject of the selected Take is a pick change and uses edit-through; rejecting the selected Take deselects it in the same action group; the pointer never references a rejected Take; Restore, Unselect and compare-pane Select pass the same gate. Sources: CANDIDATE-REVIEW §3.1, §9.2; TRUST-SIGNALS §3, §6; LINEAGE-AND-STALENESS §6.2 to 6.3; Constitution §13.4.
+
+**RD-81 · Generate ⇄ Review · A pending lock confirmation leaks across surfaces.** *Shows:* Use this Take on a final shot in Generate does nothing visible; the confirmation then appears later in Review. → **Requires:** one pointer and one confirmation shared by both surfaces; no silent no-op. Sources: Record 5 RB2; TRUST-SIGNALS §6.
+
+**RD-82 · Timeline and slate · The duplicate-generation guard is per button.** *Shows:* a second click on a timeline gap cell started a second generation (two Takes, $0.70 spent) because the guard keys on the control; the cell never shows "generating". → **Requires:** an input-fingerprint check on the target Slot refuses an accidental duplicate with "this is already generating" and "generate another"; "generating" derives from non-terminal Jobs by target, for every control. Sources: JOB-LIFECYCLE §2.1, §4; CANDIDATE-REVIEW §5.7, §6. Supersedes RD-57 for the canonical prototype.
+
+**RD-83 · No Cancel control, and no Cancelling, Cancelled or Retrying states.** → **Requires:** Cancel while generating; the cost caveat shown beforehand and only when the provider cannot stop a run; "Cancelled"; an output that arrives later is attached unselected as "arrived after cancel". Sources: CANDIDATE-REVIEW §5.8, §7; JOB-LIFECYCLE §6. Extends RD-58.
+
+**RD-84 · Gap cell, slate and tray disagree about a failed shot, and Retry on the cell does not retry.** *Shows:* a failed cell says Retry (no price) but only focuses the shot; the slate says Generate with a price; the tray offers neither; a partial run reads "failed" rather than "2 of 3 parts made". → **Requires:** one Retry control with one price and the same ticket rule on cell, slate and tray; failure wording by class; partial reads "2 of 3 parts made" with the part's own Retry price. Sources: CANDIDATE-REVIEW §4, §5.6, §6; JOB-LIFECYCLE §5.2; SHOT-MODEL §7.3.
+
+**RD-85 · Spend ticket inside a narrow gap cell is unreadable, and the slate button ignores it.** → **Requires:** the control row expands in place into a readable ticket that is part of the page, never a clipped popover; a cap breach offers Raise the cap for this action, Trim the selection and Not now; one ticket at a time. Sources: CANDIDATE-REVIEW §5.3, §5.5. Trim evidence: `v2-62-review`.
+
+**RD-86 · Make another take · The reference library cannot be opened from Review.** *Shows:* Add reference image sets state that only Generate's layout renders; it then opens later in Generate. → **Requires:** one composer component with the same references behaviour in both places; the library is a surface of the composer. Sources: Record 5 GN8, RL1, RB3.
+
+**RD-87 · Whole film · Opening a scene with no shots replaces the whole Review with the Scene Prep empty screen; whole-film header lacks planned vs as made.** → **Requires:** a scene with no shots reads "No shots yet" as a ribbon block and stays inside the ribbon; scene and film headers show planned beside as made and runtime against target; Review never calls drafting. Sources: Record 4 W60 §5.2.4, Y3, Y4; CANDIDATE-REVIEW §2, §4.
+
+**RD-88 · Possibly-out-of-date in Review is not a derived Take signal.** *Shows:* a picked Take is "out of date" if any frame flag is set; approving a different Frame clears the flag without an Acknowledgement and flags no Take; changing the pick flags nothing built from the old pick; "It still fits" and "Keep as is" run the same code; no seeded scene exercises the path. → **Requires:** derived from captured inputs; `frame-changed` on Takes made from a Frame that was replaced; changing the pick flags work that captured the old Take or a still from it; three distinct exits; footer line with bulk keep as one reversible action group; Regenerate priced. Sources: ADR 0004; LINEAGE §2.3, §3.1, §3.4, §6.1; SHOT-MODEL §6.3; TRUST-SIGNALS §2. Extends RD-04.
+
+**RD-89 · "Generate missing" batch ignores the frame-dependency rule and hides its scope.** *Shows:* batches every missing shot of the *current scene* under a "Whole film" header, with no frame check and no scope selection. → **Requires:** video batches only for shots ready for video; waiting shots are listed with "Include them anyway (skips their frames)"; scope-then-invoke (tick on the timeline or quick scopes); the ticket states count in Takes and the largest item. Sources: SHOT-MODEL §6.5; JOB-LIFECYCLE §8; CANDIDATE-REVIEW §5.3 to 5.4; BUSINESS-AND-OPERATIONS §3. Extends RD-56.
+
+**RD-90 · Undo snapshot orphans an arriving Take.** *Shows:* Undo replaces the scene data with a JSON snapshot while a running generation holds the old shot object; the Take lands on the detached copy and the money is spent. → **Requires:** undo reverses one action group and restores a prior head; a Generation's outputs attach by target Slot id, never to a stale copy. Sources: ADR 0019, 0020; JOB-LIFECYCLE §11.
+
+**RD-91 · Takes do not carry their own labels.** *Shows:* a Take generated under a prompt override is not labelled "prompt overridden"; "guided" is read from the live guidance box; "arrived late" shows in Review but not in Generate; "from the merged shot" is nowhere. → **Requires:** labels read from the Generation's recorded inputs: model, guided, late or after cancel, prompt overridden, delivered duration when it differs, from the merged shot. Sources: CANDIDATE-REVIEW §3.1; GENERATION-PACKAGE §8.7, §8.8, §11.
+
+**RD-92 · Gap slate plays the planned duration.** → **Requires:** a 2-second gap slate in playback; as made is the delivered duration where a Take is selected, planned otherwise. Sources: CANDIDATE-REVIEW §4; SHOT-MODEL §7.5. Low severity.
+
+**RD-93 · Generate's "Open in Review" does not land under the playhead.** A stale playhead from another shot is carried over and the return state is not cleared. → **Requires:** lands on that shot under the playhead. Sources: Record 5 RB4; CANDIDATE-REVIEW §2. Low severity.
+
+**RD-01 addendum (canonical).** A generation that later fails "not charged" has already debited the cap and is never refunded; BUSINESS-AND-OPERATIONS §6.3 releases at settlement.
+
+**Total: 93 REQUIRED DELTAS.**
 
 ## 5. LATER SEAM register
 
@@ -327,15 +407,16 @@ Do **not** promote any of these to V2 scope. Preserve only the seam.
 
 | ID | Future capability | What the prototypes do or don't show | What V2 must preserve now | Sources |
 |---|---|---|---|---|
-| **LS-1** | **Location spatial layout** (named areas, relative relationships, orientation, optional layout references) | None shows a spatial model. Final's compass hints and v2-59's flat names are the shapes to avoid hardening. | A Direction is its own record (id, label, description, optional opposite), ordered per shot, and never treated as an unrelated image. Shots reference Direction Slots, never Attempts. Build nothing spatial. "Areas" is not fixed as the abstraction. | Record 6 L6.6; Constitution §15.3; ADR 0003; GLOSSARY Direction |
+| **LS-1** | **Location spatial layout** (named areas, relative relationships, orientation, optional layout references) | None shows a spatial model. The canonical prototype's compass hints and v2-59's flat names are the shapes to avoid hardening. | A Direction is its own record (id, label, description, optional opposite), ordered per shot, and never treated as an unrelated image. Shots reference Direction Slots, never Attempts. Build nothing spatial. "Areas" is not fixed as the abstraction. | Record 6 L6.6; Constitution §15.3; ADR 0003; GLOSSARY Direction |
 | **LS-2** | **Cross-project / personal voice library** | Not shown. | A Voice is owned by one Character inside one project, reusable across the film, with its own id. The provider handle is per project and Voice. Duplicate copies, never shares. | Record 6 V6.1; VOICE §1.1; Constitution §15.3; ADR 0025 |
-| **LS-3** | **Film-wide "Generate unvoiced lines"** | Final stops at the scene. | Film-wide falls under the existing bulk-by-filter rule (always the ticket, money at risk). Not designed in V2. | VOICE §1.4, §6; Record 6 V6.4 |
+| **LS-3** | **Film-wide "Generate unvoiced lines"** | Canonical stops at the scene. | Film-wide falls under the existing bulk-by-filter rule (always the ticket, money at risk). Not designed in V2. | VOICE §1.4, §6; Record 6 V6.4 |
 | **LS-4** | **Audio mixer, offsets, stems; music and score** | Not shown. | The Dialogue track is a derived Record the creator does not edit. | Constitution §11.1, §15; VOICE §10 |
 | **LS-5** | **Performance transfer** (a performer's video drives generation) | Not shown. | Reserved, not designed. It would use the same Line audio slot and gate. | VOICE §10 |
 | **LS-6** | **In-app editing timeline** (trim, reorder, transitions) | v2-62's timeline is a viewing and fixing surface, not an editor. | A Take is a single clip with delivered duration; joins are straight cuts; selection pointers are the only link to export. | CANDIDATE-REVIEW §4; Constitution |
 | **LS-7** | **BYOK / per-creator spend source** | Prototypes show one operator-paid cap and "about $1.20 per world, operator-paid". | Keep the payer as data on the Generation so a ticket can cite the paying source. | Record 1 M5; BUSINESS-AND-OPERATIONS §7; SHOT-PLANNING-INPUTS §1 |
 | **LS-8** | **Reusable style library** | v2-59's Visual Style offers preset, plain English and reference images only. | Style referenced by Revision. A library is later. | WORLD-DEFINITION §3(5) |
 | **LS-9** | **Audio-first project entry** | Not shown in #56 or #57 choosers (correctly). | Nothing to build in V2. | Constitution §4.3 |
+| **LS-10** | **Export build** (NLE timeline xmeml/OTIO, ordered uniquely named clips, written documents, manifest) | The canonical Review & Export draws no export package and no hand-off. | Review keeps the selected-Take pointer as the sole link to delivery; the Export package manifest is deterministic from exactly the selected Takes, lists unselected, missing, failed and out-of-date shots quietly, excludes retired shots, Removed-from-Story scenes and ad-hoc shots (ad-hoc exported separately), and carries `synthetic` provenance per Take. See the export gaps (appendix G19). | CANDIDATE-REVIEW §2, §4, §8; SHOT-MODEL §10; BUILD-SEQUENCE IW1/VS9; Record 2 X5; Record 6 S6.1 |
 
 Deferred, not seams: the "reduce spend gates" preference (Record 3 §3 "Deferred, not approved or designed": add no setting).
 
@@ -347,19 +428,23 @@ Absence in a prototype means "not attempted". It never means "not in V2".
 
 | ID | Not shown (any prototype unless stated) | Current authority |
 |---|---|---|
-| **IO-1** | **Fit and reference subset selection**, the Fit report and the Package / Rendered-request inspector. The composer says "N attached" as if every reference is sent. Final's seed `r1` is a Character identity image listed as a reference. | Fit may demote or omit and reports each choice; for locations it chooses the subset that best covers the revealed camera path (L6.4); a reference contributes composition only, never identity. GENERATION-PACKAGE §7; ADR 0014; SHOT-MODEL §8.2 |
+| **IO-1** | **Fit and reference subset selection**, the Fit report and the Package / Rendered-request inspector. The composer says "N attached" as if every reference is sent. Canonical's seed `r1` is a Character identity image listed as a reference. | Fit may demote or omit and reports each choice; for locations it chooses the subset that best covers the revealed camera path (L6.4); a reference contributes composition only, never identity. GENERATION-PACKAGE §7; ADR 0014; SHOT-MODEL §8.2 |
 | **IO-2** | **Per-Direction fallback ladder** and quiet reference-quality reporting (only Skip is shown). | ADR 0003; ENTITIES-AND-LOOKS §5; Record 6 L6.4–L6.5 |
 | **IO-3** | **Job lifecycle:** generation is `setTimeout`; no Cancel semantics, `billed: maybe` accounting, late-arrival adoption, idempotency or outbox. | JOB-LIFECYCLE §4–§6, §11; ADR 0006, 0017 |
 | **IO-4** | **Persistence, revisions, action groups, history gate, tenant isolation, authorisation.** State is in memory; Undo is a snapshot; no account switching (collaboration is out of scope, isolation is not). | ADR 0016, 0019–0023; Record M4 |
 | **IO-5** | **Provider and Offering availability.** No state for "no eligible audio Offering" (recording and playing still work). | VOICE §4.1; PROVIDERS-AND-MODELS; ADR 0015 |
-| **IO-6** | **Shell:** always-visible Outline, Cmd-K, Peek, film progress, runtime vs target, the "N possibly out of date" footer and review-all tray, Ad-hoc shots, Removed from Story, Script Hub Draft-all scope controls (v3 hub). | NAVIGATION §2–§5; TRUST-SIGNALS §2 |
-| **IO-7** | **Voice machinery:** World Definition Voice area, voice design, `stock` and `described` kinds, Extra type, realization paths N / A / L / V, lip-sync control, `timing-not-preserved`, Dialogue-track slicing across Segments, consent revocation UI. | VOICE §1–§5; Record 5 SP6, VP1 |
+| **IO-6** | **Shell, partly built in #1:** an always-visible Outline with live Script Hub, scenes and Review & Export rows, and per-scene status dots. Still absent: see IO-14. | NAVIGATION §2 to §5; TRUST-SIGNALS §2 |
+| **IO-7** | **Voice machinery:** World Definition Voice area, voice design, `stock` and `described` kinds, realization paths N / A / L / V, lip-sync control, `timing-not-preserved`, Dialogue-track slicing across Segments, consent revocation UI. | VOICE §1–§5; Record 5 SP6, VP1 |
 | **IO-8** | **Real classification, extraction and AI calls** (#57 uses a regex classifier and a canned question bank; #58 uses canned AI). The AI open-question list and the code-computed "sufficiently informed" status are real. | AI-RESPONSIBILITY-MAP §4.3, §7; INTAKE |
 | **IO-9** | **Matching and import machinery:** real CineBlock, 3D stage, Marble client, Two-Account harness, leftovers review list, unknown-version fail-closed, re-import Revision semantics, AI evidence quotes. | SHOT-PLANNING-INPUTS §2–§6, §9 |
 | **IO-10** | **Accounts, Projects page, Settings, spend caps, Resume to last centre view,** per-creator non-creative UI state. | NAVIGATION §3–§4, §7 |
 | **IO-11** | **Scale beyond the fixture:** matrix scrolling past about 12 shots, reference-library paging and search, compact asset cards, keyboard shortcuts, take-composer layout details. | Record 5 §13 (spec-level) |
 | **IO-12** | **Test harness controls** in prototype bars ("Next generation fails", "Late result arrives", "Cap nearly reached", layout switchers). | Not product UI |
 | **IO-13** | **Audio in Review:** Line audio, Dialogue section in the composer, revoiced Takes among a shot's Takes, `performance-changed` and `authorisation-revoked` reasons. | VOICE §4.2; ADR 0025; Record 5 RB; LAS §3.1 |
+| **IO-14** | **Shell and navigation not drawn in any prototype:** Cmd-K (no prototype on any branch), Peek, Resume to the last centre view, runtime vs target and film progress in the top strip, the "N possibly out of date" footer line and review-all tray (only #5 shows these), unread-failure and running-work counts, Draft all scope controls (only #7), live Ad-hoc shots and Removed from Story (inert rows in #1; content only in #7). | NAVIGATION §1.3, §1.4, §2 to §5; TRUST-SIGNALS §1 to §2; CANDIDATE-REVIEW §6; SHOT-MODEL Record 2 X5 |
+| **IO-15** | **CineBlock and import entry:** CineBlock opens as an in-page overlay (authority: its own Aiuteur tab under the same session); returned captures land on mocked shots; no storyboard or shot-list import entry points, no placeholder-to-Presence mapping, no leftovers list. | SHOT-PLANNING-INPUTS §1 to §6; Record 2 D61.1; ADR 0024 |
+| **IO-16** | **Review & Export package:** no manifest, no export folder or zip, no per-Take provenance, no NLE check. | CANDIDATE-REVIEW §8; BUILD-SEQUENCE VS9 |
+| **IO-17** | **Density:** at narrow widths, timeline cells truncate labels and clip actions and tickets; 150 to 250 shots and 22 scenes need a minimum cell width, scroll or zoom, and ticket room outside the cell. The model does not change. | NAVIGATION §5; CANDIDATE-REVIEW §4; TRUST-SIGNALS §1 |
 
 ## 7. Authority notes (not prototype issues)
 
@@ -373,15 +458,17 @@ Absence in a prototype means "not attempted". It never means "not in V2".
 6. **Voice-path naming:** Record 6 V6.2 "Generate as Character Voice" vs VOICE §1.3 "Speak line as <character>'s voice". Same action; the spec picks one label.
 7. **Record 4 §5.4.6 (prompts collapsed) vs Record 5 GN3/GN5 (video prompt open by default).** Record 5 controls (FINAL-AUDIT-79).
 8. **GLOSSARY Segment** avoids "part" as a model term, while Record 5 GN4 ratifies the creator-facing "2 of 3 parts made / Retry part". Consistent if "part" stays UI-only.
-9. **Spec-level gaps:** (a) whether a shot moved into a scene that has no plan blocks the stage-entry auto-draft is undecided by authority; (b) whether a hand edit alone ends AI-chose marks (Y2) or only Accept plan does is ambiguous; per-field "yours" after an override is consistent with the docs.
-10. **`CREATOR-GRILL-HANDOFF-2.md`** (see §8) is stale on prototypes and on several recommendations that were rejected.
+9. **Spec-level gaps:** (a) whether a shot moved into a scene that has no plan blocks the stage-entry auto-draft is undecided by authority (see item 10 for further spec-level questions); (b) whether a hand edit alone ends AI-chose marks (Y2) or only Accept plan does is ambiguous; per-field "yours" after an override is consistent with the docs.
+10. **Spec-level ambiguities surfaced by the canonical prototype** (not contradictions): (a) whether the non-auto "Draft plan · $x" control may appear on an emptied plan, or whether an emptied scene's AI path is only Draft all or redraft (Record 3 §3 vs SHOT-MODEL §3.1, RD-71); (b) what Undo of an initial auto-draft does, since re-entry would draft again; (c) where Draft all lives on the Hub (NAVIGATION §2 requires scope selection there, Record 4 §5.2 does not place the control); (d) what the Storyboard arrival is for an Ad-hoc section (Record 5 §2 says the strip lists the section's shots); (e) whether a hand edit alone quiets all AI-chose marks or only Accept plan does (SHOT-MODEL §3.1 vs Record 5 SP8). The spec decides each; none is a prototype question.
+11. **`CREATOR-GRILL-HANDOFF-2.md`** (see §8) is stale on prototypes and on several recommendations that were rejected.
 
 ## 8. Where agents are directed to prototypes (curated)
 
 - `AGENTS.md` carries a **Prototypes** pointer to this document.
-- `prototypes/README.md` is the on-disk index: REFERENCE prototypes first, then PARTIAL REFERENCE with their use, then a single line stating the archived ones are excluded.
-- `docs/product/CREATOR-GRILL-HANDOFF-2.md` has a superseded banner. Its prototype pointers and "Recommended" lines were mostly overtaken (§3.3).
-- `docs/ux/NAVIGATION.md` (scene workspace line), `WRITING-EXPERIENCE.md` and `WORLD-DEFINITION.md` (line 7) carry a short pointer here.
-- `prototypes/v2-ux/60-scene-production-final/README.md` carries the "do not implement literally" warning.
-- Each non-main prototype branch has an additive notice commit (`PROTOTYPE-NOTICE.md` at the repository root of the branch). Branch history was not rewritten.
-- Issue #49 (map notes) and the prototype-bearing comment threads of #56–#63 point here.
+- `prototypes/README.md` is the on-disk index: the canonical prototype first, then the other REFERENCE and PARTIAL REFERENCE prototypes with their use, then one line excluding the archived ones.
+- [PROTOTYPE-COVERAGE-GAPS.md](PROTOTYPE-COVERAGE-GAPS.md) is the appendix: what the real product needs that the prototypes do not show, by workflow section, with authority and any other prototype evidence.
+- `docs/product/CREATOR-GRILL-HANDOFF-2.md` has a superseded banner.
+- `docs/ux/NAVIGATION.md` (scene workspace line) points at the canonical prototype and this document; `WRITING-EXPERIENCE.md` and `WORLD-DEFINITION.md` carry a short pointer here.
+- `prototypes/v2-ux/60-scene-production-canonical/README.md` carries the "do not implement literally" warning and a corrected provenance table; `60-scene-production-final/README.md` is marked ARCHIVED.
+- Each non-main prototype branch has an additive notice commit (`PROTOTYPE-NOTICE.md` at the root of the branch). Branch history was not rewritten.
+- Issue #49 (map notes) points here.

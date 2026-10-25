@@ -1,6 +1,6 @@
-# #60 Scene production, final synthesis (HISTORICAL: superseded by `../60-scene-production-canonical/`)
+# #60 Scene production, final synthesis (ARCHIVED / DO NOT IMPLEMENT: superseded by `../60-scene-production-canonical/`)
 
-> **Superseded.** The active #60 reference is [`60-scene-production-canonical`](../60-scene-production-canonical/README.md). This earlier attempt omitted the Outline sidebar and Script Hub, duplicated the Shot list under the matrix, and used a light Review stand-in.
+> **ARCHIVED PROTOTYPE — historical design exploration only. Superseded; must not be treated as current Aiuteur V2 product or implementation authority.** The active #60 reference is [`60-scene-production-canonical`](../60-scene-production-canonical/README.md). This earlier attempt omitted the Outline sidebar and Script Hub, duplicated the Shot list under the matrix, and used a light Review stand-in.
 
 > **This prototype remains a UX/reference artifact but predates later ratified decisions. Do not implement it literally. See the Prototype Reconciliation delta register: [docs/product/PROTOTYPE-RECONCILIATION.md](../../../docs/product/PROTOTYPE-RECONCILIATION.md).** It is a reference for interaction structure and placement only. Prices, models, ids, flags, split/merge/retire behaviour, voice authorisation and staleness are mock. Its "two prototype-level choices" note at the bottom is superseded by RD-12 and RD-13.
 
