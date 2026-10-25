@@ -13,7 +13,7 @@ Vocabulary is in [`GLOSSARY.md`](../../GLOSSARY.md). This document fixes **what 
 | 3 | **Environments** | `local`, `ci` (ephemeral), `staging` (persistent, synthetic data, real vendors, capped test keys), `production`. **Production data never leaves production** except to backups and restore tests |
 | 4 | **CI and delivery** | GitHub Actions. One required pipeline: static and architecture rules, secret scan, tests on real Postgres, the **isolation gates**, migrations gate; one image digest promoted staging → production with a manual approval; migrations run by the pipeline under the `owner` identity, expand/contract only |
 | 5 | **Error tracking** | **Sentry (hosted) behind an `ErrorSink` port**, deny-by-default scrubbing, ids only, **no session replay**. Domain failures are product events, not error-tracker items |
-| 6 | **Logs and traces** | One typed structured logger (no `console`), JSON to stdout, shipped from the host to a log sink with 30-day retention. Correlation by ids; **no distributed-tracing backend** at baseline |
+| 6 | **Logs and traces** | One typed structured logger (no `console`), JSON to stdout, shipped from the host to a log sink with 30-day retention. Correlation by ids; **no distributed-tracing backend** at baseline. The AI trace is the Generation record, with content tiers (VERIFICATION-AND-OBSERVABILITY §2) |
 | 7 | **Alerts and liveness** | The S10 list plus the runtime's oldest-overdue signal, evaluated in the worker and delivered by email; plus an **external heartbeat** that watches the thing that cannot alert about itself |
 | 8 | **Backups** | **Floor from day one (Record 2 P12):** an automated daily database dump plus continuous WAL archiving, encrypted, to storage **off the machine** (R2 is acceptable). Number of copies, retention, a second vendor and no-delete backup credentials are **deferred**. When purge ships, backups expire within a retention window stated to the creator at purge time (P8-purge) |
 | 9 | **Restore tests and recovery** | **One successful restore test before any creator other than the owner is invited** (P12). Drill cadence and the full manual drill gate are **deferred**. Runbooks are build deliverables |
@@ -153,8 +153,8 @@ Estimated added monthly cost over the hosting of RUNTIME-PLATFORM §0 (the VPS d
 
 | Stage | Contents | Blocks merge |
 |---|---|---|
-| **Static** | Types; lint; the architecture rules R1 to R13 as import-graph and type checks; RT2 (`pg_advisory_lock(`, bare `SET`, `LISTEN`); the `console` ban; the vendor-name search of R9; secret scan; dependency audit for known vulnerabilities | Yes |
-| **Tests** | Pure modules (compiler goldens, guards); the shared conformance suites over each seam's real and fake adapters (Store, Scheduler, BlobStore, Vault); lifecycle recovery on virtual time (#76) | Yes |
+| **Static** | Types; lint; the architecture rules R1 to R13 (and R14 to R18, R19 to R24 of PERSISTENCE and VERIFICATION) as import-graph and type checks; RT2 (`pg_advisory_lock(`, bare `SET`, `LISTEN`); the `console` ban; the vendor-name search of R9; secret scan; dependency audit for known vulnerabilities | Yes |
+| **Tests** | Pure modules (compiler goldens, guards); the shared conformance suites over each seam's real and fake adapters (Store, Scheduler, BlobStore, Vault, `ProviderTransport`); lifecycle recovery on virtual time; the operation harness and the golden workflow on replay (VERIFICATION-AND-OBSERVABILITY §§4, 5) | Yes |
 | **Isolation gates** | §11 | Yes |
 | **Migrations gate** | Applying the chain from an empty database reaches the committed schema snapshot; applying it to the previous release's schema reaches the same; no number reuse; no DDL outside the chain (the `owner` DSN exists only in the pipeline, so there is no console route for DDL) | Yes |
 | **Build** | One image for both process roles, tagged by digest | n/a |
@@ -173,7 +173,7 @@ RUNTIME-PLATFORM §5 fixed three identities. The baseline completes the set, eac
 | `app` | `web`, `worker` | Read and write tenant tables under forced row rules with the Account set per transaction | Own tables, bypass row rules, read the auth schema |
 | `scheduler` | The claim, wake and outbox functions | Execute those functions, which return ids and Account ids | Read tenant content |
 | `identity` (**new**) | The auth handler | Read and write the auth schema; call `accounts.map_subject` | Touch tenant tables |
-| `operator_read` (**new**) | The operator endpoints | Select from a fixed set of content-free views: Accounts, usage, spend totals, Job states and ages, alerts | Select from any table, or any view not on the list |
+| `operator_read` (**new**) | The operator endpoints | Select from a fixed set of content-free views: Accounts, usage, spend totals, Job states and ages, Generation outcome rows (ids, codes, costs, timings; no content, VERIFICATION §2.3), alerts | Select from any table, or any view not on the list |
 | `backup` (**new**) | The daily dump job, run as its own process with its own secrets | Read everything for dumping, **including past row rules** | Exist anywhere on a request, worker or webhook path; its DSN is held only by the backup job; it cannot write to production |
 
 The `backup` identity is the single deliberate exception to "no identity bypasses row rules", and it exists because a faithful dump must read every row. It is credentialed separately, held only by the backup job, and its use is logged. (WAL archiving is done by Postgres itself and needs no application identity.) The role-posture test (§11) asserts each of these properties from the catalogue.
@@ -189,7 +189,7 @@ The `backup` identity is the single deliberate exception to "no identity bypasse
 | **Retention** | 30 days at baseline. Purge (M7) is satisfied because logs carry ids only |
 | **Per-Account view** | The operator can filter logs by Account id; the log tells what happened, never what was written |
 | **Metrics** | The platform's signals (RUNTIME-PLATFORM §7: queued age, running counts, oldest overdue, lag) are database queries and logged duration fields. **No metrics backend** at baseline |
-| **Traces** | Correlation by ids is the trace, because the Job row is the audit. **No distributed-tracing backend and no sampled performance tracing** at baseline (§12). Error events carry the same ids |
+| **Traces** | Correlation by ids is the trace, because the Job row is the audit. For AI work the trace is the **Generation record** (Generation, call, Job and run, provider operation reference, Attempt; [`VERIFICATION-AND-OBSERVABILITY.md`](VERIFICATION-AND-OBSERVABILITY.md) §2.1, ADR 0026); its content (the Rendered request, call log and raw responses) is readable only under the creator's Scope and never enters a log, error event, alert or operator view. **No distributed-tracing backend and no sampled performance tracing** at baseline (§12). Error events carry the same ids |
 
 ## 7. Error tracking and alerts
 
@@ -296,7 +296,7 @@ The dump job runs as its own process with its own secrets, so `web` and `worker`
 
 ## 11. Security tests: the isolation gates
 
-Design of the harness is #76's; the baseline fixes the **gates** that must exist and block merge. Each maps a V1 failure to an executable test.
+The baseline fixes the **gates** that must exist and block merge; the harness, the other checks and the gate matrix are in [`VERIFICATION-AND-OBSERVABILITY.md`](VERIFICATION-AND-OBSERVABILITY.md) (#76, checks VC1 to VC17; these gates are **VC7**, and the numbering G1 to G11 is unchanged). Each maps a V1 failure to an executable test. #76 extends two: **G8** also plants a prompt in a Rendered request and a call-log response and asserts absence from operator views, alerts, metrics and the verification status endpoint (not only logs and errors); **G11** also covers the fake-provider lines of that document's §3.2 (production root refuses a fake, the send gate refuses it, readiness reports none loaded).
 
 | Gate | Asserts | V1 failure answered |
 |---|---|---|
@@ -318,7 +318,7 @@ G1, G3 to G5 and G11 are generated from the contract and role grants, so a new o
 
 Not part of the baseline, and not to be invented without a decision:
 
-- Per-pull-request preview environments; load and soak testing (the large-project performance fog on the map).
+- Per-pull-request preview environments; load and soak testing. (Large-project performance budgets are decided in #76: shape budgets on every merge, timing budgets nightly and at promotion, [`VERIFICATION-AND-OBSERVABILITY.md`](VERIFICATION-AND-OBSERVABILITY.md) §8; only load and soak stay deferred.)
 - Browser session replay (excluded outright); distributed-tracing backend; a metrics and dashboard stack; a status page.
 - Creator-required second factor (revisited when BYOK ships); social or enterprise single sign-on; an operator console UI beyond the minimum endpoints.
 - An external key-management service or hardware security module (the `Vault` port is the exit); automatic key rotation.
@@ -335,7 +335,7 @@ Not part of the baseline, and not to be invented without a decision:
 |---|---|
 | **Persistence and media storage** (#72) | The `identity`, `operator_read` and `backup` identities and their grants (§5); the auth schema kept apart; the migration gates (§4.2) for whatever tool is chosen; ciphertext rows for own keys bound to Account and provider; the purge log as a durable record that restores replay; backup retention once the deferred policy sets it (§8), and the project-separable key layout purge (and any later replica) relies on; content-free operator views as a named set |
 | **Build sequence** (#77) | Stand up first: one VPS running `web`, `worker`, Postgres and the backup job as containers; R2 for media and backups; the backup floor (daily dump and continuous WAL archiving off the machine, §8.1); the pipeline with its gates; **one successful restore test before any creator other than the owner is invited** (§9). Early tracer pieces: invitation → Account → `Scope`, the typed logger and scrubber, the heartbeat |
-| **Verification** (#76) | Gates G1 to G11 and their generation from the contract and grants; the secret canary; the role-posture check; `Mailer` and `Vault` fakes; environment guards |
+| **Verification** (#76, resolved in [`VERIFICATION-AND-OBSERVABILITY.md`](VERIFICATION-AND-OBSERVABILITY.md)) | Gates G1 to G11 and their generation from the contract and grants; the secret canary (G8, extended); the role-posture check; `Mailer`, `Vault` and `ErrorSink` fakes under the conformance suites; environment guards (G11, extended); a verification status endpoint beside `/healthz/deep`; promotion reads live-evidence records; staging hosts capped smoke and eval Accounts |
 | **Providers** (#66) | Credential handle only; per-environment keys; webhook secret per environment; the retirement watch feeding alerts |
 | **Business and operations** (#68) | S10 mapped to alerts (§7.2); operator actions (§2.3); invoice reconciliation remains an operator task |
 

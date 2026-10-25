@@ -274,7 +274,7 @@ A failure event is emitted exactly once per settling and cannot be missed by a c
 | **Shot model** (#55, resolved in [`SHOT-MODEL.md`](SHOT-MODEL.md) §§6.5, 7) | A long shot realised by several Segment Generations is a dependency-ordered batch whose members each follow this lifecycle and whose Take exists only after assembly; video members require every planned frame role approved or skipped |
 | **AI responsibility map** (#64) | Every Generation, including inline text actions, uses this state machine; the fast path skips polling and fetching only |
 | **Persistence** (#72) | Job, Batch, outbox and run history must be durable and transactional with Attempt creation; Jobs prunable once settled provided the Generation keeps its run history; media storage keys derived from Job id |
-| **Verification** (#76) | Provider fakes must simulate slow, duplicate and out-of-order completion, a crash between accept and commit, expired URLs, no-cancel providers, and late results after cancel |
+| **Verification** (#76, resolved in [`VERIFICATION-AND-OBSERVABILITY.md`](../architecture/VERIFICATION-AND-OBSERVABILITY.md)) | Provider fakes must simulate slow, duplicate and out-of-order completion, a crash between accept and commit, expired URLs, no-cancel providers, and late results after cancel (the contract-verified fake scripts these from the profile's run behaviour). Observability hooks: the Job id and run number, the provider operation reference (§7) and the Generation id are the trace identity (stored, and sent to the provider where accepted); a Generation's run history exports as a content-free scenario script that reproduces a lifecycle failure without creator content |
 
 ## 15. Constitution check
 

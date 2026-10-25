@@ -175,7 +175,7 @@ The **Board** read (the whole-film overview, the Script Hub of Record 4 W60 §5.
 
 **Impact** (`derive.impact`) is a recursive walk over capture edges from a changed unit to chosen dependants, grouped by kind, with money at risk read from Generation cost. The graph is acyclic by construction and its depth is bounded by the pipeline (narrative → shot → frame → take), so recursion is capped at a small fixed depth; the measured direct-dependant lookup is 1–3 ms.
 
-**Working performance budgets** (proposals for the spec's "large-project budgets", consistent with the measurements, not Constitution law): Board and Outline status ≤ 100 ms server time and impact summary ≤ 200 ms at 250 shots; a small `commit` ≤ 50 ms. Measured headroom is 5× or more on the synthetic data.
+**Working performance budgets** (proposals for the spec's "large-project budgets", consistent with the measurements, not Constitution law): Board and Outline status ≤ 100 ms server time and impact summary ≤ 200 ms at 250 shots; a small `commit` ≤ 50 ms. Measured headroom is 5× or more on the synthetic data. Verification enforces them (#76): query-count and payload-size checks on every merge, timing against a budget file nightly and at promotion, on GP-L ([`VERIFICATION-AND-OBSERVABILITY.md`](VERIFICATION-AND-OBSERVABILITY.md) §8); the spec sets the numbers.
 
 ### 5.2 Concurrency control and lock order
 
@@ -385,6 +385,9 @@ One linear, forward-only chain of SQL files, applied under the `owner` identity 
 | D7 | Round trip per kind: payload → row → payload equals the input; every upcaster applies to recorded old fixtures | Lossy persistence and evolution bugs |
 | D8 | Derived-table verifier (§5.1) on the golden project | A cache that no longer matches its inputs |
 | D9 | Store conformance suite passes on the real database and the in-memory fake (MODULE-ARCHITECTURE §11) | A fake that lies |
+| D10 | Added by #76: restore the previous release's golden-project upgrade snapshot, run the forward migrations and every upcaster, then D3, D8 and the Board equality; plus the previous image's smoke on the new schema ([`VERIFICATION-AND-OBSERVABILITY.md`](VERIFICATION-AND-OBSERVABILITY.md) §6) | A migration or upcaster that breaks real old data or the rolling deploy |
+
+"The golden project" in D8, §5.1 and §12 means **GP-S** (behaviour) and **GP-L** (250 shots, budgets), defined in that document §5.
 
 ### 10.4 Added architecture rules (extend R1 to R13 of ADR 0016)
 
@@ -459,7 +462,7 @@ A throwaway Postgres 16.2 spike (schema plus a Python harness; branch [`research
 |---|---|
 | **Runtime platform** (#74, closed) | Reconciled in §13: the `scheduler` identity's definer functions, the lock order of §5.2 (the claim's admission lock sits with the Account spend lock at the top of the order), the job, event and receipt rows, and the SQL-only role rule (with Neon's console-role caveat for that alternative; RT5 already lists the Neon Data API and console-created roles). Record 2 P11: the default is one VPS with plain Postgres and R2; nothing here uses a vendor-specific database feature |
 | **Operational baseline** (#75, closed) | Reconciled in §§6.2, 9.2, 13: its six identities with their data-layer meaning, auth schema inside Account purge, envelope credentials, the purge log replayed on every restore (dump or WAL point-in-time, Record 2 P12.1), project-separable replica keys if a replica is adopted (deferred, P12.3), and D1 to D9 and R14 to R18 as additional CI gates beside its G1 to G11 |
-| **Verification** (#76) | The Store conformance suite on real and in-memory adapters; the two-Account harness; the derived-table verifier; a golden project with 250 shots for the budgets; fault injection between fetch, promote and settle; purge and duplicate completeness tests |
+| **Verification** (#76, resolved in [`VERIFICATION-AND-OBSERVABILITY.md`](VERIFICATION-AND-OBSERVABILITY.md)) | The Store conformance suite on real and in-memory adapters; the two-Account harness; the derived-table verifier; GP-S and GP-L (250 shots) with D10 and the budgets; fault injection between fetch, promote and settle; purge and duplicate completeness tests; content-free Generation outcome rows in the operator view set; Record data (tier B content) kept for the life of the project |
 | **Build sequence** (#77) | Build order for persistence: the spine, the gate and `unit_head` first (every slice depends on them); media ingest with the first generated take; duplication and purge last |
 | **Contract freeze** (#78) | Freeze: the `Store` and `BlobStore` interfaces, the kind-declaration shape (slices, extracted columns, remap paths, closure rule, separability rule), `media.access`, the vocabulary-to-CHECK generation, the event envelope. Table and column names are not frozen |
 | **Voice and performance** (#69) | `external_resource` and its share-on-duplicate, release-on-purge rule |

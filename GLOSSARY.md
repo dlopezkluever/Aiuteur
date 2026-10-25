@@ -631,6 +631,50 @@ _Avoid_: Checksum, version hash
 Platform-wide data that belongs to no Account and holds no creator content, such as the model Catalogue snapshots and the price registry. Everything else Aiuteur stores belongs to exactly one Account.
 _Avoid_: Shared data, system data
 
+## Verification and observability (Wayfinder #76)
+
+Terms for how Aiuteur is tested and traced. Defined in `docs/architecture/VERIFICATION-AND-OBSERVABILITY.md` and [ADR 0026](docs/adr/0026-the-generation-record-is-the-trace-and-test-providers-are-contract-verified-and-marked.md).
+
+**AI trace** **(Wayfinder)**:
+The Generation record read as a chain of stored ids: request, action, Batch, Generation, call, Job and run, provider operation reference, and the Attempt it produced. It is rows written with the work, not a callback or a vendor service. Its content is readable only under the creator's Scope.
+_Avoid_: Tracing backend, telemetry (for the record itself)
+
+**Content tier** **(Wayfinder)**:
+One of three classes of recorded data: **A** content-free ids, codes, counts, costs and durations (logs, error tracker, alerts, operator views); **B** content such as the Rendered request, call log and raw responses (creator's Scope only); **C** media bytes. Data never moves from B or C into A.
+_Avoid_: Log level, privacy level
+
+**Test provider** **(Wayfinder)**:
+A fake Offering (`kind: fake`) that stands in for a real provider outside production. It passes the same conformance suite as real adapters, its outputs are visibly watermarked, and every Generation it serves is marked as made by a test provider.
+_Avoid_: Mock provider, stub
+
+**Conformance suite** **(Wayfinder)**:
+One set of tests for a port, run against its real and its fake adapter so the fake cannot drift unnoticed. For a provider adapter, the real run is a small live probe subset.
+_Avoid_: Parity test
+
+**Golden project** **(Wayfinder)**:
+A fixed synthetic project used by tests. **GP-S** is a small project authored as replayed commands that covers every kind and state; **GP-L** is a 250-shot project generated from a seed for performance budgets. Never captured from a creator's work.
+_Avoid_: Fixture project (for GP-S or GP-L), demo project
+
+**Golden workflow** **(Wayfinder)**:
+The seven steps of the "Aiuteur works" bar run as scripted browser scenarios (from a rough paragraph; from the creator's own screenplay) on replay, plus a live **bar run** judged by a person.
+_Avoid_: E2E test (alone)
+
+**Live smoke** **(Wayfinder)**:
+A scheduled check that sends the cheapest real request to each Offering (or real model) under a spend-capped staging Account. Its content-free result is the evidence that enabling or promoting depends on; it never gates a merge.
+_Avoid_: Integration test
+
+**Recorded proposal** **(Wayfinder)**:
+A real model output captured from a staging run on synthetic input, stored with its input and model snapshot, and replayed by operation and scenario step to test guards, validation and attach without a model.
+_Avoid_: Cassette, mock response
+
+**Eval set** **(Wayfinder)**:
+A versioned set of tagged synthetic cases, each naming the risk it probes, used to judge prompt and model changes: code checks rates and invariants, a person judges what only a person can.
+_Avoid_: Benchmark, test suite
+
+**Scenario script** **(Wayfinder)**:
+A content-free list of provider behaviours exported from a Generation's run history that a test provider replays to reproduce a lifecycle failure.
+_Avoid_: Recording, trace dump
+
 ## Reference
 
 **Design reference**:
