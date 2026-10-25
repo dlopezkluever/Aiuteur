@@ -1,3 +1,3 @@
 # PROTOTYPE NOTICE
 
-> This prototype remains a UX/reference artifact but predates later ratified decisions. Do not implement it literally. See the Prototype Reconciliation delta register (docs/product/PROTOTYPE-RECONCILIATION.md on main).
+> PARTIAL REFERENCE, gap evidence only. The canonical prototype is the Script Hub reference. Consult this branch only for what the canonical Hub does not draw (Draft all, Options, Ad-hoc, Removed from Story, Peek, auto-draft fixtures). Do not implement it literally. See docs/product/PROTOTYPE-RECONCILIATION.md and PROTOTYPE-COVERAGE-GAPS.md on main.
