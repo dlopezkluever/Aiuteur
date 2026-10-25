@@ -20,11 +20,12 @@ Prototypes are throwaway UX explorations. Nearly all of them were built before t
 
 ## 2. Prototype inventory and status
 
-Fifteen prototypes were found: fourteen on never-merged `prototype/*` branches and one on `main`. The branch `prototype/ux-v2-shared-kit` is the shared CSS and JS kit, which is infrastructure and not a prototype (§3.4). Branches are kept as historical record. Nothing was deleted, and no prototype code was changed.
+Sixteen prototypes were found (the canonical flow, added later, is row 0): fourteen on never-merged `prototype/*` branches and one on `main`. The branch `prototype/ux-v2-shared-kit` is the shared CSS and JS kit, which is infrastructure and not a prototype (§3.4). Branches are kept as historical record. Nothing was deleted, and no prototype code was changed.
 
 | # | Prototype (branch → path) | Tip | Question tested | Status |
 |---|---|---|---|---|
-| 1 | **#60 final synthesis.** `main` → `prototypes/v2-ux/60-scene-production-final/` | main | How Records 5 and 6 look as one scene workspace | **REFERENCE** (structure only) |
+| 0 | **#60 CANONICAL flow.** `main` → `prototypes/v2-ux/60-scene-production-canonical/` | main | The whole resolved flow as one application: Outline sidebar → Script Hub → Storyboard → Shot editor → Generate Frames \| Takes → Review (#62-A) | **REFERENCE (active #60 reference; supersedes row 1)** (structure only, same RD deltas) |
+| 1 | **#60 final synthesis (earlier attempt).** `main` → `prototypes/v2-ux/60-scene-production-final/` | main | How Records 5 and 6 look as one scene workspace | **HISTORICAL, superseded by row 0** (no Script Hub, no Outline, duplicate Shot-list in matrix, light Review). Kept as record; not the canonical reference |
 | 2 | **#58 fresh.** `prototype/v2-58-writing` → `prototypes/v2-ux/58-writing/` | `573ebb5` | Ratified writing behaviours: option pager, regeneration dock, sync bar, acceptance sheet | **REFERENCE** |
 | 3 | **#59 fresh.** `prototype/v2-59-world` → `prototypes/v2-ux/59-world/` | `cbee026` | Identity-first, shot-driven World Definition | **PARTIAL REFERENCE** |
 | 4 | **#62 fresh.** `prototype/v2-62-review` → `prototypes/v2-ux/62-review/` | `0ca87af` | Sequence-first review and playback (A, B, C) | **PARTIAL REFERENCE** (variant A only) |
@@ -40,7 +41,7 @@ Fifteen prototypes were found: fourteen on never-merged `prototype/*` branches a
 | 14 | **#58 v1.** `prototype/58-writing-experience` → `prototypes/writing-experience-58/` | `3ec65bb` | Writing layout A/B/C | **ARCHIVED / DO NOT IMPLEMENT** |
 | 15 | **#56.** `prototype/56-navigation-models` → `prototypes/navigation-models-56/` | `6a453fc` | Navigation A/B/C | **ARCHIVED / DO NOT IMPLEMENT** |
 
-Totals: **2 REFERENCE, 6 PARTIAL REFERENCE, 7 ARCHIVED.**
+Totals: **3 REFERENCE (one active, one historical on main), 6 PARTIAL REFERENCE, 7 ARCHIVED.**
 
 Research branches (`research/*`) are not prototypes and are out of scope here.
 
@@ -48,7 +49,9 @@ Research branches (`research/*`) are not prototypes and are out of scope here.
 
 ### 3.1 REFERENCE
 
-**#1 `60-scene-production-final` (main).** Use for *interaction structure, surface placement and information architecture* of the scene workspace: Storyboard arrival and Accept plan placement, horizontal shot strip, Shot editor, fold-down Cast & Looks, asset drawer, Frames | Takes toggle, Frames drawer tabs, one-panel Takes drawer, Take composer contents and order, reference library by origin, neighbour row, compare pairs, cut editor, Dialogue section placement, Generate ↔ Review boundary, inline spend ticket placement, quiet readiness line. It follows Records 5 and 6 closely, and no component of it was rejected later.
+**#0 `60-scene-production-canonical` (main) is the active #60 reference** and applies everything said below about #1 (same deltas RD-01 to RD-22, plus RD-48 to RD-60 for its Review). It differs from #1 in: global Outline sidebar; v3 Script Hub restored; Cast & Looks matrix is a lens on the single Shot strip (no second Shot list); Review re-hosts #62 variant A instead of the light stand-in. Its Script Hub is `hub.js` from #8 and its Review follows #4 variant A.
+
+**#1 `60-scene-production-final` (main), historical.** Use for *interaction structure, surface placement and information architecture* of the scene workspace: Storyboard arrival and Accept plan placement, horizontal shot strip, Shot editor, fold-down Cast & Looks, asset drawer, Frames | Takes toggle, Frames drawer tabs, one-panel Takes drawer, Take composer contents and order, reference library by origin, neighbour row, compare pairs, cut editor, Dialogue section placement, Generate ↔ Review boundary, inline spend ticket placement, quiet readiness line. It follows Records 5 and 6 closely, and no component of it was rejected later.
 - Caveats that bind its status. Neither Record 5 nor Record 6 names this prototype. Record 5 ratified the *composition of v3's parts*, and this build is an agent synthesis made afterwards, never creator-reviewed. "Canonical" is a repository label, not a creator ratification. It is **not** a reference for behaviour, data model, prices, spend, lineage, locks, or voice authorisation. See RD-01 to RD-22.
 - Its README's "two prototype-level choices not in the docs" are mis-described. *Split at the middle of the action sentences* conflicts with SHOT-MODEL §5.2 (RD-13). *Revoice offered on native Takes only* is in VOICE §4.2 and Record 6 V6.2(3), but the code is looser than the doc (RD-12).
 

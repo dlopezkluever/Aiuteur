@@ -7,7 +7,8 @@ Only one prototype lives on `main`; the rest are on never-merged `prototype/*` b
 ## REFERENCE
 | Prototype | Where | Use for |
 |---|---|---|
-| #60 final synthesis | `main`: `v2-ux/60-scene-production-final/` | Scene workspace structure and placement only. See deltas RD-10 to RD-22. |
+| **#60 CANONICAL flow (active)** | `main`: `v2-ux/60-scene-production-canonical/` | The whole flow (Outline, Script Hub, Storyboard, Shot editor, Generate, Review #62-A) for structure and placement only. See deltas RD-10 to RD-22, RD-48 to RD-60. |
+| #60 final synthesis (historical, superseded) | `main`: `v2-ux/60-scene-production-final/` | Do not use as the reference; kept as record. |
 | #58 fresh writing | branch `prototype/v2-58-writing` | Chosen writing surfaces. See RD-23 to RD-28. |
 
 ## PARTIAL REFERENCE (named surfaces only)
