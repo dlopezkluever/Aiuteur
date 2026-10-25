@@ -675,6 +675,20 @@ _Avoid_: Benchmark, test suite
 A content-free list of provider behaviours exported from a Generation's run history that a test provider replays to reproduce a lifecycle failure.
 _Avoid_: Recording, trace dump
 
+**Tracer bullet (T0)** **(Wayfinder)**:
+The first, kept (not throwaway) end-to-end path through every layer: a pasted paragraph, a real-model Treatment Option, a Frame and a Take from real providers, run by the worker, stored, streamed and recoverable. It proves the architecture and completes no phase. Defined in `docs/architecture/BUILD-SEQUENCE.md`.
+_Avoid_: Prototype, spike, proof of concept
+
+**Vertical slice (VS)** **(Wayfinder)**:
+One increment of the build that follows a phase of the Constitution's workflow thinly from interface to storage and moves the golden workflow's seed boundary. Not a lineage slice (the unit a Generation captures).
+_Avoid_: Sprint, phase (for build order), layer
+
+**Seed boundary** **(Wayfinder)**:
+The point in the golden workflow before which steps are replayed from golden-project commands and after which they run through the real UI. Each vertical slice moves it one phase earlier; at the bar nothing is seeded.
+
+**Early interface (EI)** **(Wayfinder)**:
+An interface built in the tracer or a CORE slice so that an IMPORTANT capability lands later without redesign. Listed in `docs/architecture/BUILD-SEQUENCE.md` §5.
+
 ## Reference
 
 **Design reference**:
