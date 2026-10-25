@@ -46,7 +46,7 @@ Resolution of Wayfinder ticket #69. Vocabulary is in [`GLOSSARY.md`](../../GLOSS
 | Aspect | Rule |
 |---|---|
 | Class | **Supplied** (DOMAIN-MODEL; LINEAGE class 2): content immutable; only its descriptor (class 1) is editable. Provenance: creator-recorded (in-app Record) or creator-imported (Upload). |
-| Media | Audio, or video whose audio track is the performance. The **audio** is the performance; a performer video is kept as Media but is used only by a performance-transfer path if a profile ever declares one (§5, reserved). |
+| Media | Audio, or video whose audio track is the performance. The **audio** is the performance; a performer video is kept as Media and used for nothing else (performance transfer is reserved, §10). |
 | Link | 0..* per Dialogue line (VP2). Linking is a descriptor, not a copy. A Performance may be unlinked and relinked. |
 | Protection | Same as other creator work (Constitution §11.2, §13): never overwritten, never auto-edited (no denoise, trim or normalisation of the stored original), retired never deleted, kept in duplicate, destroyed only by Purge. Playable in the app at any time; Export of the original is available. Derived renditions (waveform, playback copy, loudness-matched playback) are non-creative and rebuildable. |
 | Descriptor | Duration (probed at ingest), a **performer basis** (§2.2) when the creator has stated one, the Dialogue line it is linked to. |
@@ -88,7 +88,7 @@ No identity check is claimed. The record is the creator's own attestation plus w
 
 ### 2.2 Where it is asked (proportionate friction)
 
-Asked **only at the moment a use needs it**, once per subject, remembered, one line, never a modal (M1):
+Asked **only at the moment a use needs it**, once per subject, remembered, one line, never a modal (Record 1 M1):
 
 | Action | Needs |
 |---|---|
@@ -135,7 +135,7 @@ SHOT-MODEL §10 says a Performance's length can suggest the Shot's duration as a
 | `required > Shot duration` | **The audio is never cut or sped up.** The Generation's target duration becomes `required` (normalised by PROVIDERS §5, planned by §11, estimate on the sent value). The Shot's own duration field is **not changed**: one quiet line on the control, "Performance runs 9.2 s · this Take is made at 10 s · shot says 6 s · Set shot to 10 s". The offer is the creator's act (a Shot Revision, `shot-changed`). |
 | Beyond every available plan | `unmet-blocking`, with exits (a model with longer range or extension, shorten the performance by re-recording, split the shot as the creator's own act). |
 | Dialogue straddles a Segment join | Segments slice the Dialogue track at **pauses** (silence detection in code, or the provider's alignment where the profile returns it), never mid-word when a pause exists inside the allowed window. No pause: cut at the lowest-energy point with a short crossfade and record `line-split-mid-speech` on the Take. The audio itself is never regenerated, so delivery stays continuous (SHOT-MODEL §7.4). |
-| Delivered vs required | Recorded on the Take: delivered duration, audio length, whether the audio is wholly present. A Take that dropped part of a chosen Line audio is a failed Generation, never a success (G9 media check: audio duration probed). |
+| Delivered vs required | Recorded on the Take: delivered duration, audio length, whether the audio is wholly present. A Take that dropped part of a chosen Line audio is a failed Generation, never a success (AI-map G9 media check: audio duration probed). |
 
 ### 3.3 Ad-lib (deviation or write-back)
 
@@ -155,13 +155,12 @@ The Package states the need; Fit and the plan choose the path from the effective
 
 | Path | When | How it runs | Take audio |
 |---|---|---|---|
-| **N. Native** (CORE) | No Line audio chosen on any line | Dialogue goes in the prompt as Verbatim parts with the shot-owned delivery. If a Voice exists: `voice:<presence>` text, and `audio.voice` reference audio where the profile accepts it. Best effort, said so (L5, `voice-not-guaranteed`) | The provider's own |
+| **N. Native** (CORE) | No Line audio chosen on any line | Dialogue goes in the prompt as Verbatim parts with the shot-owned delivery. If a Voice exists: `voice:<presence>` text, and `audio.voice` reference audio where the profile accepts it. Best effort, said so (limitation L5, `voice-not-guaranteed`) | The provider's own |
 | **A. Audio-driven** | Line audio chosen; the effective video model accepts driving audio | One call per Segment with the sliced Dialogue track as `audio.line`. The model generates picture performing the audio; lip-sync is the model's | The provider's output, which is the supplied audio |
-| **L. Lip-synced** | Line audio chosen; the model has no driving audio; `lip-sync` wanted; an eligible `audio.lipsync` Offering exists | Two dependent Generations per Segment in one batch: the picture, then `audio.lipsync` on that Segment's clip with its slice of the track (JOB-LIFECYCLE §8 dependency). The lip-synced clip is the Segment | The supplied audio |
+| **L. Lip-synced** | Line audio chosen; the model has no driving audio; `lip-sync` wanted; an eligible `audio.lipsync` Offering exists | Two dependent Generations per Segment in one batch: the picture, then `audio.lipsync` on that Segment's clip with its slice of the track (JOB-LIFECYCLE §8 dependency). The lip-sync step yields a second Attempt in the same Segment slot, derived from the plain video Attempt; the chosen candidate (default the lip-synced one) feeds assembly (SHOT-MODEL §7.3) | The supplied audio |
 | **V. Laid-on (voice-over)** | Line audio chosen; neither A nor L applies, or `lip-sync` is `off`, or the speaker cannot be lip-synced | The picture is generated with audio off (or provider audio discarded by deterministic ingest, `audio-cannot-be-disabled`); the Dialogue track slices are muxed by the deterministic assembly. No lip movement is claimed | The supplied audio only |
-| **T. Performance transfer** (reserved) | A profile declares performer-video-driven generation with evidence | A Segment generated from the performer's video; same Slot, same gate | The provider's |
 
-Preference order after hard needs: **A, then L, then V** (T above A only if declared and evidenced). `lip-sync` is a neutral parameter like native audio: `wanted` (the default when a Line audio is chosen), `off` (the creator says "voice-over"), `indifferent`. It is a per-Generation control in the Dialogue section, not a Shot field and not a Look.
+Preference order after hard needs: **A, then L, then V**. `lip-sync` is a neutral parameter like native audio: `wanted` (the default when a Line audio is chosen), `off` (the creator says "voice-over"), `indifferent`. It is a per-Generation control in the Dialogue section, not a Shot field and not a Look.
 
 ### 4.1 Fallbacks
 
@@ -192,19 +191,18 @@ These extend PROVIDERS §4.1's **Audio** row and §13. Every field is `declared(
 | `audio.voice` | create or release a provider voice handle | samples → handle; handle → released |
 | `audio.transcribe` | transcript (utility, operator policy, economy) | audio → text |
 
-Creator-facing selection is the single **audio** family (Automatic bias `quality`, ratified in D66), resolved per Generation like any class (PROVIDERS §8); `audio.transcribe` is operator policy and its model is recorded in the call log.
+Creator-facing selection is the single **audio** family (Automatic bias `quality`, ratified in Record 2 D66), resolved per Generation like any class (PROVIDERS §8); `audio.transcribe` is operator policy and its model is recorded in the call log.
 
 ### 5.2 Fields
 
 | Group | Declares |
 |---|---|
-| **Native dialogue** (on `video.take`) | Dialogue generated from prompt text; languages; `audio` `none`/`optional`/`always`; whether it follows quoted lines verbatim (always `best-effort`: no model can be made to speak a line verbatim, L5); whether it accepts **voice references** (count, per-clip seconds, total seconds, formats) and `lip-sync documented` |
+| **Native dialogue** (on `video.take`) | Dialogue generated from prompt text; languages; `audio` `none`/`optional`/`always`; whether it follows quoted lines verbatim (always `best-effort`: no model can be made to speak a line verbatim, limitation L5); whether it accepts **voice references** (count, per-clip seconds, total seconds, formats) and `lip-sync documented` |
 | **Driving audio** (on `video.take`) | Accepts driving audio as an input role `audio.line`; length rule (`follows audio`, `fixed set`, range); per-clip and total limits; what it does with its own audio (`replaced`, `mixed`, `unknown`); `lip-sync subjects` |
 | **Speech** | Voice sources (`stock`, `designed`, `cloned`); languages; per-request length (units: characters or seconds, counter); delivery controls (`inline-tags`, `instruction`, `none`); `timing output` (`none`, `word`, `character`) with units; seed guarantee |
 | **Transform** | Input length limit and formats; whether output length equals input length (`documented`, `not-stated`, `varies`); delivery preservation claim (`documented-claim`, `none`); languages; background-noise isolation; plan gating |
 | **Lip-sync** | Input video: duration range, resolution and size limits, formats; input audio range; `lip-sync subjects` (`human`, `stylized-humanoid`, `any`, `unknown`); speakers per clip and the selection mechanism; whether non-speaking mouths are left alone; billed unit |
 | **Voice data** | `voice source requirements` (§5.3); `delete voice` supported (**mandatory for any cloning Offering**, §2.4); retention of voice data at the provider; zero-retention compatibility; provenance marks the provider adds to audio (watermark, content credentials) |
-| **Performance transfer** (reserved) | Driving video + character reference roles, limits, audio handling. `unknown` for every Offering today |
 | **Timing outputs** | `alignment` returned by speech/transform; used only for slicing (§3.2); absent means code finds pauses |
 
 ### 5.3 Authorisation precondition kinds (closed)
@@ -224,12 +222,12 @@ Declared per cloning-capable Offering; read by the gate (§2.3). Closed list; ad
 ### 6.1 Reaching the Package
 
 - **Voice** adds one layer: **`voice:<presence>`**, owner the Character's Voice, may contribute the Voice **description** (composed), Tier 1, placed after `identity:*`; and the existing role **`audio.voice`** (the samples chosen by Fit). It degrades to the description alone, then to nothing, with verdicts `met-by-fallback` / `unmet-soft`. It is a layer, not text smuggled into `dialogue`.
-- **Line audio** is the existing role **`audio.performance`** generalised: it carries any chosen Line audio, by Media id, line id and slice range. A line with a chosen Line audio is carried **by that reference instead of as spoken text**: the "every Dialogue line appears once, in order" guard (P3, G3) is satisfied by the reference, and the Fit report lists it. Lines with none are carried as Verbatim parts only on a native path; on audio-led paths they are reported `line-unvoiced` and the mouth is left still.
+- **Line audio** is the existing role **`audio.performance`** generalised: it carries any chosen Line audio, by Media id, line id and slice range. A line with a chosen Line audio is carried **by that reference instead of as spoken text**: the "every Dialogue line appears once, in order" guard (Package P3, AI-map G3) is satisfied by the reference, and the Fit report lists it. Lines with none are carried as Verbatim parts only on a native path; on audio-led paths they are reported `line-unvoiced` and the mouth is left still (the one exception to GENERATION-PACKAGE's every-line-once guard, Package P3).
 - `audio.speech` and `audio.transform` use the same Package type with text layers and the Voice reference (GENERATION-PACKAGE §14), no new compiler.
 
 ### 6.2 What a Voice change does to existing work
 
-Changing a Voice (a new Revision: description or sample set; or a different handle after revoke) marks Takes and Attempts whose Generation captured that Voice Revision, **non-destructively**: reason `identity-changed`, slice `voice` (no new code). Transformed performances and Spoken lines made in the old Voice are marked the same way. Exits are the ordinary ones: **Redo** (a new Attempt; the old stays), keep, restore the Voice Revision. Nothing spends automatically (R2).
+Changing a Voice (a new Revision: description or sample set; or a different handle after revoke) marks Takes and Attempts whose Generation captured that Voice Revision, **non-destructively**: reason `identity-changed`, slice `voice` (no new code). Transformed performances and Spoken lines made in the old Voice are marked the same way. Exits are the ordinary ones: **Redo** (a new Attempt; the old stays), keep, restore the Voice Revision. Nothing spends automatically (Record 1 R2).
 
 ### 6.3 Regeneration and provenance
 
@@ -239,12 +237,14 @@ Every `audio.*` Generation records Package, Fit report, Rendered request, profil
 
 Resolving PERSISTENCE §7.5's invitation: a provider-side voice is an `external_resource` **owned by the Account and scoped to one project and one Voice**, created **lazily on first use** (a dependency step in the first Generation that needs it, its cost shown in the estimate) and **never shared across projects**. Duplicate copies the Voice, samples and authorisation history, **not the handle**; the new project creates its own on first use. Retire of the Voice, revoke, project purge and Account purge each release the handle (the adapter deletes it). This removes the one reference-counted resource PERSISTENCE had. Cost: one extra creation per project that uses a cloned Voice, shown as a batch step.
 
+Orphaned handles after a timeout or `submission_unconfirmed`, and retry after a failed provider-side delete, are reconciled by JOB-LIFECYCLE 6.1; purge waits for confirmed deletion.
+
 ### 6.5 Cost visibility and the spend rule
 
 - All `audio.*` Generations are **creator-initiated, priced on the control** (VP3: "Speak as … · $x"), never automatic (Record 2 X8 stands; Treatment and the initial scene plan stay the only auto-triggers). Estimates come from the billed-quantity rule (characters, seconds of audio, seconds of output video).
 - A lip-synced Take is **one Take**: its video and lip-sync steps show as one price ("Take $a + lip-sync $b = $c"), count once toward the 10-Generation confirm rule like Segments (Record 2 P3), and sum into the $2.00 line. Clone-handle creation is part of that sum.
 - The transcript step is a creator-initiated, usually trivial (<$0.05) part of linking a Performance; the price is recorded, no extra approval UI.
-- Failure, cancel and billed-on-failure follow JOB-LIFECYCLE §5 with no change. A partial batch (video done, lip-sync failed) keeps the video Segment.
+- Failure, cancel and billed-on-failure follow JOB-LIFECYCLE §5 with no change. A partial batch (video done, lip-sync failed) leaves the plain video Attempt chosen in the Segment slot and offers a lip-sync retry.
 
 ## 7. Authority and placement check (Record 5)
 
@@ -263,7 +263,7 @@ Carried in profiles and on Generations (PROVIDERS §12 pattern). One plain sente
 | Code | Meaning |
 |---|---|
 | `voice-not-guaranteed` | Native dialogue cannot be made to keep one voice across shots, even with references. Fallback: Spoken line or Transformed performance, then paths A/L/V |
-| `line-not-verbatim` | A native model may not speak the line exactly (PROVIDERS L5). Fallback: Line audio |
+| `line-not-verbatim` | A native model may not speak the line exactly (PROVIDERS limitation L5). Fallback: Line audio |
 | `timing-not-preserved` | A transform, audio-driven or lip-sync output differs in length beyond tolerance |
 | `lipsync-humanoid-only` | The service documents human or stylized-humanoid faces only |
 | `lipsync-single-speaker` | One speaker per clip |
@@ -283,7 +283,7 @@ Baseline: [research #7](https://github.com/dlopezkluever/aiuteur/blob/research/v
 | Voice-clone consent | PVC: own voice only, live verification, "even with their consent you cannot clone someone else's voice" (2026-10-25). IVC: the dashboard asks the creator to confirm "the right and consent to clone the voice"; ElevenLabs' blog says its API "requires a consent attestation for every clone" (**vendor marketing**); the API reference seen in #7 lists no consent field (unresolved, not re-read in full). OpenAI and Google: fixed consent phrase by the same speaker; Google Chirp 3 allowlisted (#7, not re-checked) | The conflict stays unresolved at provider level, so **Aiuteur's own attestation is the gate regardless** and `speaker-verification`, `own-voice-only` and `allowlist` are separate declared kinds (§5.3). A PVC-class Offering can serve only `own-voice` |
 | Lip-sync services | Kling's lip-sync API: video 2–10 s, 720p or 1080p, ≤100 MB; audio 2–60 s, ≤5 MB; the product page says it "works with realistic, 3D, and 2D human characters". Sync (#7): "animals or non-humanoid characters" unsupported. Kling Motion Control: "stylized characters or humanoids with acceptable limb proportions **may** also be supported" | Human and stylized-humanoid are the documented ceiling. `lipsync-humanoid-only` and `lipsync-clip-range` are real; the plan keeps each lip-sync step within the declared clip range |
 | Audio-driven video | LTX-2.5 (Runware guide): "the audio carries the words and the timing, and the clip inherits its exact length" (2–20 s); a "stylized character, a mascot, or an illustrated avatar drives the same way". Wan 2.7: driving audio drives lip-sync (#5). Kling 4.0 early access advertises up to 15 mixed references including voices | Audio-driven is the only documented route for non-humanoids and the only one where audio sets length. Path A is preferred when a profile says so; claims are one aggregator's and a vendor's, to be `verified` by a conformance run before default eligibility |
-| Performance transfer | Runway Act-Two exists (#8) with undocumented input limits | Stays `unknown` and reserved (path T) |
+| Performance transfer | Runway Act-Two exists (#8) with undocumented input limits | Stays `unknown`; reserved, not designed (§10) |
 | EU AI Act Art. 50 | Applies from 2026-08-02; the Commission published its Art. 50 guidelines on **2026-07-20** and assessed the Code of Practice on 2026-07-08/09 (resolves #7's "unresolved"); systems placed on the market before 2026-08-02 have until 2026-12-02 for the Art. 50(2) marking duty; new prohibitions on non-consensual intimate material apply from 2026-12-02 | Synthetic-audio marking is chiefly a **provider** duty and disclosure of deepfakes a **deployer** duty with an artistic carve-out. Inference: Aiuteur must not strip provider marks (§6.3) and the Export should not deny disclosure; whether Aiuteur is itself a provider or deployer is a legal review item (residual), **not legal advice** |
 | US and state law | Tennessee ELVIS Act in force; California AB 2602, AB 1836; NO FAKES Act not enacted as of #7 (2026-10-18). **Not re-verified on 2026-10-25** | The product's posture (authorisation record, revocation, handle deletion) is consistent with these norms and depends on none of them |
 
@@ -298,8 +298,9 @@ Baseline: [research #7](https://github.com/dlopezkluever/aiuteur/blob/research/v
 | Sharing the provider handle across duplicated projects (PERSISTENCE §7.5 as written) | Revocation and purge need reference counting across projects and an inconsistent legal state; per-project lazy creation is simpler (§6.4) |
 | A new lineage reason for a Voice change | `identity-changed` with slice `voice` already says it |
 | Trimming, time-stretching or padding performance audio to fit the shot | Alters creator material and breaks "keep the delivery"; the Take is made long enough instead (§3.2) |
-| Auto-using TTS + lip-sync whenever a Voice exists | Spends without the creator's click (X8, §13.4) and changes the Take without being asked |
+| Auto-using TTS + lip-sync whenever a Voice exists | Spends without the creator's click (Record 2 X8, §13.4) and changes the Take without being asked |
 | A mixer, offsets, stems | LATER (Constitution §11.1) |
+| Performance transfer (a performer's video drives generation) | Reserved, not designed: experimental, no Offering declares it, and it would reuse the same Slot and gate if one ever does |
 | A Constitution amendment | Nothing is infeasible; limits are recorded with fallbacks |
 
 ## 11. Creator Review (provisional default in force)
@@ -312,7 +313,7 @@ Why it arises: no native video model documents holding one voice across shots, s
 |---|---|
 | **A (recommended; in force provisionally)** | In the Dialogue section a line with no performance also offers **Speak line as <character>'s voice · $x** (text-to-speech in the Voice, then it is Line audio like any other). Explicit, per line, priced, creator-initiated. Native stays the default |
 | B | No spoken-line action. The Voice only informs native dialogue (description and reference audio, best effort); consistent voices are a best-effort claim. Transformation still needs a performance |
-| C | Use text-to-speech automatically for every line whenever a Voice exists. Rejected on the merits: spends without a click (X8) |
+| C | Use text-to-speech automatically for every line whenever a Voice exists. Rejected on the merits: spends without a click (Record 2 X8) |
 
 Depends on: the Dialogue section of the Takes drawer (one extra control), the `audio.speech` class, how strong the "consistent voices" promise reads. If B is chosen, delete the **Spoken line** row of §1.3 and the `audio.speech` class; everything else stands.
 
@@ -322,11 +323,11 @@ Depends on: the Dialogue section of the Takes drawer (one extra control), the `a
 |---|---|
 | **Persistence** (#72 closed) | `external_resource` becomes project- and Voice-scoped, lazy, released on retire, revoke and purge (PERSISTENCE §7.5 amended). Tables: Voice (Revisions), Voice sample (Supplied), Voice authorisation (Decision stream), Line audio Slot (choice stream), Dialogue track (derived Record), transcript (rebuildable annotation). The authorisation read is a dispatch-gate clause (F3) |
 | **Verification** (#76) | Fixtures in §13; fake `audio.*` Offerings (clone required, clone refused, transform varies length, lip-sync refuses a face, handle delete fails); conformance probes can check transform length and clip ranges |
-| **Spec and slices** (#77, #78, #79) | Slice order: (1) the Line audio Slot, Performance Record/Upload/Play and the Dialogue track with path V (laid-on) and no provider audio at all, which is shippable with CORE; (2) Voice definition and samples; (3) authorisation record and gate; (4) `audio.transform`; (5) `audio.lipsync` path L; (6) audio-driven path A; (7) `audio.speech` if CR-69.1 is A. Profiles for any of 4–7 may be `unknown`/absent and the product still works. Residuals for the spec: tolerance and gap constants; sample excerpt tool; hypothesised legal review of Art. 50 roles; cross-project voice library; third-party removal process |
+| **Spec and slices** (#77, #78, #79) | Slice order: (1) the Line audio Slot, Performance Record/Upload/Play and the Dialogue track with path V (laid-on) and no provider audio at all, which needs no provider audio, touches no CORE path, is the first step of IW2 and lands after BAR (BUILD-SEQUENCE §4.1 rule 1); (2) Voice definition and samples; (3) authorisation record and gate; (4) `audio.transform`; (5) `audio.lipsync` path L; (6) audio-driven path A; (7) `audio.speech` if CR-69.1 is A. Profiles for any of 4–7 may be `unknown`/absent and the product still works. Residuals for the spec: tolerance and gap constants; sample excerpt tool; hypothesised legal review of Art. 50 roles; cross-project voice library; third-party removal process |
 | **Providers** (#66) | §5 is the audio vocabulary; PROVIDERS §4.1, §9 F3, §12, §13, §15 amended |
-| **Package** (#65) | `voice:<presence>`, generalised `audio.performance`, P3 satisfied by reference |
+| **Package** (#65) | `voice:<presence>`, generalised `audio.performance`, Package P3 satisfied by reference |
 | **Lineage** (#54) | `authorisation-revoked`; `identity-changed` slice `voice` |
-| **Trust signals** (#61) | Marks stay quiet: 🎙 in Scene Prep; the authorisation line in the Voice area; the one-line statement at first use; `authorisation-revoked` as an ordinary marker |
+| **Trust signals** (#63) | Marks stay quiet: 🎙 in Scene Prep; the authorisation line in the Voice area; the one-line statement at first use; `authorisation-revoked` as an ordinary marker |
 
 ## 13. Invariants and fixtures the spec should test
 
@@ -340,7 +341,7 @@ Depends on: the Dialogue section of the Takes drawer (one extra control), the `a
 8. Audio longer than the shot makes the Take longer and leaves the Shot duration unchanged; audio shorter than the shot is reported; no code path trims, stretches or pads audio.
 9. A transform that changes length is stored, flagged `timing-not-preserved`, and the Dialogue track uses its measured length.
 10. A change of Voice Revision marks captured Takes `identity-changed` (voice) and nothing else; a changed model or price marks nothing.
-11. Lip-synced Take: video Segment succeeded and lip-sync failed leaves the Segment and shows partial result; price is the sum; counts once toward the confirm rule.
+11. Lip-synced Take: video Attempt succeeded and lip-sync failed leaves the plain Attempt chosen in the Segment slot with a retry offer, and shows the partial result; price is the sum; counts once toward the confirm rule.
 12. Ad-lib: a transcript differing from the line makes it Divergent; write-back and deviation both end the divergence; neither blocks generation.
 13. Logs for any audio Generation contain ids and codes only: no transcript, no statement text, no person's name, no sample bytes.
 14. A non-humanoid fixture on a `human`-only lip-sync Offering: path V reachable, `lipsync-humanoid-only` shown.

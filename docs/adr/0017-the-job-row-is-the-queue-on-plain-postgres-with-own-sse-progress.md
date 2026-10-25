@@ -16,7 +16,7 @@ Decision, for an invite-only, multi-creator deployment of 1 to 50 Accounts:
 
 ## Considered options
 
-- **Supabase as the platform** (database, auth, storage, Realtime). Rejected: its default server credential bypasses row rules, which is V1's failure; invites create the user at send time; Realtime replay is 25 messages per request; point-in-time recovery costs $100 a month more; its bundled roles would be unused or would invite the shared identity the Ratification Record (M4) forbids.
+- **Supabase as the platform** (database, auth, storage, Realtime). Rejected: its default server credential bypasses row rules, which is V1's failure; invites create the user at send time; Realtime replay is 25 messages per request; point-in-time recovery costs $100 a month more; its bundled roles would be unused or would invite the shared identity the Ratification Record (Record 1 M4) forbids.
 - **A Postgres durable-workflow library (DBOS Transact; pg-boss as its lighter variant).** Rejected for now: the workflow becomes a second state machine beside the Job row, steps stay at-least-once so the crash window rule is still needed, several nodes need paid Conductor, and checkpoint tables hold inputs. Fallback behind the same port if the scheduler outgrows its small scope.
 - **A managed engine on our compute (Hatchet, Inngest, Temporal, Restate).** Rejected: a second state store whose start is not in our transaction (so a relay and a start-if-missing sweeper are needed), its own retention to purge, per-run step caps shaping long polling loops, and $0 to $200 a month, for a benefit (native fairness) that a count in the claim transaction provides at this scale.
 - **Vendor-compute engines and workflow products (Trigger.dev Cloud, Vercel, Cloudflare, AWS, Google).** Rejected: prompts and BYOK keys would run on vendor machines, and most offer no per-key fairness.
@@ -32,7 +32,7 @@ Decision, for an invite-only, multi-creator deployment of 1 to 50 Accounts:
 - Persistence (#72) owns schema, row-level mechanism, key layout and retention within these constraints; the Operational baseline (#75) owns authentication (Supabase Auth is out), secrets custody, backups and alerts, receiving the three identities and the oldest-overdue-due-time liveness signal.
 - Vendor facts are dated 2026-10-21 (VPS prices 2026-10-23); re-check VPS and R2 pricing and limits at build time.
 
-## Record 2 amendment (P11): hosting default
+## Record 2 amendment (Record 2 P11): hosting default
 
 The creator reopened the hosting choice. **Default target: one VPS** (for example Hetzner) running the web process, the worker and Postgres, with **Cloudflare R2** kept for private media; estimated about $10 to $25 a month before provider bills (unverified). This replaces Fly.io + Neon as the default (about $35 to $40 a month); Fly, Render, Railway and managed Postgres remain valid later moves without code changes. **Portability is a requirement:** plain Docker images, a stateless worker, plain Postgres with no vendor-specific database or host feature (RT5 stays in force), and vendor SDKs only behind platform adapters (`BlobStore`, host configuration). The operator accepts owning OS patching, Postgres upgrades, backups and uptime. The decision above states this as the current deploy choice; the queue, progress and isolation decisions are unchanged.
 

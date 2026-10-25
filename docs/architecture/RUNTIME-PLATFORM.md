@@ -1,6 +1,6 @@
 # Aiuteur V2: Runtime Platform
 
-Resolution of Wayfinder ticket #74. The trade-offs are recorded in [ADR 0017](../adr/0017-the-job-row-is-the-queue-on-plain-postgres-with-own-sse-progress.md). Inputs: the [job lifecycle](../domain/JOB-LIFECYCLE.md) (settled; this substrate implements it), the [module architecture](MODULE-ARCHITECTURE.md) (the ports and process roles this fills), the [business contract](../domain/BUSINESS-AND-OPERATIONS.md) (multi-creator isolation, server-held keys, BYOK-ready), the [Creator Ratification Record](../product/CREATOR-RATIFICATION-RECORD.md) (M4 to M7), [Record 2](../product/CREATOR-RATIFICATION-RECORD-2.md) (P11, which moved the hosting default; see the last section) and the #73 research (note `docs/research/platform-and-execution-options.md` and five area reports on the throwaway branch `research/platform-execution`; facts dated 2026-10-21; items that research marked *not verified* stay unverified here).
+Resolution of Wayfinder ticket #74. The trade-offs are recorded in [ADR 0017](../adr/0017-the-job-row-is-the-queue-on-plain-postgres-with-own-sse-progress.md). Inputs: the [job lifecycle](../domain/JOB-LIFECYCLE.md) (settled; this substrate implements it), the [module architecture](MODULE-ARCHITECTURE.md) (the ports and process roles this fills), the [business contract](../domain/BUSINESS-AND-OPERATIONS.md) (multi-creator isolation, server-held keys, BYOK-ready), the [Creator Ratification Record](../product/CREATOR-RATIFICATION-RECORD.md) (Record 1 M4 to M7), [Record 2](../product/CREATOR-RATIFICATION-RECORD-2.md) (P11, which moved the hosting default; see the last section) and the #73 research (note `docs/research/platform-and-execution-options.md` and five area reports on the throwaway branch `research/platform-execution`; facts dated 2026-10-21; items that research marked *not verified* stay unverified here).
 
 Vocabulary is in [`GLOSSARY.md`](../../GLOSSARY.md). This document fixes **which platform, which execution substrate, which progress channel, and the rules that make restarts and duplicates safe**. It does not fix table or column shapes, the schema authority, row-level rules, media key layout or retention (Persistence, #72); the authentication product, secrets custody, error tracking, backups and CI (Operational baseline, #75); or numeric tuning (spec).
 
@@ -27,7 +27,7 @@ Estimated hosting cost on the current default: **about $10 to $25 a month before
 | JOB-LIFECYCLE §1, §3, §7, §12 | Job durable before any provider call; compare-and-set transitions; leases; a deadline on every non-terminal state; scheduled, backed-off polling; recovery as a rule; a transactional outbox, at-least-once |
 | JOB-LIFECYCLE §14, MODULE-ARCHITECTURE §14 | Durable timers, leases, webhook ingress with signature checks, an outbox, safe under restart and scale-to-zero, admission caps and fairness per Account and provider, inline claim for the text fast path, `Stream` delivery with replay, no workflow state in any process |
 | BUSINESS-AND-OPERATIONS §6.3, S7, S8 | Atomic per-Account cap check in the creating transaction; a circuit breaker whose state every worker shares; per-Account and per-provider concurrency |
-| Ratification M4, M5, M7 | Isolation on every path including background work, events and storage; operator and creator keys decrypted only by us; each project separable and purgeable |
+| Ratification Record 1 M4, Record 1 M5, Record 1 M7 | Isolation on every path including background work, events and storage; operator and creator keys decrypted only by us; each project separable and purgeable |
 | #73 §1 | No engine replaces the lifecycle's own database guarantees or closes the accepted-but-unrecorded crash window |
 
 ## 2. Designs compared
@@ -43,7 +43,7 @@ Four complete stacks were worked through against the lifecycle's rules, multi-cr
 | Per-Account and per-provider fairness | In the claim transaction, exact (§4.3) | pg-boss `groupConcurrency` is soft; pgmq has none | Partitioned queues, hard, one key per queue | Strongest (several keys, round-robin) |
 | Atomic cap check, circuit breaker, per-state deadlines | In the database, as in every option | Same | Not provided; a small table and a sweeper | Not provided; same |
 | Multi-instance crash recovery | Any worker recovers any lease; no paid tier | Same | One node recovers on restart; **several nodes need Conductor** ($99 a month and up, proprietary client since v5.3) | Engine-managed |
-| Isolation | Our row-level rules on our tables; worker acts under the Job's Account (§5) | The server credential bypasses row rules (V1's failure); bundled pieces invite the shared identity M4 forbids | Checkpoint tables are one schema readable by one role; payloads must be ids only | Run payloads outside our database; ids only; per-tenant purge uneven |
+| Isolation | Our row-level rules on our tables; worker acts under the Job's Account (§5) | The server credential bypasses row rules (V1's failure); bundled pieces invite the shared identity Record 1 M4 forbids | Checkpoint tables are one schema readable by one role; payloads must be ids only | Run payloads outside our database; ids only; per-tenant purge uneven |
 | BYOK keys decrypted only on our servers | Yes | Yes | Yes | Yes (engines run our code) |
 | Purge by Account or project | Delete our rows and keys | Same | Plus checkpoint retention | Plus engine retention |
 | Extra vendors beyond host, database, storage | 0 | 0, but Supabase carries four roles | 0 (Conductor optional) | 1 |
@@ -69,7 +69,7 @@ Also excluded without a full pass: **vendor-compute engines** (Trigger.dev Cloud
 | 3 | Direct or session connections for workers? | **Yes.** The worker, the event tail and migrations use direct connections. The web request path may use a pooler, because no code depends on session state (RT2) |
 | 4 | Where may BYOK keys be decrypted? | **Only in our `web` and `worker` processes.** This excludes vendor-compute engines |
 | 5 | Is Conductor-class recovery needed? | **No.** Any worker recovers any expired lease, so one always-on worker suffices and a second is safe |
-| 6 | Supabase as the database? | **No.** Plain Postgres (#74 chose Neon; the current default is Postgres on the VPS, P11), storage on R2, own SSE; authentication is #75's |
+| 6 | Supabase as the database? | **No.** Plain Postgres (#74 chose Neon; the current default is Postgres on the VPS, Record 2 P11), storage on R2, own SSE; authentication is #75's |
 | 7 | Custom domain for private media? | **No.** Signed URLs on the storage host suffice for V2; signing on a custom domain needs a Worker or WAF rule on R2, deferred |
 | 8 | VPS or PaaS? | #74 answered **PaaS (Fly)**, because self-operated backups are the cost of a VPS. **Superseded by Record 2 P11: one VPS is the current default**, the operator owns backups (floor in OPERATIONAL-BASELINE §8), and a PaaS stays a valid later move |
 | 9 | Appetite for roughly 300 new lines of scheduler? | **Yes**, since the Job row's state machine must be written regardless |
@@ -82,8 +82,8 @@ One image and one module graph (ADR 0016), two process roles, each wired by its 
 
 | Role | Runs | Scale |
 |---|---|---|
-| **web** | `api` (commands, queries), the event stream, **webhook ingress**, the text fast path's inline claim, `views`; it also serves the CineBlock tab (D61), which is a tab of the same application under the same session and Account, not a second app | 2 or more instances for zero-downtime deploys (on the VPS, two `web` containers) |
-| **worker** | The scheduler tick (claim, then act); provider adapters (`submit`, `observe`, `cancel`, `lookup`, `fetch`); `media.put` (hash, probe with ffmpeg); local-work executors (export build, Segment assembly, still extraction); the outbox maintenance; price and circuit-breaker upkeep | 1 long-running process in its own container (on any host, never scaled to zero for idleness); 2 or more is safe (§4.4) |
+| **web** | `api` (commands, queries), the event stream, **webhook ingress**, the text fast path's inline claim, `views`; it also serves the CineBlock tab (Record 2 D61), which is a tab of the same application under the same session and Account, not a second app | 2 or more instances for zero-downtime deploys (on the VPS, two `web` containers) |
+| **worker** | The scheduler tick (claim, then act); provider adapters (`submit`, `observe`, `cancel`, `lookup`, `fetch`); `media.put` (hash, probe with ffmpeg); local-work executors (export build, Segment assembly, still extraction); the outbox maintenance; reconciliation and release checks; breaker, price-refresh and alert upkeep, written through the `scheduler` functions of §5.1 | 1 long-running process in its own container (on any host, never scaled to zero for idleness); 2 or more is safe (§4.4) |
 
 Nothing here relies on a platform's always-on machine feature: on the VPS the worker is an ordinary container restarted by the container runtime, and RT6 means a stopped worker costs only liveness. CPU-heavy local work may later move to a third process role of the same image with no other change.
 
@@ -96,16 +96,20 @@ Nothing here relies on a platform's always-on machine feature: on the VPS the wo
 | waiting | none (woken by its dependency) |
 | queued | `not_before` (backoff, deferral), the admission deadline |
 | submitting, fetching, cancelling | lease expiry, the state deadline |
-| running | next poll time, the state deadline |
+| running | next poll time (provider Jobs) or lease expiry (local-work Jobs), the state deadline |
+| terminal, reconciliation open | next reconcile check, the reconcile deadline (JOB-LIFECYCLE §6.1) |
+| `external_resource` in `releasing` | `release_due_at` (JOB-LIFECYCLE §6.1) |
 
 A **lease** carries a fencing token and sets the due time to its own expiry, so an abandoned lease simply becomes due again.
+
+**After a terminal state (decision, final audit #79 G-1).** The terminal state of a Job is absorbing and the claim never moves it. Reconciliation and handle release are not extra machines: they are the same due-time-and-lease mechanism applied to two more row shapes, a terminal Job whose `reconcile_due_at` is set and an `external_resource` whose `release_due_at` is set. The claim finds them like any due row, takes a lease with a fencing token, and returns a `work` tag (`step`, `reconcile` or `release`). Reconciliation and release submit no run, so they count against no admission cap. The rules (what is fetched, deadline, failed fetch, orphaned voice handles, retry of a failed provider-side delete) are JOB-LIFECYCLE §6.1; liveness is covered by the oldest-overdue signal of §7, because these are due times too.
 
 ```ts
 interface Scheduler {
   // Inside the creating WriteTx: the Job is due now. (The fast path may then claim its own Job.)
   enqueue(wtx: WriteTx, job: JobRef): void
   // One tick. Returns leased work as ids only; payloads are read later under the Job's Scope.
-  claim(max: number): Leased[]          // { jobId, accountId, stateSeen, leaseToken }
+  claim(max: number): Leased[]          // { subjectId (Job or external_resource), accountId, work: step | reconcile | release, stateSeen, leaseToken }
   extend(lease: Lease): boolean         // heartbeat for steps longer than a lease (fetch)
   release(lease: Lease, dueAt?: Instant): void
   wake(jobId: JobId): void              // webhook, cancel, "check now"
@@ -135,9 +139,10 @@ The lifecycle fixes the rules; the platform's job is to make them hold when mach
 | Crash after the provider accepts, before the reference is stored | The lifecycle's rule, unchanged by any platform: write-ahead intent committed first, Job-id key, lookup, else `submission_unconfirmed` and a visible one-click retry |
 | Deploy sends SIGTERM | The worker stops claiming and releases or lets expire what it holds. The host's stop grace period (the container stop timeout on the VPS; `kill_timeout`, at most 300 seconds, on Fly) is set generously but **no correctness depends on it**, since every host's grace window is shorter than a 30-minute job |
 | Fetch interrupted | The Job stays `fetching`; the re-run is idempotent (storage key from Job id, content hash checked) |
+| The provider finishes after a timeout or cancel | The terminal Job's reconcile due time (JOB-LIFECYCLE §6.1) fetches and attaches the output as an unselected Attempt; nothing moves the Job |
 | Webhook arrives twice, late, or after a terminal state | A receipt row unique on (provider, delivery id) drops the duplicate; the terminal compare-and-set drops the late one |
 | Settlement runs twice | Attachment is unique per Job; actual cost is set, never added |
-| Event delivered twice | Consumers are idempotent by event id (R13) |
+| Event delivered twice | Consumers are idempotent by event id (build rule R13 (MODULE)) |
 | Postgres restart, failover or compute restart | Connections drop; no state was held in a session; the next tick resumes |
 | The `worker` role is down | Nothing is lost and no state is wrong; progress stalls until it returns. The alert is the oldest overdue due time (§7) |
 
@@ -151,7 +156,7 @@ Hosted in `web`, authenticated by the adapter's signature check (and an unguessa
 
 - **Cancel** is a compare-and-set to `cancelled` (not yet submitted) or `cancelling`, plus `wake`; the worker sends the provider cancel. The creator sees *Cancelled* at once.
 - **Fast path.** `web` calls the same `claim` for its own Job by id. If it dies mid-call the lease expires and a worker finishes; a trivial text rerun is allowed by lifecycle §5.3.
-- **Local work** (export build, Segment assembly, still extraction) is the second executor family: the same Jobs, leases and deadlines, run by `worker` with no provider contact.
+- **Local work** (export build, Segment assembly, still extraction, voice-over mux, duplicate copy, purge) is the second executor family: Jobs of class `local` (JOB-LIFECYCLE §2.2, decision #79 G-2), the same leases and deadlines, run by `worker` over `media` operations with no provider contact. They never pass the provider circuit breaker or the provider and Account in-flight caps of §4.3; a separate local-work cap (spec value) bounds CPU.
 
 ## 5. Account isolation in the runtime
 
@@ -161,10 +166,25 @@ The data-layer enforcement (forced row-level rules on every table, a non-owner a
 |---|---|
 | **Three database identities** | `owner`, for migrations only, never present in a running process. `app`: non-owner, no bypass, every transaction opened by setting the Account for that transaction only. `scheduler`: can execute only the narrow claim, wake and outbox functions, which return **ids and Account ids, never tenant content**. There is no superuser or service-role identity on any request, worker or webhook path |
 | **Background work acts as its Account** | A tick turns a `Leased` item into a Scope and opens an `app` transaction for it. Webhook handlers and the outbox maintenance do the same |
-| **Cross-Account state** is limited to what must be shared: the provider circuit breaker, price entries, claim counts. None carries creative content |
+| **Cross-Account state** is limited to what must be shared: the provider circuit breaker, the operational overlay, price entries and operator alerts, held in operator-scoped tables with a named owner and write path (§5.1). In-flight counts are not stored: the claim function counts job rows inside its transaction. None carries creative content |
 | **Events** carry ids, types and states, never prompts, media or keys, and are read only by the owning Account's stream |
 | **Operator** reads content-free views through a separate read-only role (#75) |
 | **Keys** (operator and BYOK) are decrypted only inside `web` and `worker` (§3 fact 4); the custody mechanism is #75's |
+
+### 5.1 Operator-scoped state (decision, final audit #79 G-3a)
+
+**Decision.** State shared across Accounts lives in a closed set of **operator-scoped tables** with no `account_id` and no creative content, read by `app` and the claim, and written only through definer functions that take codes, ids and numbers. *Rejected:* letting `app` write them under a special Account (breaks forced row rules and the cross-Account refusal test) and an Account-less service role (a bypass identity, forbidden by ADR 0021).
+
+| State | Owner module | Write path |
+|---|---|---|
+| Provider circuit breaker (state, opened at, probe) | `providers` | After a Job's settling commit, the worker calls the `scheduler` function `breaker_record(provider, outcome code)`. It is rebuilt by the next outcomes if a write is lost. The operator's "clear breaker" is `breaker_clear`, run as `operator_act` |
+| Operational overlay (Offering status, enablement, ranking) with its append-only change stream | `providers` | Operator actions: `operator_act` functions. Drift detection: the `scheduler` function `overlay_suspend`, which can only suspend (F5) |
+| Price entries | `spend` | Insert-only, dated: refresh through the `scheduler` function `price_insert`. Published entries are reviewed data by migration |
+| Operator alerts and their acknowledgement | `accounts` | The worker's checks call `alert_raise` (`scheduler`, de-duplicated while open); an operator acknowledgement appends an `alert_ack` row through `operator_act`, which also writes the content-free audit event |
+| Per-Account event counter | `history` (the outbox) | A tenant cell under forced row rules, written by `app` as the last write before commit (§6) |
+| In-flight and claim counts | none | Derived by counting job rows inside the claim transaction; never stored |
+
+`operator_act` is a sixth narrow identity beside those of ADR 0021: execute-only on the operator-action functions, reachable only from operator endpoints that already require the operator capability and second factor (OPERATIONAL-BASELINE §2.3). Every function validates its inputs against closed vocabularies and writes no content. The closed list of writable cells and these tables are in PERSISTENCE-AND-MEDIA §3 and §6.5; the rest of `app` stays read-only on them.
 
 ## 6. Progress delivery
 
@@ -181,7 +201,7 @@ The data-layer enforcement (forced row-level rules on every table, a non-owner a
 - **Delivery.** `web` authenticates the session, resolves the Scope, streams `seq > Last-Event-ID` for that Account only, then tails new rows (optional hint, floor a 2 second poll). A keep-alive comment every 15 to 25 seconds and a server-chosen close before host caps (Railway 15 minutes, Cloud Run 60 minutes) make reconnects routine; `retry:` sets the delay.
 - **Replay and resync.** Events are kept long enough to cover ordinary offline gaps (spec value). A client whose cursor is older than retention drops its state and refetches the read models. The stream carries **hints and statuses; read models are truth** (MODULE-ARCHITECTURE §4), so a missed or duplicate event cannot make the UI wrong.
 - **Fallback.** `GET /events?after=` returns the same rows. The client polls it only when SSE cannot connect, pauses while the tab is hidden, backs off to a ceiling and resyncs on focus. This replaces V1's unbounded 2 to 3 second polling.
-- **Notifications.** "Ready" and "failed" (Constitution §10.3) are creator-facing consumers of the same events, coalesced for batches per lifecycle §12; the unread-failure inbox is a read model over them.
+- **Notifications.** "Ready" and "failed" (Constitution §10.3) are creator-facing consumers of the same events, coalesced for batches per lifecycle §12; the unread-failure inbox is a read model over durable Generation outcomes plus a per-creator read pointer; events are only hints to refresh it, because settled outbox events are pruned (PERSISTENCE-AND-MEDIA §9.1).
 - **Why not WebSockets or a vendor.** Traffic is server to client and commands are ordinary requests. SSE gives reconnect and `Last-Event-ID` natively, adds no vendor and works under every host cap. Ably would still need our event table for gaps beyond its resume window; Supabase Broadcast replays 25 messages per request.
 
 ## 7. Observability the platform must provide
@@ -232,9 +252,9 @@ Schema and migrations, the row-level rule mechanism, media key layout, content a
 
 ## 12. Constitution check
 
-No requirement was found unworkable or contradictory; **no `CONSTITUTION AMENDMENT REQUIRED` is raised.** The job lifecycle is implemented unchanged: durable Job first, a deadline on every state (as due times), compare-and-set with fencing, scheduled backed-off polling, recovery as a rule, atomic completion and the outbox. §10.3 and §17.5 hold because every failure produces an event and no state can strand when a machine stops. Principle 12 is met by one store, one queue, one stream and no engine. §18.4 is met by private storage behind `media.access`. M4 to M7 are met by §5 and by choosing no platform whose ordinary credential bypasses isolation.
+No requirement was found unworkable or contradictory; **no `CONSTITUTION AMENDMENT REQUIRED` is raised.** The job lifecycle is implemented unchanged: durable Job first, a deadline on every state (as due times), compare-and-set with fencing, scheduled backed-off polling, recovery as a rule, atomic completion and the outbox. §10.3 and §17.5 hold because every failure produces an event and no state can strand when a machine stops. Principle 12 is met by one store, one queue, one stream and no engine. §18.4 is met by private storage behind `media.access`. Record 1 M4 to M7 are met by §5 and by choosing no platform whose ordinary credential bypasses isolation.
 
-## Record 2 amendment (P11): hosting default
+## Record 2 amendment (Record 2 P11): hosting default
 
 The creator reopened the hosting choice. **Default target: one VPS** (for example Hetzner) running the web process, the worker and Postgres, with **Cloudflare R2** kept for private media; estimated about $10 to $25 a month before provider bills (unverified). This replaces Fly.io + Neon, #74's original choice (about $35 to $40 a month), as the default; Fly, Render, Railway and managed Postgres remain valid later moves without code changes. **Portability is a requirement:** plain Docker images, a stateless worker, plain Postgres with no vendor-specific database or host feature (RT5 stays in force), and vendor SDKs only behind platform adapters (`BlobStore`, host configuration). The operator accepts owning OS patching, Postgres upgrades, backups and uptime. The body above states the VPS as the current deploy choice; Fly and Neon appear where they record #74's comparison or a later alternative.
 

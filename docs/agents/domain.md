@@ -56,7 +56,7 @@ Use the glossary's **Account (studio)**, **Invite-only**, **Purge** and **Workfl
 
 ## Reference corpora (not requirements)
 
-Two compacted input corpora live under `_inputs/`. They are **reference / evidence only**. Neither is an authoritative statement of V2 requirements, and neither is a substitute for `GLOSSARY.md` or ADRs (which don't exist yet; `/domain-modeling` creates them when V2 terms and decisions are settled).
+Two compacted input corpora live under `_inputs/`. They are **reference / evidence only**. Neither is an authoritative statement of V2 requirements, and neither is a substitute for `GLOSSARY.md` or ADRs (which exist; `/domain-modeling` maintains them).
 
 - **`_inputs/product-knowledge/`**: historical WizardDirector/Aiuteur product intent: 1,885 atomic `WD-IDEA-*` ideas, including options, alternatives, deferred and rejected ideas. It records what was envisioned, not what was built or what V2 should do. Start at `00-README.md`, then `14-PRODUCT-INTENT.md` and `01-PRODUCT-MODEL.md`; use `15-FULL-IDEA-LEDGER.md` for lookup and `13-DOC-CONTRADICTIONS.md` for preserved disagreements.
 - **`_inputs/legacy-system/`**: code archaeology of the legacy implementation at its last commit (`WD-IMPL-*` ids): what the old system actually did, including dead, partial and duplicated code. Start at `00-README.md`, then `01-SYSTEM-OVERVIEW.md`, `03-USER-WORKFLOWS.md`, `04-DOMAIN-AND-STATE-MODEL.md`. Its `_evidence/` subtree is raw material; don't read it unless tracing a specific claim.

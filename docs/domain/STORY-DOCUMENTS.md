@@ -1,8 +1,8 @@
 # Story documents: representation, provenance, revisions, targeted rewrite and sync
 
-Resolution of Wayfinder ticket #51. Vocabulary is in [`GLOSSARY.md`](../../GLOSSARY.md). The representation trade-off is [ADR 0008](../adr/0008-story-documents-are-block-documents-with-provenance-runs.md); the sync decision is [ADR 0009](../adr/0009-treatment-beat-sheet-sync-is-explicit-and-never-guesses.md). The creator's sync choice is R10 in [`CREATOR-RATIFICATION-RECORD.md`](../product/CREATOR-RATIFICATION-RECORD.md), ratified with this representation as P4 and refined by D58 (directional update actions, Keep my edits default, Notes) in [`CREATOR-RATIFICATION-RECORD-2.md`](../product/CREATOR-RATIFICATION-RECORD-2.md), which controls where they differ. This is a design contract, not a schema; names of fields are illustrative.
+Resolution of Wayfinder ticket #51. Vocabulary is in [`GLOSSARY.md`](../../GLOSSARY.md). The representation trade-off is [ADR 0008](../adr/0008-story-documents-are-block-documents-with-provenance-runs.md); the sync decision is [ADR 0009](../adr/0009-treatment-beat-sheet-sync-is-explicit-and-never-guesses.md). The creator's sync choice is Record 1 R10 in [`CREATOR-RATIFICATION-RECORD.md`](../product/CREATOR-RATIFICATION-RECORD.md), ratified with this representation as Record 2 P4 and refined by Record 2 D58 (directional update actions, Keep my edits default, Notes) in [`CREATOR-RATIFICATION-RECORD-2.md`](../product/CREATOR-RATIFICATION-RECORD-2.md), which controls where they differ. This is a design contract, not a schema; names of fields are illustrative.
 
-Authority: Constitution §§4.2–4.4, 5.3, 13.2–13.3, 16 (principles 2, 3, 4, 11, 12); R10; Record 2 P4, D58, X3, X4; [`DOMAIN-MODEL.md`](DOMAIN-MODEL.md) (Revision, Option, Slot); [`../ai/AI-RESPONSIBILITY-MAP.md`](../ai/AI-RESPONSIBILITY-MAP.md) (guards G1–G10, handles, splice). V1 is cited only as failure evidence (legacy 06 §§3, 5–7, 10–12; legacy 10 §6).
+Authority: Constitution §§4.2–4.4, 5.3, 13.2–13.3, 16 (principles 2, 3, 4, 11, 12); Record 1 R10; Record 2 P4, D58, X3, X4; [`DOMAIN-MODEL.md`](DOMAIN-MODEL.md) (Revision, Option, Slot); [`../ai/AI-RESPONSIBILITY-MAP.md`](../ai/AI-RESPONSIBILITY-MAP.md) (AI-map guards G1–G10, handles, splice). V1 is cited only as failure evidence (legacy 06 §§3, 5–7, 10–12; legacy 10 §6).
 
 No `CONSTITUTION AMENDMENT REQUIRED`: nothing here conflicts with a CORE or IMPORTANT requirement.
 
@@ -14,7 +14,7 @@ No `CONSTITUTION AMENDMENT REQUIRED`: nothing here conflicts with a CORE or IMPO
 | About eight disagreeing heading and scene parsers (06 §§7.5, 8.1, 8.5) | **Structure is explicit** (block kinds and ids). No structure or identity is recovered by pattern-matching prose. |
 | Every PUT inserted a version; opening a stage saved one (06 §§1, 11) | **Working copy vs Revision.** Autosave writes the working copy only. Revisions have named causes (§4). Opening, browsing, refreshing and no-op saves create nothing. |
 | Narrative history existed but no UI listed it; other text versions were capped at 8 (06 §§3, 10) | **Linear, append-only, uncapped history** per document, listed and restorable. |
-| Fallback parser chains (“one beat holds the raw text”, `JSON.stringify` of parsed output) (06 §§5.1, 6.1) | One validation layer (G1); failure is reported, never coerced. |
+| Fallback parser chains (“one beat holds the raw text”, `JSON.stringify` of parsed output) (06 §§5.1, 6.1) | One validation layer (AI-map G1); failure is reported, never coerced. |
 | Dead sync flags; “Regenerate All” used a stale snapshot (06 §§5.4, 6.4) | Sync is a link model; drift is computed from content hashes (§6). |
 | Rewrite inserted a plain string into a block node of unknown structure (06 §7.4) | Targeted-rewrite contract (§5), enforced by splice guard G4. |
 
@@ -28,7 +28,7 @@ No `CONSTITUTION AMENDMENT REQUIRED`: nothing here conflicts with a CORE or IMPO
 | Span provenance survives edits | Poor: offsets drift and must be re-derived by diffing on every save | Good (marks move with text) | Good by construction: runs are the content |
 | Stable ids for beats, paragraphs, dialogue | None; ids would be heading text (V1) | Not native; bolted onto an editor schema | Native |
 | Dialogue as an addressable unit (AI map §4.1) | Needs parsing | Possible, schema-coupled | Native block kind |
-| Targeted rewrite: exact locality, checkable | Offsets only | Positions in a library schema | Block id + offsets + hash; splice guard G4 is a pure function |
+| Targeted rewrite: exact locality, checkable | Offsets only | Positions in a library schema | Block id + offsets + hash; splice guard AI-map G4 is a pure function |
 | Link endpoints for sync, anchors for scenes and shots | Weak | Medium | Strong |
 | Independence from the editor library | Independent | Locked to its schema | Independent |
 | Cost | Lowest | Medium | One schema we own, one adapter we must prove lossless |
@@ -48,13 +48,13 @@ Run       { text, provenance: creator | imported | ai_generated | ai_edited,
 ```
 
 - **Kinds.** Treatment and options: `paragraph` (optional `heading`). Beat Sheet: `beat`, one block per beat. Master Narrative: `scene` containers whose children are `action`, `setting`, `state_change` and **`dialogue`**; a dialogue block has attrs `speaker` (an Entity reference or a plain name), a `delivery` field and a `line` field. Prose lives only in runs.
-- **Dialogue is a machine-addressable unit** (hand-off from #64, AI map §4.1 and §9). A dialogue block's id is its **verbatim handle** for conversion, export, shot drafting and protected-span restore. Speaker, delivery note and line are separate fields of one block, so “the ordered list of dialogue blocks” (guard G3) is a query, not a parse. Shot Dialogue lines anchor to dialogue block ids.
+- **Dialogue is a machine-addressable unit** (hand-off from #64, AI map §4.1 and §9). A dialogue block's id is its **verbatim handle** for conversion, export, shot drafting and protected-span restore. Speaker, delivery note and line are separate fields of one block, so “the ordered list of dialogue blocks” (AI-map G3) is a query, not a parse. Shot Dialogue lines anchor to dialogue block ids.
 - Order is list order. There is no stored number that can disagree with it. Scene numbers and beat numbers are labels derived from order.
 - Adjacent runs with the same (provenance, generation) merge. Display may coalesce whitespace-only runs; stored text is exact.
 - **Block lifecycle** is explicit in Revisions: *split* (the first part keeps the id, the second gets a new id with `split_from`), *merge* (the earlier block keeps its id, the other is retired with `merged_into`), *move* (id unchanged), *delete* (retired; recoverable from the Revision).
 - **Derived forms** are computed on demand and never authoritative: plain text for AI context (with block-id handles inline), Markdown, screenplay, PDF.
 - **Notes are not blocks** (Record 2 D58.5). A creator's Note on a passage or beat is a separate, retire-only record anchored to block ids. It has no runs and no provenance, is outside document Revisions and derived forms, and is never in AI context unless the creator ticks "use my notes" on that one request, which records which Notes it sent ([`../ux/WRITING-EXPERIENCE.md`](../ux/WRITING-EXPERIENCE.md) §2.6).
-- **AI output enters only through the commit path** (G1 schema, G2 references, G4 splice, G7 provenance). Block structure from the model is validated against the target fragment’s kinds; invalid output is rejected, never coerced.
+- **AI output enters only through the commit path** (AI-map G1 schema, G2 references, G4 splice, G7 provenance). Block structure from the model is validated against the target fragment’s kinds; invalid output is rejected, never coerced.
 
 ### 2.3 Treatment options
 
@@ -82,15 +82,15 @@ Granularity is the **run**: the maximal stretch of one provenance inside a field
 | Delete, reorder, split, merge, choose an Option, restore a Revision | Surviving text keeps its provenance |
 | Creator accepts or chooses AI text | Unchanged. Acceptance never launders provenance (matches [`DOMAIN-MODEL.md`](DOMAIN-MODEL.md) §4.4) |
 
-Provenance is **computed by the commit path from the splice** (G7), never reported by a model. The provenance highlight (IMPORTANT) groups `ai_generated` and `ai_edited` as “AI-made” by default (§13.3) and may distinguish them.
+Provenance is **computed by the commit path from the splice** (AI-map G7), never reported by a model. The provenance highlight (IMPORTANT) groups `ai_generated` and `ai_edited` as “AI-made” by default (§13.3) and may distinguish them.
 
 **Protected span** (AI map §4.2, refined here): in any AI operation on a document, runs with provenance `creator`, `imported` or `ai_edited` are protected. They are passed to the model as handles and restored by code; the model cannot alter them. Protection derives from provenance only; nothing else (such as a block-level flag) is needed, and a block with one typed word can still be rewritten around it. `ai_generated` runs the creator never touched are replaceable by sync and by region regeneration. Region regeneration modes (“keep my dialogue”, “keep my edits”, “replace everything”) are the AI map’s; for whole-document regeneration “keep my edits” is the default and “replace everything” must be chosen explicitly (Record 2 D58.4). Presentation is in Writing experience (#58).
 
-**Hand edits and Established Facts** (Record 2 X3). Facts bind AI drafting and revision of these documents: every AI operation here (generation, targeted rewrite, sync, conversion additions) is fact-checked (G6) with R6 outcomes. A creator’s own edit is never rejected, held or questioned on account of a Fact; if it contradicts one, the edit stands and the Fact is quietly marked superseded (a Revision of the Fact, with Undo), with no question raised (AI map §4.3 items 0 and 4).
+**Hand edits and Established Facts** (Record 2 X3). Facts bind AI drafting and revision of these documents: every AI operation here (generation, targeted rewrite, sync, conversion additions) is fact-checked (AI-map G6) with Record 1 R6 outcomes. A creator’s own edit is never rejected, held or questioned on account of a Fact; if it contradicts one, the edit stands and the Fact is quietly marked superseded (a Revision of the Fact, with Undo), with no question raised (AI map §4.3 items 0 and 4).
 
 ## 4. Revisions
 
-**Two layers.** The *working copy* is written durably and continuously (crash-safe, nothing lost) and is not a Revision. A **Revision** is an immutable, restorable state of one document with a cause, an actor kind (creator or Generation), a parent, a time, a content hash and optional labels. Storage may delta-compress; that is a persistence concern. This refines the domain model’s “every change adds a Revision” for hand editing: a hand-editing session counts as one change.
+**Two layers.** The *working copy* is written durably and continuously (crash-safe, nothing lost) and is not a Revision. A **Revision** is an immutable, restorable state of one document with a cause, an actor kind (creator or Generation), a parent, a time, a content hash and optional labels. Each Revision is stored as a full snapshot (PERSISTENCE-AND-MEDIA §4, ADR 0020); there are no delta chains. This refines the domain model’s “every change adds a Revision” for hand editing: a hand-editing session counts as one change.
 
 | Cause | When |
 |---|---|
@@ -119,13 +119,13 @@ Inputs: document, base Revision, selection (block id + offset to block id + offs
 5. **Provenance.** Replacement text is `ai_edited`; handled protected spans keep theirs.
 6. **Block ids.** Selection inside a block: ids unchanged. Whole blocks n replaced by n′: the first min(n, n′) keep their ids in order, extras are new, surplus old blocks are retired. Master Narrative `scene` containers follow Scene identity (#52).
 7. **One Revision** (`ai_targeted_rewrite`) per applied rewrite, recording the instruction, the selection, the base Revision and the Generation.
-8. **Fact check (G6)** runs on the replacement; outcomes follow R6 (one repair, then held; unavailable check commits with a visible marker; altered dialogue or a damaged splice is rejected with no “use anyway”).
+8. **Fact check (AI-map G6)** runs on the replacement; outcomes follow Record 1 R6 (one repair, then held; unavailable check commits with a visible marker; altered dialogue or a damaged splice is rejected with no “use anyway”).
 9. **Failure** (model error, invalid structure, timeout): nothing applied, no Revision, failure visible and retryable; the selection is preserved.
 10. Regenerating a “larger portion” is the same contract with a larger selection. Regenerating the whole document is `ai_generation` (§4).
 
 ## 6. Treatment ↔ Beat Sheet synchronization (before Master Narrative acceptance)
 
-Decision (R10, refined by Record 2 D58.7 and X4): **explicit only**. Aiuteur detects and shows disagreement automatically but never changes either document unless the creator presses one of the update actions below. "Sync" names these actions collectively; it is not a symmetric control. The primary direction is Beat Sheet → Treatment. Rationale and alternatives are in ADR 0009.
+Decision (Record 1 R10, refined by Record 2 D58.7 and X4): **explicit only**. Aiuteur detects and shows disagreement automatically but never changes either document unless the creator presses one of the update actions below. "Sync" names these actions collectively; it is not a symmetric control. The primary direction is Beat Sheet → Treatment. Rationale and alternatives are in ADR 0009.
 
 ### 6.1 What links
 
@@ -133,11 +133,11 @@ A **correspondence** relates each beat of the Beat Sheet to a set of paragraphs 
 
 ### 6.2 Drift (always on, free, no AI)
 
-Computed per link by comparing current hashes to the base: *in agreement*, *treatment changed*, *beat changed*, *both changed*; and per document: *passage with no beat*, *beat with no passage*, *order differs*, *not aligned*. Drift is a quiet mark with a reason (M1), never blocking, and is derived, never a stored flag.
+Computed per link by comparing current hashes to the base: *in agreement*, *treatment changed*, *beat changed*, *both changed*; and per document: *passage with no beat*, *beat with no passage*, *order differs*, *not aligned*. Drift is a quiet mark with a reason (Record 1 M1), never blocking, and is derived, never a stored flag.
 
 ### 6.3 What Sync does
 
-An update action is pressed per item or for the whole pair. Each action is a normal AI operation (fixed pipeline, an L proposal committed by guards including the fact check G6, AI map §9), so every sync is one Generation and one `sync` Revision per target document, undoable:
+An update action is pressed per item or for the whole pair. Each action is a normal AI operation (fixed pipeline, an L proposal committed by guards including the fact check AI-map G6, AI map §9), so every sync is one Generation and one `sync` Revision per target document, undoable:
 
 - **Update Treatment to match Beat Sheet** (primary, prominent on the Beat Sheet page): rewrite the linked passage(s) to reflect the beat's newer decisions, preserving unrelated Treatment detail.
 - **Update Beat Sheet from Treatment** (the reverse, for when the creator has gone back to edit the Treatment): rewrite the linked beat from its passage(s).
@@ -150,7 +150,7 @@ A whole-pair update is a batch of per-link Generations, so completed items survi
 ### 6.4 Protection and conflicts
 
 - Sync never deletes or reorders a block, and never alters a protected span (§3). A block containing only replaceable `ai_generated` text is updated freely.
-- If the needed change would alter a protected span, the model returns a structured “needs protected change” outcome and the result is **held** as an Option, per R10 (“a protected-span change is held”), and shown for one-click approval (D58.7). The creator can use it (one click; applied as an ordinary requested rewrite of that range), adjust it by hand, or keep both. A damaged splice or altered protected text is rejected (G3, G4), as always.
+- If the needed change would alter a protected span, the model returns a structured “needs protected change” outcome and the result is **held** as an Option, per Record 1 R10 (“a protected-span change is held”), and shown for one-click approval (Record 2 D58.7). The creator can use it (one click; applied as an ordinary requested rewrite of that range), adjust it by hand, or keep both. A damaged splice or altered protected text is rejected (AI-map G3, G4), as always.
 - When both sides changed, nothing is chosen for the creator. The pair shows the drift with three explicit choices: Update Treatment to match Beat Sheet, Update Beat Sheet from Treatment, keep both.
 - Sync is recoverable: each result is a Revision, and held results are Options.
 
@@ -165,18 +165,18 @@ Before **drafting the Master Narrative** and before **accepting** it, if the Tre
 
 ### 6.6 After acceptance
 
-When the Master Narrative is accepted, the correspondence is frozen as history: drift is no longer computed or shown, nothing is flagged (R2), and neither document is synchronized again. They remain viewable and editable. “Development history” is derived from the project’s accepted state, not stored on the documents. **Reverse generation** (beats or Treatment from the Master Narrative) is an explicit `ai_generation` that adds a Revision after pre-operation capture and records the Master Narrative Revision it derived from; it creates no standing link.
+When the Master Narrative is accepted, the correspondence is frozen as history: drift is no longer computed or shown, nothing is flagged (Record 1 R2), and neither document is synchronized again. They remain viewable and editable. “Development history” is derived from the project’s accepted state, not stored on the documents. **Reverse generation** (beats or Treatment from the Master Narrative) is an explicit `ai_generation` that adds a Revision after pre-operation capture and records the Master Narrative Revision it derived from; it creates no standing link.
 
 ## 7. Invariants the spec should test
 
-Editor adapter round trip is identity. Import preserves source text verbatim. A rewrite leaves everything outside the selection byte-identical, and the ordered dialogue blocks are unchanged unless the selection contains them. Opening or refreshing a document writes nothing and creates no Revision. Replaying a write with the same idempotency key creates nothing. Unchanged text keeps its provenance through every operation, including restore. Sync never removes or alters a protected span; a held outcome applies nothing. Screenplay export’s dialogue list equals the Master Narrative’s (G3). Pressing nothing never changes a document.
+Editor adapter round trip is identity. Import preserves source text verbatim. A rewrite leaves everything outside the selection byte-identical, and the ordered dialogue blocks are unchanged unless the selection contains them. Opening or refreshing a document writes nothing and creates no Revision. Replaying a write with the same idempotency key creates nothing. Unchanged text keeps its provenance through every operation, including restore. Sync never removes or alters a protected span; a held outcome applies nothing. Screenplay export’s dialogue list equals the Master Narrative’s (AI-map G3). Pressing nothing never changes a document.
 
 ## 8. Hand-offs
 
 **Scene identity (#52, resolved in [`SCENE-IDENTITY.md`](SCENE-IDENTITY.md): Scene id equals the container block id; mapping precedes id assignment; the questions below are answered there).** Master Narrative = ordered `scene` container blocks with opaque, permanent ids that survive edits, moves and AI rewrites inside the scene. Split, merge and retire are recorded per Revision. Downstream records refer to (document, Revision, block id) for anchors and to the Scene’s own identity for production. No identity or structure is parsed from text. Dialogue blocks are addressable inside scenes. Left to #52: whether Scene id equals the container block id; matching across whole-narrative regeneration and screenplay re-conversion (the AI map asks for deterministic first, ambiguity surfaced); scene heading attrs; what happens downstream when a scene block is merged or removed (must retire, never delete).
 
-**Writing experience (#58, resolved in [`../ux/WRITING-EXPERIENCE.md`](../ux/WRITING-EXPERIENCE.md) from Record 2 D58).** Option count and presentation; drift notes, the update actions and the disagreement prompt (quiet, M1); region-regeneration mode presentation; Notes; highlight rendering; idle threshold feel and save indicators; per-beat alternatives (transient proposals, not document content).
+**Writing experience (#58, resolved in [`../ux/WRITING-EXPERIENCE.md`](../ux/WRITING-EXPERIENCE.md) from Record 2 D58).** Option count and presentation; drift notes, the update actions and the disagreement prompt (quiet, Record 1 M1); region-regeneration mode presentation; Notes; highlight rendering; idle threshold feel and save indicators; per-beat alternatives (transient proposals, not document content).
 
-**Persistence and architecture.** Working copy vs Revision; idempotency keys; hash compare-and-set; Generation results retained even when held; derived text view with handles for the compiler; project-separable storage (M7).
+**Persistence and architecture.** Working copy vs Revision; idempotency keys; hash compare-and-set; Generation results retained even when held; derived text view with handles for the compiler; project-separable storage (Record 1 M7).
 
 **Verification (#76).** The invariants in §7 as pure-function guard tests plus golden fixtures: tricky-dialogue screenplay, rewrite with adjacent protected spans, sync that needs a protected change, and a double round trip through the editor adapter.

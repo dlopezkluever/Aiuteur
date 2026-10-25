@@ -14,7 +14,7 @@ The shell is **Model C: an outline tree plus a production board**, as chosen by 
 
 1. **A persistent left sidebar, the Outline, is the film as a document.** It holds every phase and every scene in one tree. The creator especially asked for it to stay on screen everywhere inside a project.
 2. **The centre is the workspace for whatever is selected.** A story phase opens its document there. A scene opens its **scene workspace** there. The board and review are centre views of the whole film (the board is the Script Hub, §2).
-3. **Inside a scene, prepping and making shots is the main centre workspace.** This corrects the prototype, where a shot opened in a cramped right-hand drawer. A side **Peek** exists only as a lightweight preview (thumbnail, status, one-line plan, open-in-workspace). No shot work needs the Peek, and the Peek never initiates spend. This drawer prohibition is about shot work; a version-history panel inside a writing page is allowed (Record 2 D58.11).
+3. **Inside a scene, prepping and making shots is the main centre workspace.** This corrects the prototype, where a shot opened in a cramped right-hand drawer. A side **Peek** exists only as a lightweight preview (thumbnail, status, one-line plan, open-in-workspace). No shot work needs the Peek, and the Peek never initiates spend. The rejected drawer is the Peek-style side editor; Record 5's asset and Generate drawers are panels inside the centre workspace. This drawer prohibition is about shot work; a version-history panel inside a writing page is allowed (Record 2 D58.11).
 4. **Cmd/Ctrl-K jumps** to any phase, scene, shot or entity.
 5. **Nothing from prototype B is required.** The "suggested next" card is a stretch goal and not part of the main design.
 6. **No first-run chooser, no tour, no tutorial video.** See §7.
@@ -92,8 +92,12 @@ Projects (account home)
      ├─ Review & Export      (scene or whole-film playback, export package)
      ├─ Cmd/Ctrl-K           (jump to any phase, scene, shot, entity)
      └─ Cross-cutting, reachable from anywhere: review-all tray (on demand),
-        spend and usage, project settings
+        Settings (account settings, spend caps and usage; project settings)
 ```
+
+**Settings (ruling, #79).** There is one **Settings** area in the app, reachable from anywhere. Account settings: Treatment option count (WRITING-EXPERIENCE §2.2) and per-family model choice. Spend caps and the usage view sit beside them. Project settings (including the project's **Writing Style**, ENTITIES-AND-LOOKS §8) are the Input phase's project-settings block, also reachable from Settings. Layout is spec-level; this fixes the home, not the screen design.
+
+**Package inspector (ruling, #79).** The Generation package inspector is an on-demand panel opened from either prompt view (the Prompts tab or the Takes drawer), not a destination. It shows the stored Rendered request and Package layers read-only (VERIFICATION-AND-OBSERVABILITY "shown equals sent" tests run through it); its internal layout is spec-level.
 
 Moves that must be one step from anywhere: any phase, any scene, any shot (Outline or Cmd-K); Board from any view; previous and next shot or scene inside the workspace; Review jumping to a shot to fix it and returning.
 
@@ -134,6 +138,8 @@ Each receiving ticket places its surface **inside this shell**.
 | **Trust signals and locks** (#63) | Flags are whispers in the Outline, Board and workspace (M1). The on-demand review-all tray is cross-cutting; its entry is the quiet footer line already specified in `docs/ux/TRUST-SIGNALS-AND-LOCKS.md`. The Interview Ledger (`docs/ux/INTAKE-AND-INTERVIEW.md`) lives beside the Interview conversation. Lock indicators sit on the scope they lock and do not interrupt navigation. |
 | **Intake and Interview** (#57) | The first-run path is the normal Input phase (§7). Input must show how each item was understood and propose the entry point; the routing lives there, with no router screen before it. |
 | **Module architecture** (#71, resolved in [`MODULE-ARCHITECTURE.md`](../architecture/MODULE-ARCHITECTURE.md)) and **persistence** (#72) | Status, progress, runtime totals, needs-attention filters and out-of-date markers shown by the shell are derived reads of server truth. The Board needs a whole-project, shot-level summary read that is cheap at 250 shots, and Outline/Board status must not depend on loading each shot's full record. |
+
+**Rearview Mirror (Constitution §18.1).** Replaced by the neighbour-comparison row, the scene frame gallery and the Continuity link (Record 5 GN2–GN3). No separate panel.
 
 ## Record 2 amendments
 

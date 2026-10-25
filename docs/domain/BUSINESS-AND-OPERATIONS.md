@@ -4,13 +4,13 @@ Resolution of Wayfinder ticket #68. Vocabulary is in [`GLOSSARY.md`](../../GLOSS
 
 ## 1. Operating model
 
-1. **Multi-creator, isolated, not collaborative. [creator, M4]** V2 serves several independent creators. Each has an **Account** that owns an isolated **studio**: its projects, assets, media, settings, provider-credential choice and usage. There are no teams, shared projects, shared editing or permission hierarchy. The creator is the first user; others are onboarded without re-architecture.
+1. **Multi-creator, isolated, not collaborative. [creator, Record 1 M4]** V2 serves several independent creators. Each has an **Account** that owns an isolated **studio**: its projects, assets, media, settings, provider-credential choice and usage. There are no teams, shared projects, shared editing or permission hierarchy. The creator is the first user; others are onboarded without re-architecture.
 2. **Isolation is a domain rule, not a screen rule.** Every owned object (a project and everything under it, Generation, Job, Batch, spend facts, media, settings) belongs to exactly one Account, through its project or directly for account-level objects. No operation reads or writes across Accounts. It holds on every path, including background work, events, exports and storage keys, the same way a lock must hold everywhere (Constitution §13.4). The enforcement mechanism belongs to Persistence (#72) and the Operational baseline (#75).
-3. **Invite-only signup. [creator, M6]** Until billing exists, an Account is created only by redeeming an invitation issued by the operator. No public signup and no self-service plan.
+3. **Invite-only signup. [creator, Record 1 M6]** Until billing exists, an Account is created only by redeeming an invitation issued by the operator. No public signup and no self-service plan.
 4. **The operator** is the deployment role that runs the service and holds the provider accounts. It is not a collaborator: it has no editing role in creators' projects. Operator-visible data is operational (account list, usage and spend per Account, alerts, job health). Reading a creator's creative content is not a V2 operator feature.
-5. **Who pays. [creator, M5]** The operator pays provider bills for now, using **operator provider keys held server-side**. Keys never reach a browser, a log, a Generation record or a creator-visible error. Creators are not asked for a provider key in the core build.
-6. **BYOK is a high-priority follow-on, not a deferral. [creator, M5]** Creator-supplied provider keys, with an easy setup flow, follow right after the core build. The core build ships a **BYOK-ready seam** (§7) so BYOK is a setup flow plus configuration, not a rewrite.
-7. **Deletion. [creator, M7]** Retire-only (ADR 0001) stays inside projects. Permanent project and account purge is a required later feature, so each project's data, Generations, spend facts and media must be separable and purge-able by project and by Account. Whether anonymised spend totals are kept for provider reconciliation after a purge is decided with that feature.
+5. **Who pays. [creator, Record 1 M5]** The operator pays provider bills for now, using **operator provider keys held server-side**. Keys never reach a browser, a log, a Generation record or a creator-visible error. Creators are not asked for a provider key in the core build.
+6. **BYOK is a high-priority follow-on, not a deferral. [creator, Record 1 M5]** Creator-supplied provider keys, with an easy setup flow, follow right after the core build. The core build ships a **BYOK-ready seam** (§7) so BYOK is a setup flow plus configuration, not a rewrite.
+7. **Deletion. [creator, Record 1 M7]** Retire-only (ADR 0001) stays inside projects. Permanent project and account purge is a required later feature, so each project's data, Generations, spend facts and media must be separable and purge-able by project and by Account. Whether anonymised spend totals are kept for provider reconciliation after a purge is decided with that feature.
 
 ## 2. What money the product tracks
 
@@ -24,7 +24,7 @@ Every Generation has a **spend class** computed by code from its estimate (§4).
 
 | Initiation policy | Test | The creator sees | Confirmation |
 |---|---|---|---|
-| **Trivial** | Estimate below **$0.05** for the Generation (many text actions fall here, but the class is computed from the estimate, never assumed from the kind of work; video never) | Nothing extra | None. May auto-retry under JOB-LIFECYCLE §5.3 |
+| **Trivial** | Estimate below **$0.05** for the Generation (many text actions fall here, but the class is computed from the estimate, never assumed from the kind of work; video never) | Nothing extra (a price may still be shown on the control) | None. May auto-retry under JOB-LIFECYCLE §5.3 |
 | **Ordinary automatic stage initialization** | Ratified initial-content operation with no exceptional confirmation condition. Initial Treatment options use this rule even above $0.05. The initial scene plan has the stricter boundary below | Content starts generating on eligible stage entry. No small-cost price label on navigation, extra Draft button, popup or approval | Entering the eligible empty stage is sufficient authorization |
 | **Meaningful** | Non-trivial spend outside the ratified stage-entry authorization, and **all video** at any price | The **estimated price on the initiating control** before the click | The click is the approval (**one-click spend**) |
 | **Meaningful, with a confirm step** | Any action that meets any of: its **total estimate is $2.00 or more**; it creates **10 or more Generations**, where the Segment Generations of one long Take count as one, so a take batch counts **Takes, not Segments** (Record 2 P3; the $2.00 total still sums every Segment's cost); it is a **bulk regenerate by filter**; **any price is unknown**; it **would hit a cap** (§6). The count applies even when every member is trivial (see below) | An **inline spend ticket at the initiating control**, never a centred modal (Record 2 X2): the estimate, the count (in Takes for take batches), the largest item, the reasons and, for a cap, what is left. **A cap breach offers no Start** (§6.1) | Required before anything is created |
@@ -33,15 +33,15 @@ Rules that complete the table:
 
 - **The action is the unit.** A Batch is one action; its total is the sum of its members and it is judged as a whole. A single video under $2.00 is one click with a visible price and no second dialog. A dialog on every video was considered and declined by the creator.
 - **The estimate shown is the one tested.** When the estimate is a range (§4.2), the control shows the range and thresholds are tested against the **upper bound**. An unknown price has no bound, so it always needs the confirm step.
-- **Retry.** A creator's Retry shows the price (or "not charged"); the click is the approval. If the retry alone meets a confirm-step condition, it uses the confirm step. Automatic retries follow JOB-LIFECYCLE §5.3 and never create a billable run beyond the original approval except trivial ones.
-- **Regeneration and bulk.** One regeneration is one action. A selection the creator picks is one action whose size decides the class. A bulk regenerate by filter (everything affected by a change, a scene, a reason) always uses the confirm step, with the money at risk shown. Staleness never spends (Ratification R2).
+- **Retry.** A creator's Retry shows the price (or "not charged"); the click is the approval. Retry, and each automatic trivial retry, also runs `spend.admit` in the same transaction as the new Job. If the retry alone meets a confirm-step condition, it uses the confirm step. Automatic retries follow JOB-LIFECYCLE §5.3 and never create a billable run beyond the original approval except trivial ones.
+- **Regeneration and bulk.** One regeneration is one action. A selection the creator picks is one action whose size decides the class. A bulk regenerate by filter (everything affected by a change, a scene, a reason) always uses the confirm step, with the money at risk shown. Staleness never spends (Ratification Record 1 R2).
 - **Single takes, bulk images, video batches.** Single takes follow the table by price. Bulk image generation (a film's frames, a location's views) is a batch and reaches the 10-Generation or $2.00 condition quickly; a batch under 10 below $2.00 in total is one click with the price shown.
 - **Count applies regardless of price.** "Draft all scene plans" over a long film shows the confirm step even if each text call is trivial. The step is cheap to pass and shows the total. "Draft all" drafts shot plans only, a text operation; it never generates frames, images, worlds or takes (Record 2 D60.4).
 - **Stage entry is authorization [creator, Record 3 §2].** When a stage is intentionally designed to auto-generate its initial content, entering that eligible empty stage authorizes ordinary low-cost generation. For Treatment, three drafts costing about **$0.18 in total** generate normally. No `Treatment · ~$0.18` navigation label, extra Draft button or penny-level approval is added. Exceptional conditions in the table still stop generation and show the inline ticket. Compute and record the estimate and actual cost regardless of whether approval UI is needed.
 - **Treatment initialization [creator, CR-1].** Entering Treatment drafts the account's configured number of options, default **3**, only if there is no Treatment, no existing generated options and no upload explicitly designated in Input to serve as the Treatment ([`WRITING-EXPERIENCE.md`](../ux/WRITING-EXPERIENCE.md) §2.1). An unrelated upload or AI classification alone does not suppress drafting. Existing, skipped or bypassed work is never automatically regenerated or backfilled.
 - **Initial scene plan [creator, CR-2].** Entry into a scene with no plan auto-drafts only when the estimate is **below $0.05** and no exceptional condition applies. At **$0.05 or more**, show **Draft plan · $x** and wait for the click. Exceptional conditions still use the inline ticket. An existing plan, including one emptied by retirement, never auto-redrafts. This stricter rule is not removed by the stage-entry principle.
-- **Automatic scope stays bounded.** Treatment and the initial scene plan are the only ratified Generation auto-triggers (AI-RESPONSIBILITY-MAP §6.0, G10). Each names the stage-entry action and passes server-side eligibility and spend checks. Neither triggers frames, images, worlds, Takes or audio. Staleness, coverage needs and CineBlock return never spend (Record 2 X8). The authorization does not expand scope or the retry allowance, and model selection is never silently downgraded to avoid a spend check.
-- **World generation [creator, Record 2 D61.4].** A CineBlock world (`world.generate`, PROVIDERS-AND-MODELS §13) is a meaningful Generation, always creator-initiated, under the same rule: price on the initiating control, one click under $2.00, the confirm step when a condition above fires. The operator pays until BYOK ships (M5); it is BYOK-capable afterwards through the §7 seam. About $1.20 per world is the current estimate (unverified).
+- **Automatic scope stays bounded.** Treatment and the initial scene plan are the only ratified Generation auto-triggers (AI-RESPONSIBILITY-MAP §6.0, AI-map G10). Each names the stage-entry action and passes server-side eligibility and spend checks. Neither triggers frames, images, worlds, Takes or audio. Staleness, coverage needs and CineBlock return never spend (Record 2 X8). The authorization does not expand scope or the retry allowance, and model selection is never silently downgraded to avoid a spend check.
+- **World generation [creator, Record 2 D61.4].** A CineBlock world (`world.generate`, PROVIDERS-AND-MODELS §13) is a meaningful Generation, always creator-initiated, under the same rule: price on the initiating control, one click under $2.00, the confirm step when a condition above fires. The operator pays until BYOK ships (Record 1 M5); it is BYOK-capable afterwards through the §7 seam. About $1.20 per world is the current estimate (unverified).
 - **Approval covers what it states.** One billable run per Generation; a Batch approval is the sum (ADR 0006). Actual above estimate is recorded and shown, feeds drift detection (§4.4), and never triggers another run.
 - **Thresholds are tunable defaults, not architecture. [creator]** $0.05, $2.00 and 10 are configuration; changing one changes no structure.
 - **Cheaper-first suggestions are information, never substitution.** No path creates a meaningful Generation without the creator's click.
@@ -95,7 +95,7 @@ The **spend record is part of the Generation**, which already is the permanent r
 | **Runs** | Per Job: provider, model, `billed` (*no*, *maybe*, *yes*) and the run's cost if known. Survives Job pruning as the Generation's run history |
 | **Actual** | Set once on settlement: amount, source, variance, and whether any run is still *maybe* billed. A later reconciliation (late result, cancel outcome) may update it once |
 | **Paid by** | *operator* or *account* (BYOK); see §7 |
-| **Inherited flag** | Set on Generations copied into a duplicate project; excluded from the new project's new-spend total (LINEAGE-AND-STALENESS §10). Inherited cost is history, not spend |
+| **Inherited flag** | Set on Generations copied into a duplicate project; excluded from the new project's new-spend total (LINEAGE-AND-STALENESS §7.2). Inherited cost is history, not spend |
 
 Spend facts arrive through the lifecycle's own events (`generation.succeeded`, `.failed`, `.cancelled`, `.late_result`). The spend view consumes the outbox; it does not read Job rows to guess.
 
@@ -115,7 +115,7 @@ Generation ──► Job runs (billed state, cost per run)
 
 - Account, project, provider and model are stored; scene and shot are derived from the target, so spend follows a shot when scenes are reordered and cannot go stale.
 - Spend with no shot (entity images, location views, text on documents) rolls up to the project and its target object.
-- "Money at risk" before an action is computed from estimates through the same relations (LINEAGE-AND-STALENESS §10).
+- "Money at risk" before an action is computed from estimates through the same relations (LINEAGE-AND-STALENESS §6.3).
 - **Summaries are derived**: per Account and period, per project, scene, shot, provider, model and spend class. The only cached figures are the cap check's (§6.3); they can be rebuilt.
 - **Accounts never see each other's records.** The operator sees per-Account totals and provider/model breakdowns, not content.
 
@@ -132,15 +132,15 @@ Generation ──► Job runs (billed state, cost per run)
 
 ## 6. Caps and the reservation question
 
-### 6.1 Creator caps **[creator, M6]**
+### 6.1 Creator caps **[creator, Record 1 M6]**
 
 A creator sets their own caps for their Account: a **daily** and a **monthly** limit (account-local calendar periods) and optionally a **per-action maximum**. Defaults are **parked** (§9); the creator said not to worry about them now. Only the creator changes them, in the app, at any time.
 
 A creator cap is a guard set for themselves, so reaching it is a confirm-step condition (§3), not a silent failure: the spend ticket shows what is left and offers to raise the cap for this action, trim the action, or cancel. It offers **no Start** until the action fits (Record 2 X2). Raising a cap is an explicit creator act.
 
-### 6.2 The hidden operator ceiling **[creator, M6]**
+### 6.2 The hidden operator ceiling **[creator, Record 1 M6]**
 
-For the pre-BYOK window only, each Account has a **small hidden operator ceiling** on operator-paid spend, per period. It is not shown in the creator's settings and is not creator-adjustable (the operator adjusts it per Account). A request that would exceed it is refused before any Generation is created, in plain wording that this is a limit on the studio and not on their content, with an operator alert. Its size is **parked** (§9). It applies only to operator-paid spend, so **BYOK spend is not subject to it, and removing it entirely is a configuration change** (M5).
+For the pre-BYOK window only, each Account has a **small hidden operator ceiling** on operator-paid spend, per period. It is not shown in the creator's settings and is not creator-adjustable (the operator adjusts it per Account). A request that would exceed it is refused before any Generation is created, in plain wording that this is a limit on the studio and not on their content, with an operator alert. Its size is **parked** (§9). It applies only to operator-paid spend, so **BYOK spend is not subject to it, and removing it entirely is a configuration change** (Record 1 M5).
 
 ### 6.3 Reservation: only what is necessary
 
@@ -170,10 +170,10 @@ All are per Account unless stated. Creator-facing ones never block silently: the
 | S1 | **Approval is the per-action cap** | One billable run per Generation; the approved estimate (or batch sum) bounds the action. Actual above estimate is recorded, never re-run |
 | S2 | **Creator caps** (§6.1) | Daily, monthly and optional per-action limits; reaching one needs the confirm step |
 | S3 | **Operator ceiling** (§6.2) | Hidden hard limit on operator-paid spend per Account until BYOK |
-| S4 | **Spend rule** (§3) | Inline spend ticket for $2.00 or more, 10 or more Generations (Takes, not Segments, P3), bulk regenerate by filter, unknown price, cap-hit |
+| S4 | **Spend rule** (§3) | Inline spend ticket for $2.00 or more, 10 or more Generations (Takes, not Segments, Record 2 P3), bulk regenerate by filter, unknown price, cap-hit |
 | S5 | **Runaway-retry guards** | Automatic retry capped at three Jobs per Generation, only for known-unbilled or trivial runs (JOB-LIFECYCLE §5.3); a creator Retry never loops; trivial automatic retries count toward committed spend and a per-Account **trivial-retry rate limit** stops a failing trivial path draining money in small pieces |
 | S6 | **Duplicate guard** | Action ids and input fingerprints stop double clicks and accidental repeats (JOB-LIFECYCLE §4) |
-| S7 | **Provider circuit breaker** (operator-wide, since operator keys are shared) | After a configured number of billed or maybe-billed failures in a window on one provider or model, automatic retries to it stop and new submissions show "this model is failing; you may be charged" until a success or the operator clears it. Platform configuration failures on an operator key stop submissions to that provider at once; a failure on one Account's own (BYOK) key affects only that Account (M4) |
+| S7 | **Provider circuit breaker** (operator-wide, since operator keys are shared) | After a configured number of billed or maybe-billed failures in a window on one provider or model, automatic retries to it stop and new submissions show "this model is failing; you may be charged" until a success or the operator clears it. Platform configuration failures on an operator key stop submissions to that provider at once; a failure on one Account's own (BYOK) key affects only that Account (Record 1 M4) |
 | S8 | **Admission limits** | Per-Account and per-provider concurrency and fair scheduling across Accounts, owned by the runtime (#74); they bound how fast an Account can spend |
 | S9 | **Provider-side limits** | The operator sets a prepaid balance or spend limit at each provider as the outer wall. Provider quotas and rate limits surface as deferrals (JOB-LIFECYCLE §5.1) or Platform configuration failures, never hidden |
 | S10 | **Operator alerts** | Provider out of funds or key revoked; an Account near its ceiling; stale or suspect prices; drift beyond tolerance; circuit breaker open; maybe-billed runs unreconciled past their retention deadline |
@@ -187,13 +187,13 @@ Not decided here, and not to be invented silently:
 
 | Item | Status |
 |---|---|
-| **Default creator caps** (daily, monthly, per-action) | **Parked by the creator** (M6). Must be set before the first invitation; the spec lists them as configuration |
-| **Size of the hidden operator ceiling** | **Parked by the creator** (M6). Same |
+| **Default creator caps** (daily, monthly, per-action) | **Parked by the creator** (Record 1 M6). Must be set before the first invitation; the spec lists them as configuration |
+| **Size of the hidden operator ceiling** | **Parked by the creator** (Record 1 M6). Same |
 | Price staleness limits, drift tolerance and run count, widening margin, refresh age | Tuning values for the behaviour in §4.3 |
 | Circuit-breaker threshold and window; trivial-retry rate limit | Tuning values |
 | Currency of record and rounding | One reporting currency; spec-level |
 | Period boundaries | Calendar day and month in the Account's timezone; spec-level |
-| Spend retention after purge (M7) | Decided with the deletion feature |
+| Spend retention after purge (Record 1 M7) | Decided with the deletion feature |
 | $0.05, $2.00 and 10 | Ratified defaults; configuration |
 | Possible preference to reduce spend gates | **Deferred idea only** (Record 3 §3). No feature, setting or default designed |
 
@@ -205,7 +205,7 @@ Not designed here, and where the Constitution excludes them not to be invented w
 - **Teams, shared budgets, multi-creator cost allocation** (spend shared or divided across Accounts), and all collaboration or shared editing (§15.5 OUT).
 - **Public signup** (invite-only until billing exists).
 - **Per-operation dashboards, anomaly detection and cost-optimisation recommendations** beyond the §8 alerts (WD-IDEA-PHIL-057, future).
-- **Permanent project and account purge**: required, scheduled after V2 core (M7); its separability constraint applies now.
+- **Permanent project and account purge**: required, scheduled after V2 core (Record 1 M7); its separability constraint applies now.
 
 **Not a deferral:** BYOK is a priority follow-on. Only its setup flow comes after the core build; the seam (§7) is part of it.
 
@@ -225,7 +225,7 @@ Not designed here, and where the Constitution excludes them not to be invented w
 
 | Ticket | Receives |
 |---|---|
-| **Persistence and media storage** (#72) | Account and project ownership on every record; isolation on every read and write path including background work and storage keys; invitation and Account records; encrypted write-only credential storage for the BYOK seam; spend facts on the Generation with run history; per-project and per-Account separability so purge can be added without a rewrite (M7) |
+| **Persistence and media storage** (#72) | Account and project ownership on every record; isolation on every read and write path including background work and storage keys; invitation and Account records; encrypted write-only credential storage for the BYOK seam; spend facts on the Generation with run history; per-project and per-Account separability so purge can be added without a rewrite (Record 1 M7) |
 | **Operational baseline** (#75) | Authentication for invite-only Accounts; the operator role and its limited visibility; secrets handling for operator keys; the S10 alert list; invoice reconciliation; logs that never carry keys or one Account's content into another's view |
 | **Platform and execution research** (#73) | Evaluate each shortlisted option against multi-tenant isolation (per-Account data, secrets, queues, storage), per-Account atomic cap checks, and holding operator keys; no option may need an unrestricted shared database identity for ordinary requests |
 | **Runtime platform** (#74) | Per-Account and per-provider admission limits and fairness (S8); the circuit breaker (S7) needs state shared across workers |
@@ -238,4 +238,4 @@ Not designed here, and where the Constitution excludes them not to be invented w
 
 ## 13. Constitution check
 
-No requirement was found unworkable or contradictory; **no `CONSTITUTION AMENDMENT REQUIRED` is raised.** Record 3 refines the meaning of material spend for ratified stage initialization: ordinary initial Treatment drafting is authorized by entering the eligible stage, not made material solely by crossing $0.05. Exceptional costs still stop for approval before generation. §2.4, §3 (5), §13.4(2) and §14.3 are met: generation remains creator-initiated, video shows its price before the click, large batches use a confirm step, and the initial scene plan retains CR-2's stricter priced-click boundary. §15.5 excludes collaboration and shared editing; isolated Accounts with no sharing are a different thing, and the Ratification Record (M4) judges that no amendment is needed. §18.7 is resolved here: billing and credits are deferred, limits and safeguards are in §6 and §8, and cost tracking is in §5.
+No requirement was found unworkable or contradictory; **no `CONSTITUTION AMENDMENT REQUIRED` is raised.** Record 3 refines the meaning of material spend for ratified stage initialization: ordinary initial Treatment drafting is authorized by entering the eligible stage, not made material solely by crossing $0.05. Exceptional costs still stop for approval before generation. §2.4, §3 (5), §13.4(2) and §14.3 are met: generation remains creator-initiated, video shows its price before the click, large batches use a confirm step, and the initial scene plan retains CR-2's stricter priced-click boundary. §15.5 excludes collaboration and shared editing; isolated Accounts with no sharing are a different thing, and the Ratification Record (Record 1 M4) judges that no amendment is needed. §18.7 is resolved here: billing and credits are deferred, limits and safeguards are in §6 and §8, and cost tracking is in §5.

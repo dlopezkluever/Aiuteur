@@ -28,13 +28,13 @@ A **Shot** is an Editable object: one continuous camera moment that becomes one 
 
 ### 2.1 Fields: structured, free, derived
 
-Each field below is a **slice**: the smallest unit that lineage captures and compares ([`LINEAGE-AND-STALENESS.md`](LINEAGE-AND-STALENESS.md) §2.1). A slice is **narrative-bearing** (an edit below the owning level raises the write-back or deviation choice, R3) or **shot-owned** (an edit never does).
+Each field below is a **slice**: the smallest unit that lineage captures and compares ([`LINEAGE-AND-STALENESS.md`](LINEAGE-AND-STALENESS.md) §2.1). A slice is **narrative-bearing** (an edit below the owning level raises the write-back or deviation choice, Record 1 R3) or **shot-owned** (an edit never does).
 
 | Slice | Form | Class | Notes |
 |---|---|---|---|
 | **anchor** | block ids of the Master Narrative within the Scene (§3.2) | structure | The Shot's link to the story. Not a text copy. |
 | **action** | free text, what a viewer sees | narrative-bearing | AI-drafted from the anchored passage; the creator edits freely. |
-| **dialogue** | ordered **Dialogue lines**, each: own id, anchor to a Master Narrative dialogue block (optional text span), speaker (Entity reference or plain name), line text, delivery | line text and speaker narrative-bearing; delivery shot-owned (see below) | Exactly-once, verbatim coverage by default (guards G3, G5). |
+| **dialogue** | ordered **Dialogue lines**, each: own id, anchor to a Master Narrative dialogue block (optional text span), speaker (Entity reference or plain name), line text, delivery | line text and speaker narrative-bearing; delivery shot-owned (see below) | Exactly-once, verbatim coverage by default (guards AI-map G3, AI-map G5). |
 | **presence** | explicit differences from the derived Presence (§4) | narrative-bearing | Entity add, remove, Look override. |
 | **location** | explicit Location, else derived (ENTITIES §5.3) | narrative-bearing | Which place. |
 | **direction** | explicit Direction slot, else the persisted AI-made choice | shot-owned | Which wall or view of the place. It is a cinematic choice, not story. |
@@ -44,9 +44,9 @@ Each field below is a **slice**: the smallest unit that lineage captures and com
 | **composition** | the Shot's **Composition references** (§8) | shot-owned | The CORE slot. |
 | **frame plan** | which Frame roles are wanted, or an explicit skip (§6.1) | shot-owned | |
 | **visual notes**, **sound notes** | free text | shot-owned | Look, lighting, staging, ambience and effects that are not story. They exist so the creator can add detail without raising the narrative choice. |
-| **prompt override**, **model override** | free text; a model choice | shot-owned | Reserved here; shaped by #65 as layer-addressed Override items and compile rules in [`GENERATION-PACKAGE.md`](GENERATION-PACKAGE.md) §8. A prompt override is recorded on each Generation and shown as "prompt overridden" (R3 limit). |
+| **prompt override**, **model override** | free text; a model choice | shot-owned | Reserved here; shaped by #65 as layer-addressed Override items and compile rules in [`GENERATION-PACKAGE.md`](GENERATION-PACKAGE.md) §8. A prompt override is recorded on each Generation and shown as "prompt overridden" (Record 1 R3 limit). |
 
-Judgement call on delivery: the Master Narrative's dialogue block carries a delivery note, and the shot's refinement of it (a sharper note for the generator) is shot-owned. The narrative delivery is the default and the shot's value, when set, is shown as an override. Line text and speaker are narrative truth and raise the choice. This is reversible by moving one slice's tag. **Ratified (Record 2 P1):** changing delivery never raises the write-back/deviation choice, and a shot's delivery override carries one quiet **Copy to narrative** action, so writing it back is always available and never asked. **P2:** a shot's Direction is shot-owned and never asks.
+Judgement call on delivery: the Master Narrative's dialogue block carries a delivery note, and the shot's refinement of it (a sharper note for the generator) is shot-owned. The narrative delivery is the default and the shot's value, when set, is shown as an override. Line text and speaker are narrative truth and raise the choice. This is reversible by moving one slice's tag. **Ratified (Record 2 P1):** changing delivery never raises the write-back/deviation choice, and a shot's delivery override carries one quiet **Copy to narrative** action, so writing it back is always available and never asked. **Record 2 P2:** a shot's Direction is shot-owned and never asks.
 
 **Free text is not semantically checked.** `action` edits are compared to the Basis, so any change raises the choice (LINEAGE §5.5). To keep this from nagging, the choice is one quiet line under the field, "Decide later" is the resting state, and the deviation record covers the field-to-anchor relation so further edits to the same field stay deviant without re-asking ([`LINEAGE-AND-STALENESS.md`](LINEAGE-AND-STALENESS.md) §5.4). Detail the creator adds that does not change the story belongs in visual and camera notes, which never ask.
 
@@ -66,7 +66,7 @@ Each Scene has one **Shot plan**: an Editable ordered list of Shot ids (active a
 
 - **Plan accepted** is a lightweight Decision (the creator pressed accept, or edited the plan). It lets the overview and scene workspace tell "AI drafted, untouched" from "confirmed". It gates nothing, so a drafted plan is usable as it stands (Constitution §7.3: "simply accepted"). It is not a commitment point and not a lock.
 - A Scene with zero shots is valid. The last shot can be retired (V1's `LAST_SHOT` 409 is not carried).
-- **Initial draft (Record 2 D60.5, refined by [Record 3 CR-2](../product/CREATOR-RATIFICATION-RECORD-3.md)).** When the creator enters a Scene that has **no** Shot plan, the initial plan drafts automatically only if its estimate is **below $0.05** and no exceptional spend condition applies. At **$0.05 or more**, show **Draft plan · $x** and wait for the click. Exceptional conditions use the existing inline spend ticket, and a cap breach offers no Start (BUSINESS-AND-OPERATIONS §3). This is a text operation for that Scene only. It never redrafts or replaces an existing plan (a plan the creator emptied by retiring its shots is an existing plan), and it never triggers frames, images, worlds, Takes or audio (X8). **Draft all** drafts shot plans only (D60.4); on a Scene that already has a plan it is a redraft under §5.4.
+- **Initial draft (Record 2 D60.5, refined by [Record 3 CR-2](../product/CREATOR-RATIFICATION-RECORD-3.md)).** When the creator enters a Scene that has **no** Shot plan, the initial plan drafts automatically only if its estimate is **below $0.05** and no exceptional spend condition applies. At **$0.05 or more**, show **Draft plan · $x** and wait for the click. Exceptional conditions use the existing inline spend ticket, and a cap breach offers no Start (BUSINESS-AND-OPERATIONS §3). This is a text operation for that Scene only. It never redrafts or replaces an existing plan (a plan the creator emptied by retiring its shots is an existing plan), and it never triggers frames, images, worlds, Takes or audio (Record 2 X8). **Draft all** drafts shot plans only (Record 2 D60.4); on a Scene that already has a plan it is a redraft under §5.4.
 
 ### 3.2 The anchor
 
@@ -75,7 +75,7 @@ A Shot's **anchor** is a contiguous run of blocks in its Scene, stored as (docum
 - **The Shot owns the anchor.** The narrative holds no reference to shots, so a rewrite never needs to know about them.
 - **Overlap is allowed.** Several shots may anchor to one block (an action paragraph covered by three shots). **Coverage is derived**: blocks anchored by no active Shot are listed quietly as "not covered by a shot" in the plan. It is information, never a gate.
 - **Block lifecycle follows ids** ([`STORY-DOCUMENTS.md`](STORY-DOCUMENTS.md) §2.2): a block split keeps the anchor on the id-keeping upper part and surfaces the new lower block as uncovered; a block merge redirects through `merged_into`; a retired block makes the anchor `input-retired`. Any change to an anchored block marks the Shot `narrative-changed` through its Basis. Nothing is guessed.
-- **Unanchored shots** are allowed (an insert or cutaway the creator adds to a Scene that the narrative does not mention; ad-hoc shots, which have no Scene, are outside this rule while ad-hoc, X5). They have no Basis, so nothing can drift, but they are not in the story either, so they get the same three-way choice once: write it back (the creator or an AI-edited request adds a passage, a new Master Narrative Revision), keep it as a deliberate deviation, or decide later. The Constitution requires the shot plan to stay consistent with the Master Narrative (§7.3), and this is the quiet way to keep it so.
+- **Unanchored shots** are allowed (an insert or cutaway the creator adds to a Scene that the narrative does not mention; ad-hoc shots, which have no Scene, are outside this rule while ad-hoc, Record 2 X5). They have no Basis, so nothing can drift, but they are not in the story either, so they get the same three-way choice once: write it back (the creator or an AI-edited request adds a passage, a new Master Narrative Revision), keep it as a deliberate deviation, or decide later. The Constitution requires the shot plan to stay consistent with the Master Narrative (§7.3), and this is the quiet way to keep it so.
 - **Re-homing** between scenes is a Decision with the rules of SCENE-IDENTITY §3.
 
 ## 4. Per-shot entities: derived, with explicit overrides
@@ -100,7 +100,7 @@ The creator sees and edits the shot's entities as one **asset roster**: the deri
 | **action note** | the asset's action or blocking in this shot | shot-owned |
 
 - **Frame asset sets derive from the roster.** A Frame role's entities are those on screen at that role's moment (opening, ending, or a keyframe's position), each in its state there. The frame work may override composition details per Frame role; it does not edit the roster.
-- **Persistent change (a transformation).** An ending state that is a different Look means the entity changes Look during this shot. Opening frames use the opening Look, ending frames the ending Look, and the video prompt describes the change. It is stored as a **Look assignment** (ENTITIES §4.1) at a position refined to the end of this shot's anchored passage, so it **carries forward** to later shots until changed again. Because it changes story state it is narrative-bearing: it raises the write-back or deviation choice (R3) once, with write-back the natural answer. A target Look that does not exist yet is created with **Add Look** from the roster (description-only is allowed, ENTITIES §3).
+- **Persistent change (a transformation).** An ending state that is a different Look means the entity changes Look during this shot. Opening frames use the opening Look, ending frames the ending Look, and the video prompt describes the change. It is stored as a **Look assignment** (ENTITIES §4.1) at a position refined to the end of this shot's anchored passage, so it **carries forward** to later shots until changed again. Because it changes story state it is narrative-bearing: it raises the write-back or deviation choice (Record 1 R3) once, with write-back the natural answer. A target Look that does not exist yet is created with **Add Look** from the roster (description-only is allowed, ENTITIES §3).
 - **Transient change.** A shot-only state note ("glass shattered", "soaked") shapes this shot's ending frames and prompts only. It is not a Look, is not a change point and **never carries**. It is the default kind of ending state.
 - **Switching Look for a later shot.** "From here on: Look Y" in the roster writes an open-ended Look assignment at this shot's position. A change that happens off screen is set the same way from World Definition at any narrative position (ENTITIES §4.1).
 - The roster, its state plan and each Frame role's derived set are inputs a Generation captures, so changing them drifts work through lineage like any other slice.
@@ -128,7 +128,7 @@ Split and merge are undoable by reversing the action group: parentage, ids and c
 
 ### 5.2 What a split does
 
-Code cuts at boundaries the creator picks or an L call proposes (AI map: split chooses boundaries, code cuts). It only partitions; it invents no story (G3: the dialogue multiset and order are preserved; the action text is partitioned or kept whole, never rewritten).
+Code cuts at boundaries the creator picks or an L call proposes (AI map: split chooses boundaries, code cuts). It only partitions; it invents no story (AI-map G3: the dialogue multiset and order are preserved; the action text is partitioned or kept whole, never rewritten).
 
 | Slice | Carry rule |
 |---|---|
@@ -152,14 +152,14 @@ Code concatenates in order: anchors union (the run must be contiguous or the mer
 
 ### 5.4 Redraft never overwrites the creator
 
-Redrafting a shot or a whole plan ("update from narrative", "Draft all scene plans" again, a re-run after the Master Narrative changed) is a defined workflow operation (M3). Its rules:
+Redrafting a shot or a whole plan ("update from narrative", "Draft all scene plans" again, a re-run after the Master Narrative changed) is a defined workflow operation (Record 1 M3). Its rules:
 
 1. **Drafted fields vs creator settings.** A redraft may propose changes only to the **drafted slices**: action, dialogue partition, presence suggestions, camera, duration, direction, continuity intent, frame plan suggestion. It never touches **creator settings**: composition references, an explicit skip of frames, the model and prompt overrides, a pinned continuity source, locks, Decisions, the selected Take, or any Frame or Take.
 2. **Protected fields.** A drafted slice whose latest Revision is creator-written, imported or AI-edited at the creator's request is protected, exactly like protected spans ([`STORY-DOCUMENTS.md`](STORY-DOCUMENTS.md) §3): passed to the model as handles and restored by code.
 3. **Apply vs Option.** For a Shot whose drafted slices are all untouched AI output and which has no dependants (no Frame or Take), the result applies as an AI-made Revision with the Basis re-stamped. In every other case the result is a **proposed Shot Revision Option**: the creator applies it whole, per slice, or not at all. Applying re-stamps the Basis for the slices applied; the rest stay.
-4. **Plan-level redraft is matched, not replaced.** The model receives each existing shot as a handle and returns, per drafted shot, the handle it continues or `new` (the same handle pattern as scene mapping, [`SCENE-IDENTITY.md`](SCENE-IDENTITY.md) §4.2). Code checks the handles (G2). Shots with dependants or creator edits are only ever offered through Options; new shots are added as proposals; **an existing shot the new draft omits is listed, never retired**. A plan with nothing to protect applies directly as one action group, undoable.
+4. **Plan-level redraft is matched, not replaced.** The model receives each existing shot as a handle and returns, per drafted shot, the handle it continues or `new` (the same handle pattern as scene mapping, [`SCENE-IDENTITY.md`](SCENE-IDENTITY.md) §4.2). Code checks the handles (AI-map G2). Shots with dependants or creator edits are only ever offered through Options; new shots are added as proposals; **an existing shot the new draft omits is listed, never retired**. A plan with nothing to protect applies directly as one action group, undoable.
 5. **Locks.** A shot plan lock holds the result as an Option (ADR 0005).
-6. **Batches and dismissals (Record 2 D60.6).** A batch redraft (Draft all) follows these rules per Scene, its applied results are undoable, and its spend follows the batch rules. A dismissed Option or proposed shot is retired, never deleted (R1).
+6. **Batches and dismissals (Record 2 D60.6).** A batch redraft (Draft all) follows these rules per Scene, its applied results are undoable, and its spend follows the batch rules. A dismissed Option or proposed shot is retired, never deleted (Record 1 R1).
 
 ## 6. The realization pipeline
 
@@ -293,9 +293,9 @@ The **realization plan** is computed by code at package time, from the Shot's ta
 3. **Otherwise stitch:** each further Segment starts from the last still of the previous Segment as its first frame (extracted deterministically) and the same identity references. The Segments are concatenated at assembly.
 4. **Keyframed** models that pin several frames may reduce Segment count; the same Segment model applies.
 
-The creator sees one thing before spend: one estimate for the Take ("about 18 s · 3 parts · $X"), under the batch-as-a-sum rule (R9). The plan and each Segment prompt are inspectable and overridable (§10.3 of the Constitution), never required reading.
+The creator sees one thing before spend: one estimate for the Take ("about 18 s · 3 parts · $X"), under the batch-as-a-sum rule (Record 1 R9). The plan and each Segment prompt are inspectable and overridable (§10.3 of the Constitution), never required reading.
 
-**Segment prompts add no story.** They are partitions of the Shot's own action and dialogue by time: an L call proposes the partition and code verifies it (every dialogue line exactly once and in order, G3; action text only partitioned; G2 references; durations within the generator's range, G9). Boundaries prefer a dialogue-line or action-beat break. Segments never create a Shot and never change the Shot plan.
+**Segment prompts add no story.** They are partitions of the Shot's own action and dialogue by time: an L call proposes the partition and code verifies it (every dialogue line exactly once and in order, AI-map G3; action text only partitioned; AI-map G2 references; durations within the generator's range, AI-map G9). Boundaries prefer a dialogue-line or action-beat break. Segments never create a Shot and never change the Shot plan.
 
 ### 7.3 Segments, Takes and Generations
 
@@ -311,10 +311,10 @@ The creator sees one thing before spend: one estimate for the Take ("about 18 s 
    └──────────────── Take T1 = assemble( A, B, C ) ──► ONE clip. Selected-take pointer targets T1.
 ```
 
-- **Segment** is an Attempt-class artifact on the Shot. It is immutable and every Segment is kept. It belongs to the Shot, is made by exactly one Generation, and records its index, time range, input still or extended-from Segment, and its Generation.
+- **Segment** is an Attempt-class artifact on the Shot. It is immutable and every Segment is kept. It belongs to the Shot, is made by exactly one Generation, and records its index, time range, input still or extended-from Segment, and its Generation. A Segment's index and time range form a **slot** that holds candidates. On the lip-synced path (VOICE §4, path L) the slot holds two: the plain video Attempt and, derived from it by an `audio.lipsync` Generation, a lip-synced Attempt. The chosen candidate feeds assembly (default: the lip-synced one once it succeeded; the creator may pick the plain one). If the lip-sync step fails the plain Attempt stays chosen and Retry is offered; the Take is assembled from whatever is chosen per slot.
 - **Take** records its ordered Segment references, the assembly record (a deterministic Record: method, crossfade, order), the probed media facts (frame rate, constant frame rate, frame count, audio layout; #70 freezes these per Take at ingest) and its delivered duration. A Take has `origin`: generated or uploaded (an uploaded clip is a Take with no Segments or Generation).
 - A **Take exists only when assembly succeeded.** Until then the Shot reads "2 of 3 parts made", derived from the Batch and its Segments, never a Take.
-- **Partial failure** follows the Job lifecycle: Segments that succeeded survive (R9). A failed Segment shows its price on Retry and the click is the approval (R8); later Segments stay `waiting`. Cancelling the Batch cancels the waiting members; finished Segments stay as reachable Attempts. A late result after timeout or cancel attaches as an unselected Segment and notifies quietly (R9, M2).
+- **Partial failure** follows the Job lifecycle: Segments that succeeded survive (Record 1 R9). A failed Segment shows its price on Retry and the click is the approval (Record 1 R8); later Segments become cancelled (`upstream_failed`, no cost) and are re-queued by "continue the batch" (JOB-LIFECYCLE §8). Cancelling the Batch cancels the waiting members; finished Segments stay as reachable Attempts. A late result after timeout or cancel attaches as an unselected Segment and notifies quietly (Record 1 R9, Record 1 M2).
 - **Regenerate from part k:** a new Take can reuse Segments 1..k−1 of an earlier Take (shared immutable Media, lineage recorded) and regenerate from k on. The earlier Take is untouched. This is the per-part fix, without any per-part state on the Shot. Reusing Segments saves money and is the default offer when a creator reports a problem "after the first half".
 - **Spend.** Each Segment is a Generation with its own record and cost, rolled up to the Take. For the "10 or more" confirm threshold, a long shot realized as several Segments counts as **one Take** (Record 2 P3); the $2.00 money threshold still sums every Segment's cost. The creator always sees the total.
 
@@ -324,7 +324,7 @@ Dialogue is assigned to Segments by the partition, and a line is not split acros
 
 ### 7.5 Runtime
 
-Runtime awareness is derived and quiet. Per Shot: the target duration, replaced by the selected Take's delivered duration once one exists. Per Scene: the sum over active Shots (ad-hoc shots count toward no total, X5), displayed beside the Master Narrative's scene estimate (SCENE-IDENTITY §2.1), independent of it. Per film: the sum against the project's intended runtime. The two figures, planned and as made, can both show. Nothing blocks or auto-trims.
+Runtime awareness is derived and quiet. Per Shot: the target duration, replaced by the selected Take's delivered duration once one exists. Per Scene: the sum over active Shots (ad-hoc shots count toward no total, Record 2 X5), displayed beside the Master Narrative's scene estimate (SCENE-IDENTITY §2.1), independent of it. Per film: the sum against the project's intended runtime. The two figures, planned and as made, can both show. Nothing blocks or auto-trims.
 
 ### 7.6 Provider facts this depends on (re-checked 2026-10-21)
 
@@ -360,7 +360,7 @@ The `composition` slice is shot-owned. Adding, removing or replacing a reference
 
 ### 8.4 Capability honesty
 
-No reviewed image or video model documents adherence to a whole-frame blocking still as a composition reference (research #6: only region control is documented, and camera-angle recomposition from a reference is not documented by any vendor). The slot therefore records **intent and mapping**, and the compiler delivers it best-effort: as a layout image with replace-the-placeholder instructions, as a conditioning input where a model supports one (for a previs capture, image models only: a capture is never sent to video, D61.3), or through the frame path (a composition reference is the strongest reason to use frames, since the creator can approve the result before video spend). The package reports the delivery quality quietly, as with the View ladder, and never blocks. This is a design abstraction, not a constitutional failure.
+No reviewed image or video model documents adherence to a whole-frame blocking still as a composition reference (research #6: only region control is documented, and camera-angle recomposition from a reference is not documented by any vendor). The slot therefore records **intent and mapping**, and the compiler delivers it best-effort: as a layout image with replace-the-placeholder instructions, as a conditioning input where a model supports one (for a previs capture, image models only: a capture is never sent to video, Record 2 D61.3), or through the frame path (a composition reference is the strongest reason to use frames, since the creator can approve the result before video spend). The package reports the delivery quality quietly, as with the View ladder, and never blocks. This is a design abstraction, not a constitutional failure.
 
 ## 9. Lineage: what a Generation captures from a Shot
 
@@ -401,7 +401,7 @@ Each hook is optional, absent by default, and needs no redesign of the core when
 1. A Shot's id never changes under reorder, renumbering, text edit, redraft, split (first part) or merge (survivor).
 2. Split then undo, and merge then undo, restore Shots, Dialogue line ids, anchors and the plan exactly. A split failure partway leaves the plan unchanged.
 3. Split parts' durations sum to the original; merge sums them; neither grows or shrinks the scene silently.
-4. Split and merge preserve the multiset and order of Dialogue lines and add no action text (G3).
+4. Split and merge preserve the multiset and order of Dialogue lines and add no action text (AI-map G3).
 5. A redraft never changes a creator-touched slice or a creator setting; matched handles keep ids; an omitted shot is never retired; a Shot with Frames or Takes only receives Options.
 6. A Shot anchored to a retired block shows `input-retired`; one whose anchored block text changed shows `narrative-changed`; blocks covered by no active Shot are listed and block nothing.
 7. Derived Presence changes when the Scene's Presence changes; overrides survive; no per-shot copy of a Presence exists.
@@ -410,17 +410,17 @@ Each hook is optional, absent by default, and needs no redesign of the core when
 10. Skipping frames then generating produces a Take with the same lifecycle as the framed path; a batch includes only ready shots.
 11. A Composition reference never contributes identity inputs; the Generation lists mapped Presences as the only identity sources.
 12. Reading or opening a Shot writes nothing.
-13. Entering a Scene with no Shot plan drafts its initial plan once at a $0.04 estimate, but a $0.05 estimate offers Draft plan · $x without generating. Unknown price, $2.00 or more, or a cap condition stops automatic drafting under the spend rules. Entering a Scene with any plan (including one emptied by retirement) drafts nothing. No automatic draft creates a frame, image, world, Take or audio Generation (Record 3 CR-2, X8).
+13. Entering a Scene with no Shot plan drafts its initial plan once at a $0.04 estimate, but a $0.05 estimate offers Draft plan · $x without generating. Unknown price, $2.00 or more, or a cap condition stops automatic drafting under the spend rules. Entering a Scene with any plan (including one emptied by retirement) drafts nothing. No automatic draft creates a frame, image, world, Take or audio Generation (Record 3 CR-2, Record 2 X8).
 
 Golden fixtures: a 22-second shot on a model capped at 8 s (stitch) and on one with extension; a shot whose third Segment fails; a dialogue line crossing a Segment boundary; split of a shot with a Performance-linked line; merge of two shots with different camera; redraft after the Master Narrative changed a passage under a creator-edited shot; a plan lock holding a redraft as an Option; a continuity chain across a scene boundary where the previous scene's last shot has only a selected Take; a storyboard import with one ambiguous panel.
 
 ## Record 2 amendments
 
-- **Ad-hoc shots (X5).** A Shot may have no parent Scene. The per-project **Ad-hoc shots** section holds intentionally created shots outside the narrative (establishing, B-roll, inserts, transitions, pickups, atmospheric, experimental). While ad-hoc a shot anchors to no passage and never raises the write-back/deviation question; it uses World Definition, entities, Looks, style, references and the normal frame and take tools. It has no narrative position, so Looks do not follow the story: the creator picks each entity's Look, defaulting to base. Ad-hoc shots are excluded from runtime totals and sequence playback, exported in a separate "Ad-hoc" folder, and can be moved into a scene with **Move to scene...**, after which normal anchoring applies. They are distinct from Removed from Story. They use the Scene Prep and Generate surfaces with no Review step ([Record 5](../product/CREATOR-RATIFICATION-RECORD-5.md) §2).
-  - *Consequences of existing rules, not new behaviour.* With no narrative order, an ad-hoc shot's Continuity link has no derived source (§6.4); a pinned source still works. After **Move to scene...** the shot is an ordinary unanchored shot of that Scene (§3.2) until the creator anchors it; derivation of Presence and Looks resumes (ENTITIES §4.3), and the creator's explicit Look picks are kept as visible local Presence overrides (R4, §4), never silently dropped; the creator clears any they do not want. An entity left at the default (base, never picked) carries no override and follows derivation.
-- **Captures always go through image generation (D61).** A CineBlock capture is a composition reference only: never the frame itself and never sent directly to video. Placeholders are replaced by the project's real entities in the frame generation step.
+- **Ad-hoc shots (Record 2 X5).** A Shot may have no parent Scene. The per-project **Ad-hoc shots** section holds intentionally created shots outside the narrative (establishing, B-roll, inserts, transitions, pickups, atmospheric, experimental). While ad-hoc a shot anchors to no passage and never raises the write-back/deviation question; it uses World Definition, entities, Looks, style, references and the normal frame and take tools. It has no narrative position, so Looks do not follow the story: the creator picks each entity's Look, defaulting to base. Ad-hoc shots are excluded from runtime totals and sequence playback, exported in a separate "Ad-hoc" folder, and can be moved into a scene with **Move to scene...**, after which normal anchoring applies. They are distinct from Removed from Story. They use the Scene Prep and Generate surfaces with no Review step ([Record 5](../product/CREATOR-RATIFICATION-RECORD-5.md) §2).
+  - *Consequences of existing rules, not new behaviour.* With no narrative order, an ad-hoc shot's Continuity link has no derived source (§6.4); a pinned source still works. After **Move to scene...** the shot is an ordinary unanchored shot of that Scene (§3.2) until the creator anchors it; derivation of Presence and Looks resumes (ENTITIES §4.3), and the creator's explicit Look picks are kept as visible local Presence overrides (Record 1 R4, §4), never silently dropped; the creator clears any they do not want. An entity left at the default (base, never picked) carries no override and follows derivation.
+- **Captures always go through image generation (Record 2 D61).** A CineBlock capture is a composition reference only: never the frame itself and never sent directly to video. Placeholders are replaced by the project's real entities in the frame generation step.
 
-## Record 2 / #61 alignment (D61)
+## Record 2 / #61 alignment (Record 2 D61)
 
 CineBlock is a module of Aiuteur opened in its own tab under the same account, not a separate tool. The "e.g. CineBlock" capture sources and the reserved CineBlock hook in sections 8 and 10 refer to that module: captures reach shots through the internal package contract (auto-linked by shot id) and are always an input to image generation, never the frame itself. See `SHOT-PLANNING-INPUTS.md` and ADR 0024.
 
@@ -431,7 +431,7 @@ CineBlock is a module of Aiuteur opened in its own tab under the same account, n
 - **Asset roster and state plan** (§4a): on-screen timing per asset, state at opening and ending, action notes; frame asset sets derive from it.
 - **Persistent vs transient change** (§4a): a Look change during a shot is a Look assignment at the shot's end that carries forward; a shot-only state note never carries.
 - **Match** continuity intent (§6.4) and **reference shots** from any Frame (§8.1).
-- **Prompts and their ingredients** are shown per Frame role and in the take composer: the compiled prompt (collapsed, overridable as today) and the inputs it was built from (assets and their Looks or states, references, continuity source, camera, frame role). Ingredients are read from the Generation package (GENERATION-PACKAGE), never stored on the Shot.
+- **Prompts and their ingredients** are shown per Frame role and in the take composer: the compiled prompts, readable together, with the video prompt open by default in the Takes drawer (Record 5 GN3, GN5), overridable, and the inputs it was built from (assets and their Looks or states, references, continuity source, camera, frame role). Ingredients are read from the Generation package (GENERATION-PACKAGE), never stored on the Shot.
 - **Detail.** Shot drafts carry full action prose from the anchored passage, the initialized roster, camera facets and a frame strategy; terse drafts are a defect, not a style.
 - **Plan accepted** is kept (it is where AI-made choice marks stop showing inline, Record 4 Y2). A hand edit to a locked plan uses edit-through (Y5). A scene with no shots reads "No shots yet" on screen.
 
@@ -439,7 +439,7 @@ CineBlock is a module of Aiuteur opened in its own tab under the same account, n
 
 [Record 5](../product/CREATOR-RATIFICATION-RECORD-5.md) ratifies the scene workspace's interaction model (Scene Prep → Generate → Review). It adds **no** field, object or rule to this model. Consequences for the model's readers:
 
-- The **Storyboard** in Scene Prep is a view of the Shot plan (§3.1) whose cards show each shot's approved opening Frame (§6.1), else nothing; for a skip-frames shot, a still of its selected Take. It is not an imported storyboard (§10).
+- The **Storyboard** in Scene Prep is a view of the Shot plan (§3.1) whose cards show the shot's opening Frame (the approved one if any; §6.1), else a blank placeholder; for a skip-frames shot, a still of its selected Take. It is not an imported storyboard (§10).
 - **Plan accepted** (§3.1) is offered only in Scene Prep.
 - The **Cast & Looks** matrix is a derived read of Presences, Look assignments and shot-only state notes across the scene (§4, §4a).
 - The **reference library** in Generate lists existing media that can become a Composition reference (§8.1): Frame Attempts of the project, Reference Media, storyboard panels (matched or in the import tray) and CineBlock captures. Picking one creates the Composition reference; nothing new is stored on the Shot.

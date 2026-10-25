@@ -1,6 +1,6 @@
 # Aiuteur V2: Verification and Observability
 
-Resolution of Wayfinder ticket #76. The trade-offs are recorded in [ADR 0026](../adr/0026-the-generation-record-is-the-trace-and-test-providers-are-contract-verified-and-marked.md). Inputs: the [AI responsibility map](../ai/AI-RESPONSIBILITY-MAP.md) (guards G1 to G10, "Generation call log is the trace"), the [Generation package](../domain/GENERATION-PACKAGE.md) (P1 to P11, §17 fixtures, reproducibility §13), [providers and models](../domain/PROVIDERS-AND-MODELS.md) (F1 to F12, §16 fixtures, conformance probes §10.4), the [module architecture](MODULE-ARCHITECTURE.md) (test seams §11, rules R1 to R13), the [job lifecycle](../domain/JOB-LIFECYCLE.md), the [runtime platform](RUNTIME-PLATFORM.md) (§7 signals), the [operational baseline](OPERATIONAL-BASELINE.md) (isolation gates G1 to G11, content-free logs, Sentry port, environments), [persistence](PERSISTENCE-AND-MEDIA.md) (drift checks D1 to D9, working budgets), the [business contract](../domain/BUSINESS-AND-OPERATIONS.md) (caps), the [Creator Ratification Records](../product/CREATOR-RATIFICATION-RECORD-2.md) (P11 VPS, P12 restore test; Record 4 W60 inspector), the [strong-model audit](../product/STRONG-MODEL-WAYFINDER-AUDIT.md) and the legacy evidence (13 test map; 09 §1.3; FACT-0353; the #9 platform research).
+Resolution of Wayfinder ticket #76. The trade-offs are recorded in [ADR 0026](../adr/0026-the-generation-record-is-the-trace-and-test-providers-are-contract-verified-and-marked.md). Inputs: the [AI responsibility map](../ai/AI-RESPONSIBILITY-MAP.md) (AI-map guards G1 to G10, "Generation call log is the trace"), the [Generation package](../domain/GENERATION-PACKAGE.md) (Package checks P1 to P11, §17 fixtures, reproducibility §13), [providers and models](../domain/PROVIDERS-AND-MODELS.md) (F1 to F12, §16 fixtures, conformance probes §10.4), the [module architecture](MODULE-ARCHITECTURE.md) (test seams §11, build rules R1 to R13), the [job lifecycle](../domain/JOB-LIFECYCLE.md), the [runtime platform](RUNTIME-PLATFORM.md) (§7 signals), the [operational baseline](OPERATIONAL-BASELINE.md) (isolation gates G1 to G11, content-free logs, Sentry port, environments), [persistence](PERSISTENCE-AND-MEDIA.md) (drift checks D1 to D9, working budgets), the [business contract](../domain/BUSINESS-AND-OPERATIONS.md) (caps), the [Creator Ratification Records](../product/CREATOR-RATIFICATION-RECORD-2.md) (Record 2 P11 VPS, Record 2 P12 restore test; Record 4 W60 inspector), the [strong-model audit](../product/STRONG-MODEL-WAYFINDER-AUDIT.md) and the legacy evidence (13 test map; 09 §1.3; FACT-0353; the #9 platform research).
 
 Vocabulary is in [`GLOSSARY.md`](../../GLOSSARY.md). This document fixes **what proves Aiuteur works and how a Generation is traced**: the checks, what each gates, the test-provider policy, the golden projects, and who may see what. It does not fix test code, tool configuration, numeric thresholds or the sampling counts of evaluations (spec). Tool classes are named only as candidates.
 
@@ -12,7 +12,7 @@ Vocabulary is in [`GLOSSARY.md`](../../GLOSSARY.md). This document fixes **what 
 | 2 | **Who sees content** | Three tiers. **A** content-free ids, codes, counts, costs, durations: logs, Sentry, alerts, operator views. **B** content (Rendered request, call log, responses): only under the creator's Scope. **C** media bytes: signed access under Scope. Nothing from B or C ever reaches A (§2.3) |
 | 3 | **Test providers** | Fakes are **contract-verified**: one conformance suite runs against every fake and, as a live probe subset, against every real adapter. A fake is marked in the type system, the Offering, every Generation it serves, its output bytes and the UI, and the production send path refuses it (§3) |
 | 4 | **Live evidence** | Scheduled live smoke and conformance probes per Offering, a live mini golden run, and a human-judged **bar run**, all under spend-capped staging Accounts. Real runs are never merge gates; they gate promotion and enablement (§3.4, §5.4) |
-| 5 | **Payload regression** | Compiler **golden Rendered requests** (full text, not only digests) from the golden project's ResolvedInputs × profile snapshots; a changed byte without a version bump fails; wire parity P1 on every adapter and fake (§4) |
+| 5 | **Payload regression** | Compiler **golden Rendered requests** (full text, not only digests) from the golden project's ResolvedInputs × profile snapshots; a changed byte without a version bump fails; wire parity Package P1 on every adapter and fake (§4) |
 | 6 | **Seams** | Contract tests at every port and module seam by shared conformance suites, an operation harness generated from the `workflows` registry, and a generated two-Account harness. **Doubles only at ports; no module mocking; tests use public entries** (§4) |
 | 7 | **Golden projects** | **GP-S** (about 24 shots, authored as replayed commands, covers every kind and Slot) and **GP-L** (250 shots, generated from a seed, for budgets). Replay by default; live only on GP-Mini and the bar run (§5) |
 | 8 | **Golden workflow** | The seven steps of §3.1 as two scripted browser scenarios (rough paragraph; own screenplay), each step with automated and human assertions (§5.3) |
@@ -27,7 +27,7 @@ Vocabulary is in [`GLOSSARY.md`](../../GLOSSARY.md). This document fixes **what 
 | V1 failure | Answer |
 |---|---|
 | LLM mocked in tests; 723 executed tests, none reaching the shot-lock gate or image generation (legacy 13 §2 and its capability matrix) | Models enter tests only as **recorded proposals** fed to pure guards and as a contract-verified fake transport at a port; real-model smoke and an eval set exist (§§3, 7) |
-| Replica and parity tests that pass by construction (legacy 13 §8, §12) | Tests import the unit's public entry (R21); there is one compiler, so no parity test exists; two implementations meet only in a shared conformance suite (§4) |
+| Replica and parity tests that pass by construction (legacy 13 §8, §12) | Tests import the unit's public entry (build rule R21); there is one compiler, so no parity test exists; two implementations meet only in a shared conformance suite (§4) |
 | No contract tests; mock persistence (legacy 13) | Generated mock server and schema equality; conformance on every port; real Postgres in CI (§4) |
 | Video defaulted to a mock provider (Constitution §17.5) | Structural: type, loader, boot, readiness, send gate, record marking, watermarked bytes, UI mark (§3.2) |
 | LangSmith callbacks never attached; trace id never written; trace id was the request id (FACT-0353; legacy 09 §1.3) | The trace is stored rows written in the same transaction as the work, not a callback; a conformance check asserts the ids exist (§2.1) |
@@ -56,7 +56,7 @@ Vocabulary is in [`GLOSSARY.md`](../../GLOSSARY.md). This document fixes **what 
 
 | | **A. The Generation record (chosen)** | **B. External tracing vendor behind a `TraceSink` port** (LangSmith, Langfuse, an OpenTelemetry backend) | **C. A. plus content-free spans to a telemetry backend** |
 |---|---|---|---|
-| Content leaves our database | **No** | Yes: prompts and responses go to a third party, against deny-by-default scrubbing and the purge promise (M7) | No (ids, durations, codes only) |
+| Content leaves our database | **No** | Yes: prompts and responses go to a third party, against deny-by-default scrubbing and the purge promise (Record 1 M7) | No (ids, durations, codes only) |
 | Second truth to keep in step | None: it is the record | Yes: a callback or export that can fail silently (V1's LangSmith, FACT-0353) | Yes, but content-free and non-authoritative |
 | Written in the same transaction as the work | **Yes** | No | No |
 | Survives purge, retention and backup rules already decided | **Yes, by the same rules** | Needs its own purge and retention | Ids only, so purge-neutral |
@@ -69,14 +69,14 @@ Vocabulary is in [`GLOSSARY.md`](../../GLOSSARY.md). This document fixes **what 
 | Tier | Contents | Lives in | Visible to | Retention |
 |---|---|---|---|---|
 | **A: content-free trace** | Ids (Account, project, Generation, Job, Batch, request, action), operation class, Offering id, profile snapshot id, dialect and compiler versions, Rendered request **digest**, Fit outcome **codes**, guard ids and verdict codes, state, failure class and closed code, `billed`, estimate and actual cost, timings, counts, provider kind | Logs, Sentry tags, alert rows, `operator_read` views, the verification status endpoint | Operator, developers, the log and error sinks | Logs 30 days (OPERATIONAL-BASELINE §6); rows live with the Generation |
-| **B: content** | Rendered request text and parts, Package, ResolvedInputs, call log requests and **raw responses**, provider echo, Override text, provider error text | The Generation (Record data, never pruned with Jobs); raw provider reason on the Job | **The creator, under Scope, in the inspector and in exports (prompts are exportable, Constitution Q2).** Never the operator role, a log, Sentry, a metric, an alert or a trace view | The life of the project; purged with it (M7); backups per the purge window. The Job-level raw reason follows Job pruning |
+| **B: content** | Rendered request text and parts, Package, ResolvedInputs, call log requests and **raw responses**, provider echo, Override text, provider error text | The Generation (Record data, never pruned with Jobs); raw provider reason on the Job | **The creator, under Scope, in the inspector and in exports (prompts are exportable, Constitution Q2).** Never the operator role, a log, Sentry, a metric, an alert or a trace view | The life of the project; purged with it (Record 1 M7); backups per the purge window. The Job-level raw reason follows Job pruning |
 | **C: media** | Bytes of Frames, Takes, references | The object store | The creator via `media.access` | As Media (PERSISTENCE §7) |
 
 - **Flow is one-way: B and C never become A.** A digest is tier A; the text it hashes is not. Provider error text is tier B because it may echo a prompt (OPERATIONAL-BASELINE §7.1 rule 3).
-- **Wire capture is a test hook** (PROVIDERS §7.2) used only against fakes and in live smoke on synthetic data. A production adapter never logs or stores bodies; P1 holds there by construction (the adapter accepts only a stored Rendered request) and is proven in CI and in live smoke.
+- **Wire capture is a test hook** (PROVIDERS §7.2) used only against fakes and in live smoke on synthetic data. A production adapter never logs or stores bodies; Package P1 holds there by construction (the adapter accepts only a stored Rendered request) and is proven in CI and in live smoke.
 - **Nothing recorded from production reaches CI, staging or a developer.** Golden projects, recorded proposals and eval sets are authored or generated synthetic data (OPERATIONAL-BASELINE §4.1). In staging and CI, tier B is open to developers, because it is synthetic.
 - **Debugging a creator's bad output without reading it.** Tier A says what ran, on which Offering and snapshot, how it ended and what the Fit decided. The creator may hand the inspector's details to the operator by choice (a copy action; spec). A break-glass database read stays outside the product (OPERATIONAL-BASELINE §9).
-- **Gate:** the secret canary G8 is extended to plant a prompt in a Rendered request and a call-log response and assert absence from logs, Sentry events, alerts, `operator_read` views, the verification status endpoint, metrics and events; G6 asserts no tier B column in any operator view.
+- **Gate:** the secret canary (isolation gate G8) is extended to plant a prompt in a Rendered request and a call-log response and assert absence from logs, Sentry events, alerts, `operator_read` views, the verification status endpoint, metrics and events; AI-map G6 asserts no tier B column in any operator view.
 
 ### 2.4 Surfaces
 
@@ -103,7 +103,7 @@ All are queries over Generation and Job rows (no new store), joined to the opera
 
 ### 2.7 Product-visible verification versus system verification
 
-- **Product-visible:** the creator can always see what was sent and why a thing may be stale (principle 10). Aiuteur **does not show a quality or "identity match" score** on any output: no reliable automated judge exists (§7), and an unreliable score contradicts principle 12 and the quiet-markers rule (M1).
+- **Product-visible:** the creator can always see what was sent and why a thing may be stale (principle 10). Aiuteur **does not show a quality or "identity match" score** on any output: no reliable automated judge exists (§7), and an unreliable score contradicts principle 12 and the quiet-markers rule (Record 1 M1).
 - **System verification:** everything else in this document. It never reaches the creator except through the same quiet marks that already exist (a failure, a stale marker, a "test provider" mark outside production, §3.2).
 
 ### 2.8 Diagnostics and recovery
@@ -143,7 +143,7 @@ Also kept from the baseline: real keys are refused in `local` and `ci` (F2), and
 
 ### 3.3 Conformance suites
 
-One suite per port, run against the real and the fake adapter (Store, Scheduler and Clock, BlobStore, Vault, Mailer, ErrorSink, `ProviderTransport`). The **`ProviderTransport` suite** asserts: P1 wire parity; error-to-class mapping for every documented provider error and *Unknown, maybe billed* for the rest; idempotent submit with the Job id; stored provider operation reference (R22); webhook signature and duplicate and out-of-order delivery; expired output URLs; no-cancel and best-effort cancel; late result after cancel; maybe-billed reconciliation; honest billed quantity. The **fake is parameterised by a profile snapshot**: its Fit-visible capabilities and run behaviour come from the same evidenced profile a real Offering would carry, so capability tests run against evidence, not invention. A scripted behaviour must cite the Catalogue's declared behaviour or a #9 research fact. The real adapter runs the probe subset live (§3.4); the fake runs all.
+One suite per port, run against the real and the fake adapter (Store, Scheduler and Clock, BlobStore, Vault, Mailer, ErrorSink, `ProviderTransport`). The **`ProviderTransport` suite** asserts: Package P1 wire parity; error-to-class mapping for every documented provider error and *Unknown, maybe billed* for the rest; idempotent submit with the Job id; stored provider operation reference (build rule R22); webhook signature and duplicate and out-of-order delivery; expired output URLs; no-cancel and best-effort cancel; late result after cancel; maybe-billed reconciliation; honest billed quantity. The **fake is parameterised by a profile snapshot**: its Fit-visible capabilities and run behaviour come from the same evidenced profile a real Offering would carry, so capability tests run against evidence, not invention. A scripted behaviour must cite the Catalogue's declared behaviour or a #9 research fact. The real adapter runs the probe subset live (§3.4); the fake runs all.
 
 ### 3.4 Live evidence
 
@@ -157,26 +157,26 @@ Results are content-free **evidence records** (Offering, snapshot id, build dige
 
 ### 3.5 Recorded proposals for L and M operations
 
-The model is a proposer (ADR 0007), so most of the system is testable without one: guards G1 to G10, `validate` and `attach` take a *proposal* and need no model. A **recorded proposal** is a real model output captured **from staging on synthetic input**, stored with its input, model snapshot and date, and fed to the operation harness through the fake transport. Rules: proposals include **adversarial** ones (altered dialogue, paraphrased handles, malformed structure, contradictions, a splice that touches protected spans); refreshing a recording is a reviewed change, run by the live smoke, never automatic; a recorded proposal must still satisfy or be rejected by the guards exactly as recorded. The fake model replays by **(operation id, scenario step)**, not by request digest, so a compiler change does not invalidate every recording; a wrong operation or order fails the scenario.
+The model is a proposer (ADR 0007), so most of the system is testable without one: AI-map guards G1 to G10, `validate` and `attach` take a *proposal* and need no model. A **recorded proposal** is a real model output captured **from staging on synthetic input**, stored with its input, model snapshot and date, and fed to the operation harness through the fake transport. Rules: proposals include **adversarial** ones (altered dialogue, paraphrased handles, malformed structure, contradictions, a splice that touches protected spans); refreshing a recording is a reviewed change, run by the live smoke, never automatic; a recorded proposal must still satisfy or be rejected by the guards exactly as recorded. The fake model replays by **(operation id, scenario step)**, not by request digest, so a compiler change does not invalidate every recording; a wrong operation or order fails the scenario.
 
 ## 4. The test layers
 
 | Layer | What it checks | Doubles | Runs |
 |---|---|---|---|
-| **Static** (VC1) | Types, lint, R1 to R24, RT2, `console` ban, vendor-name search (R9), secret scan, dependency audit, generated-code equality | none | every push |
+| **Static** (VC1) | Types, lint, build rules R1–R26, RT1–RT6 (static parts), `console` ban, vendor-name search (build rule R9), secret scan, dependency audit, generated-code equality | none | every push |
 | **Pure goldens** (VC2) | `compiler`: golden **Rendered requests** (full text and parts, with digest) from GP-S ResolvedInputs × profile snapshots × operations, committed and reviewed as text diffs; a byte change without a compiler or scaffold version bump fails; `guards` against recorded adversarial proposals | none (pure) | every push |
 | **Properties** (VC3) | P2 carried-set equality and P4 no-truncation under random counts and sizes; Fit totality; normalisation monotone and idempotent; derive properties (restore clears markers, duplicate reproduces markers, unlock marks nothing) | none | every push |
 | **Seam conformance** (VC4) | §3.3 suites on real and fake adapters of every port; Store on real Postgres | the port's own fake | merge |
-| **Operation harness** (VC5) | **Generated from the `workflows` registry**: every operation runs the real path (scope, resolve, compile, admit, create, dispatch, settle, attach) with a fake transport, virtual time, real Postgres and recorded proposals. Asserts: Initiation required (R6), record before send (P7), one send path (R5), shown equals sent (P1, inspector view equals wire capture), `HeldAsOption` keeps paid output, completion in one transaction, no write on preview (P11) | ports only | merge |
+| **Operation harness** (VC5) | **Generated from the `workflows` registry**: every operation runs the real path (scope, resolve, compile, admit, create, dispatch, settle, attach) with a fake transport, virtual time, real Postgres and recorded proposals. Asserts: Initiation required (build rule R6), record before send (Package P7), one send path (build rule R5), shown equals sent (Package P1, inspector view equals wire capture), `HeldAsOption` keeps paid output, completion in one transaction, no write on preview (Package P11) | ports only | merge |
 | **Lifecycle recovery** (VC4) | Kill-a-worker at every step on virtual time; duplicate, late and out-of-order completion; crash between accept and commit; expired URLs; no-cancel provider; cap races | Scheduler, Clock, transport fakes | merge |
 | **Contract** (VC6) | Generated types equal the schema; client against the generated mock server; server against the same schema; unknown closed-vocabulary value renders neutrally; breaking change needs a new version | generated mock | merge |
 | **Isolation** (VC7) | G1 to G11, generated from the contract and grants | none | merge |
 | **Golden workflow** (VC9) | §5.3, in a real browser against the real stack with fakes and recorded proposals | ports only | merge (E1 and E2); a short path on every push |
 | **Mutation** (VC17) | Mutation testing over `compiler`, `guards`, `history.derive` and the Fit evaluator: surviving mutants mean tests that cannot fail. Threshold in the spec | none | nightly |
 
-**Rules the layers keep (R20, R21).** Doubles enter only through ports at a composition root; a lint bans module-mocking APIs on repository modules, so no test can stub an owning module's function. A test imports the unit under test through its public entry only (R12); a test that re-declares production logic cannot compile against the entry. Where two implementations exist, they meet only in a conformance suite both pass; an assertion comparing a copy of the logic to production is not a test.
+**Rules the layers keep (R20, R21).** Doubles enter only through ports at a composition root; a lint bans module-mocking APIs on repository modules, so no test can stub an owning module's function. A test imports the unit under test through its public entry only (build rule R12); a test that re-declares production logic cannot compile against the entry. Where two implementations exist, they meet only in a conformance suite both pass; an assertion comparing a copy of the logic to production is not a test.
 
-**Unit seams.** MODULE-ARCHITECTURE §11 stands; this document adds `Mailer`, `ErrorSink` and the model-proposal replay as seams, and the rule that the `Environment` and `Clock+Ids` are injected (R11, R24).
+**Unit seams.** MODULE-ARCHITECTURE §11 stands; this document adds `Mailer`, `ErrorSink` and the model-proposal replay as seams, and the rule that the `Environment` and `Clock+Ids` are injected (build rules R11, R24).
 
 ## 5. Golden projects and the golden workflow
 
@@ -205,12 +205,12 @@ Two scripted browser scenarios, **E1** from a rough paragraph and **E2** from th
 | §3.1 step | Automated assertion (replay) | Judged by a human (bar run) |
 |---|---|---|
 | 1 Interviewed until understood | Interview produces Facts; advisory ending computed by code; conflicts reopen a question | Whether the interview felt like understanding |
-| 2 Treatment, beat sheet, Master Narrative | Documents exist with provenance runs; explicit sync only; dialogue exactly once (G3); acceptance lock offer | Whether the writing is usable |
+| 2 Treatment, beat sheet, Master Narrative | Documents exist with provenance runs; explicit sync only; dialogue exactly once (AI-map G3); acceptance lock offer | Whether the writing is usable |
 | 3 Cast and locations | Entities with identity reference and base Look; coverage derived from shots; no auto spend | Whether the identity images look right |
 | 4 Plan the shots | Shot plan anchored to passages; every Dialogue line covered once; Presence derived | Whether the plan is sensible |
-| 5 Frames and takes; identity holds; characters speak | Every on-screen Presence is carried (identity reference or handle) in the Rendered request; each Dialogue line is byte-identical in the audio and video request (P3); the inspector equals the wire capture (P1); price shown before spend; failure and retry paths | **Whether characters stay recognisably themselves and the lines are spoken** (non-deterministic; no automated judge is a gate) |
+| 5 Frames and takes; identity holds; characters speak | Every on-screen Presence is carried (identity reference or handle) in the Rendered request; each Dialogue line is byte-identical in the audio and video request (Package P3); the inspector equals the wire capture (Package P1); price shown before spend; failure and retry paths | **Whether characters stay recognisably themselves and the lines are spoken** (non-deterministic; no automated judge is a gate) |
 | 6 Watch in order | Playback is selected Takes only, in story order; a gap slate reads correctly | Whether the piece plays as a piece |
-| 7 Export to Resolve or CapCut | Manifest built from the selection; xmeml and OTIO validate against their schemas; unique clip names; frozen probe facts (fps, CFR, frame count, audio layout) equal the files; documents included; dialogue identical to the Master Narrative | **Importing the package into Resolve and CapCut once per release** |
+| 7 Export to Resolve or CapCut | (from IW1; at BAR: ordered unique-named clips plus documents) Manifest built from the selection; xmeml and OTIO validate against their schemas; unique clip names; frozen probe facts (fps, CFR, frame count, audio layout) equal the files; documents included; dialogue identical to the Master Narrative | **Importing the package into Resolve and CapCut once per release (the VC16 NLE import check; record the result, including whether provider marks survive the VFR→CFR step, OPERATIONAL-BASELINE §15)** |
 | "Own screenplay works too" (E2) | Import mapping is deterministic first; ambiguous items asked; dialogue identical after conversion | Same as above |
 
 ### 5.4 Live runs
@@ -219,7 +219,7 @@ Two scripted browser scenarios, **E1** from a rough paragraph and **E2** from th
 |---|---|---|---|---|
 | **L1 live smoke** | §3.4 | Scheduled | Code | Staging smoke Account cap |
 | **L2 GP-Mini** (VC15) | The golden workflow on a 3-scene, 6 to 8 shot slice with the shortest clips, lowest resolution and `economy` bias, real image, video and audio Offerings, through to a validated export | Weekly; gates promotion of a release that changed the generation path, the compiler, an adapter or a default chain | Code (the §5.3 automated column, live) plus a recognisability glance by the operator | Staging mini-run Account cap, set per run (spec) |
-| **L3 bar run** (VC16) | The actual §3.1 bar by the owner: a rough paragraph to a 2 to 3 minute piece to an NLE import in a day, on production-shaped staging with real providers | **Before the first invitation**; before any release that changes default bias or a default-eligible Offering; at least quarterly while in development | **Human**; recorded as an evidence record (date, build digest, durations, spend, defects, what was imported where) | Owner's judgement and the account caps |
+| **L3 bar run** (VC16) | The actual §3.1 bar by the owner: a rough paragraph to a 2 to 3 minute piece to an NLE import in a day, on production-shaped staging with real providers, **and the same from the owner's own screenplay (E2)** | **Before the first invitation**; before any release that changes default bias or a default-eligible Offering; at least quarterly while in development | **Human**; recorded as an evidence record (date, build digest, durations, spend, defects, what was imported where) | Owner's judgement and the account caps |
 
 This is Constitution §18.8's "real end-to-end runs, not only mocked tests"; L3 is also the evidence that "Aiuteur works".
 
@@ -232,7 +232,7 @@ The base is PERSISTENCE §10.3 D1 to D9 and ADR 0023. Added here:
 | D10 | Restore the **previous release's GP-S upgrade snapshot**, run the forward migrations, apply every upcaster, then run D3, D8, the Board equality and the golden workflow's read steps | A migration or upcaster that breaks real old data |
 | **Compatibility** | Apply the new migrations to the previous schema, then run the **previous image's** staging smoke against it (expand/contract proof; OPERATIONAL-BASELINE §4.2 delivery rules) | A "forward-only" step that breaks the rolling deploy |
 | **Contract** | Generated types and parsers equal the schema; vocabulary CHECKs equal `contract` (D3) | A hand-copied union; a drifted enum |
-| **Catalogue** | Every profile validates at load (F10); a compile-relevant change produces a new snapshot id and carries evidence (F11, R23) | An unevidenced capability |
+| **Catalogue** | Every profile validates at load (F10); a compile-relevant change produces a new snapshot id and carries evidence (PROVIDERS F11, build rule R23) | An unevidenced capability |
 
 ## 7. Quality gates for prompt and model changes
 
@@ -240,7 +240,7 @@ The base is PERSISTENCE §10.3 D1 to D9 and ADR 0023. Added here:
 
 | Change | Evidence required before merge | Judge |
 |---|---|---|
-| **Compiler or scaffold wording** (media prompts) | Version bump; golden Rendered-request diff reviewed as text; P-guards; wire parity; **eval run**: the affected eval-set cases generated before and after on the default Offering of the class, shown side by side; an `evidence` reference on the scaffold version entry (R23) | Code for the diff and guards; **human** for the side-by-side |
+| **Compiler or scaffold wording** (media prompts) | Version bump; golden Rendered-request diff reviewed as text; P-guards; wire parity; **eval run**: the affected eval-set cases generated before and after on the default Offering of the class, shown side by side; an `evidence` reference on the scaffold version entry (build rule R23) | Code for the diff and guards; **human** for the side-by-side |
 | **L or M operation instruction** (drafting, rewrite, fact check, partition, mapping) | Guard results over recorded proposals; **live sampling** of the eval cases, k samples each (spec): structural validity rate, first-time pass (repair) rate, HELD rate, and **zero** guard-violating output reaching a commit; for the fact check, **recall and false-positive rate on planted contradictions** against the recorded baseline | Code for rates and invariants; **human** for a blind side-by-side of prose on a few cases |
 | **Model swap or a new default** for an operation class | The class's eval cases run on the candidate; live smoke; price entry reviewed; for identity-critical classes (identity image, frame with identity references, video with first frame and audio) an eval sheet reviewed by the owner | **Human** for identity-critical classes; code for the rest |
 | **Catalogue change** (profile, Offering, ranking, tier, price) | F11 evidence in the same diff; conformance run and live smoke on the snapshot; golden Fit fixtures rerun and diffs reviewed; a standby `active` Offering exists before a `preview` may become default-eligible (PROVIDERS §10.1) | Code, plus the owner for default-eligibility |
@@ -277,7 +277,7 @@ Load and soak testing remain deferred (OPERATIONAL-BASELINE §12). If the Board 
 
 | # | Check | Defined in |
 |---|---|---|
-| **VC1** | Static and architecture rules R1 to R24 | §4; MODULE §9 |
+| **VC1** | Static and architecture rules, build rules R1–R26 and RT1–RT6 (static parts) | §4; MODULE §9 |
 | **VC2** | Pure goldens (compiler Rendered requests, guards over recorded proposals) | §4 |
 | **VC3** | Properties | §4 |
 | **VC4** | Seam conformance suites and lifecycle recovery | §§3.3, 4 |
@@ -292,7 +292,7 @@ Load and soak testing remain deferred (OPERATIONAL-BASELINE §12). If the Board 
 | **VC13** | Conformance probes, live smoke, LLM live smoke | §3.4 |
 | **VC14** | Eval run (human-judged where marked) | §7 |
 | **VC15** | GP-Mini live run | §5.4 |
-| **VC16** | Bar run | §5.4 |
+| **VC16** | Bar run, with the per-release human NLE import (§5.3 step 7) | §5.4 |
 | **VC17** | Mutation | §4 |
 
 | Change or stage | Required (blocks) | Evidence attached | Judge |
@@ -311,7 +311,7 @@ A real-provider check never blocks a merge (cost and flake, OPERATIONAL-BASELINE
 
 ## 10. Legacy prompt salvage
 
-**Decision: V1 prompts are not imported as fixtures or as prompt text.** They were database templates, stage-bound, duplicated and contradictory (the inventory's own scope notes; legacy 09), and prompt text in V2 exists only as Layer parts in `compiler` (R8). What qualifies is narrower and recorded here as the rule the spec applies:
+**Decision: V1 prompts are not imported as fixtures or as prompt text.** They were database templates, stage-bound, duplicated and contradictory (the inventory's own scope notes; legacy 09), and prompt text in V2 exists only as Layer parts in `compiler` (build rule R8). What qualifies is narrower and recorded here as the rule the spec applies:
 
 1. A V1 item becomes a fixture only as an **input** or a **failing case** (a screenplay, a shot-split request, a description-merge pair, a continuity-recomposition scenario) that proves a guard or Fit property, and never as an expected **output**: V1 output quality is not truth.
 2. It carries its source id (inventory section, legacy section or FACT id).
@@ -349,14 +349,14 @@ Test framework and runner, browser driver, mutation tool, how GP-S's commands ar
 
 | Ticket | Receives |
 |---|---|
-| **Build sequence** (#77, resolved in [`BUILD-SEQUENCE.md`](BUILD-SEQUENCE.md), which adopts this order as tracer work) | Stand up first, in this order: (1) the `testing/` package with a **contract-verified fake transport** (watermarked output, scripted behaviours, wire capture) and the `ProviderTransport` conformance suite; (2) the Store and Scheduler conformance suites and virtual time; (3) **GP-S as a replayed command sequence**, starting with the slice the tracer bullet touches; (4) the **operation harness** over the first operation; (5) the trace fields and R22 from the first Generation; (6) VC1, VC2, VC6, VC10 in the first pipeline; (7) the golden workflow E1 skeleton, extended per phase; (8) the staging smoke Account and first live smoke when the first real adapter lands. GP-L and VC11/VC12 arrive with the Board; the bar run is the exit test before the first invitation |
+| **Build sequence** (#77, resolved in [`BUILD-SEQUENCE.md`](BUILD-SEQUENCE.md), which adopts this order as tracer work) | Stand up first, in this order: (1) the `testing/` package with a **contract-verified fake transport** (watermarked output, scripted behaviours, wire capture) and the `ProviderTransport` conformance suite; (2) the Store and Scheduler conformance suites and virtual time; (3) **GP-S as a replayed command sequence**, starting with the slice the tracer bullet touches; (4) the **operation harness** over the first operation; (5) the trace fields and build rule R22 from the first Generation; (6) VC1, VC2, VC6, VC10 in the first pipeline; (7) the golden workflow E1 skeleton, extended per phase; (8) the staging smoke Account and first live smoke when the first real adapter lands. GP-L and VC11/VC12 arrive with the Board; the bar run is the exit test before the first invitation |
 | **Contract freeze** (#78) | Freeze the trace fields of the Generation and run history, `FakeTransport` and the conformance-suite interface, the `testProvider` read-model flag, the evidence-record shape, the scenario-script shape and the `Environment` type; checks VC1 to VC17 as the swarm's definition of done; the golden-project commands as shared fixtures |
 | **Final audit** (#79) | R19 to R24, the eight lines of §3.2, the three tiers of §2.3 and that no doc names a tracing vendor or a mock as a default; the gate matrix of §9 |
 | **Persistence** (#72) | D10; the operator-view set gains content-free Generation outcome rows; Record data keeps tier B for the life of the project |
-| **Operational baseline** (#75) | G8 and G11 extended; the verification status endpoint beside `/healthz/deep`; the pipeline's promotion stage reads evidence records |
+| **Operational baseline** (#75) | isolation gates G8 and G11 extended; the verification status endpoint beside `/healthz/deep`; the pipeline's promotion stage reads evidence records |
 | **Providers** (#66) | The conformance suite as the adapter contract's proof; evidence records for `verified`; the send-gate amendment of F3; the fake parameterised by a profile |
-| **AI map** (#64) | The eval set and baseline for G6 recall; recorded proposals as the model fake |
-| **Voice and performance** (#69) | Audio fakes follow the same `FakeTransport` and conformance suite; a Performance line must be byte-identical in the audio request (P3) |
+| **AI map** (#64) | The eval set and baseline for AI-map G6 recall; recorded proposals as the model fake |
+| **Voice and performance** (#69) | Audio fakes follow the same `FakeTransport` and conformance suite; a Performance line must be byte-identical in the audio request (Package P3) |
 
 ## 15. Constitution check
 

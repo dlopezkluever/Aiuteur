@@ -10,4 +10,4 @@ Default five-role vocabulary: `needs-triage`, `needs-info`, `ready-for-agent`, `
 
 ### Domain docs
 
-Single-context. `GLOSSARY.md` and `docs/adr/` don't exist yet and are created lazily by `/domain-modeling`; `_inputs/` holds two reference corpora that are evidence, not V2 requirements. See `docs/agents/domain.md`.
+Single-context. `GLOSSARY.md` and `docs/adr/` exist (created lazily by `/domain-modeling`, now populated); `_inputs/` holds two reference corpora that are evidence, not V2 requirements. See `docs/agents/domain.md`.

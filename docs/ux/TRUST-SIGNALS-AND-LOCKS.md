@@ -40,7 +40,7 @@ A lock blocks edits to the locked thing (new Revisions, retiring, moving the cho
 | 1 | **Master Narrative acceptance** | Locks by default, in the same action group as the Accept (accept and lock stay separately addressable, LINEAGE §6.4). In the one concise acceptance sheet this is a **Lock** checkbox **checked by default**, which the creator may untick (Record 2 D58.9; [`WRITING-EXPERIENCE.md`](WRITING-EXPERIENCE.md) §6). |
 | 2 | **Entity identity approval** (Character, Location, Prop, Extra type) | Approval *offers* a lock for that entity. |
 | 3 | **Visual Style / World Definition** | Offered when the creator says the world is set. |
-| 4 | **A scene's shot plan** | Offered when frame generation for that scene begins. |
+| 4 | **A scene's shot plan** | Offered when frame generation for that scene begins (first Frame generation in Generate; the offer is independent of Accept plan, Record 5 SP8). |
 | 5 | **Anything else** | Voluntary only; any scope can be locked by the creator, none by default. |
 
 An offer is a single quiet inline choice (lock / not now), never repeated and never required. Not locking is a normal state, not a missing one.

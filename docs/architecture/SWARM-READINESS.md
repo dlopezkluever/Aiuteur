@@ -25,7 +25,7 @@ V1's parallel work diverged where nothing was frozen: the Shot in seven shapes, 
 
 ## 2. The frozen-contract register
 
-A contract here is a module's published surface that another module, lane, test or the client depends on. Table and column names are **not** frozen (PERSISTENCE §14); internals behind a public entry (R12) are never frozen.
+A contract here is a module's published surface that another module, lane, test or the client depends on. Table and column names are **not** frozen (PERSISTENCE §14); internals behind a public entry (build rule R12) are never frozen.
 
 ### 2.1 Frozen at T0 exit (version 1)
 
@@ -34,12 +34,12 @@ T0 writes version 1; #78 freezes it from the code T0 built, not from the documen
 | # | Contract | Includes | Owner (module → lane) | Source |
 |---|---|---|---|---|
 | **FC1** | **Identity and vocabulary** | Branded ids and the id-minting rule; the closed vocabularies (reason codes, job states, failure classes, `billed`, spend classes, phase dispositions, lock scopes, frame roles, provenance kinds, layer keys, creator-facing labels); error codes; the vocabulary-to-CHECK generation (D3) | `contract` → steward (§5) | MODULE §3.1, §8; PERSISTENCE §10.3 |
-| **FC2** | **Wire schema** | Command, query, event and read-model shapes and the rule that types and parsers are generated from one schema; the event envelope; `Initiation` as an opaque type minted only in `api` (R6) | `contract` → steward | MODULE §8; PERSISTENCE §14 |
+| **FC2** | **Wire schema** | Command, query, event and read-model shapes and the rule that types and parsers are generated from one schema; the event envelope; `Initiation` as an opaque type minted only in `api` (build rule R6) | `contract` → steward | MODULE §8; PERSISTENCE §14 |
 | **FC3** | **The write gate** | `history.commit`, `history.read`, `history.derive`; `Change`, the commit context, the five results `Applied`, `NeedsConfirmation`, `HeldAsOption`, `StaleBase`, `Refused`; `grantEditSession` and the impact version | `history` → spine | MODULE §3.2, §5 |
 | **FC4** | **Kind declaration** | The shape a module uses to declare a kind: slices, narrative-bearing tags, invariants, declared indexes, extracted columns, remap path, closure rule, separability rule | `history` → spine | MODULE §5.5; PERSISTENCE §14 |
 | **FC5** | **Ports** | `Store` (transaction with `Scope`, `ReadTx`/`WriteTx`, serialisation per Account), `BlobStore`, `Scheduler`, `Vault`, `Clock+Ids`, `Stream`, `Auth`; `Scope` itself; `media.put`/`media.access` and `MediaRef`; the credential seam (`CredentialHandle`, `accounts.credential`, `resolveScope`) | Store/ports → platform; `media`, `accounts` → platform | MODULE §3.4, §3.5; PERSISTENCE §14; BUILD EI9 |
 | **FC6** | **Operation record** | `scope`, `resolve`, `propose`, `validate`, `attach`; the registry; `execute(initiation, command) → Result`; the `AttachPlan`; the guard `Verdict` | `workflows`, `guards` → entry owner (§4.2) | MODULE §3.1, §6; BUILD EI2 |
-| **FC7** | **Generation record and trace** | The Generation shape with its trace fields (R22: Package, Fit report, Rendered request, ResolvedInputs, captured inputs with frozen fingerprints, call log, estimate, actual, run history); `generation.create/preview/cancel/retry/activity`; the `authorised()` clause position; the single dispatch path and the F3 gate as an **ordered, closed list of fail-closed clauses** | `generation` → generation | MODULE §3.3; VERIFICATION §2.1; BUILD EI1 |
+| **FC7** | **Generation record and trace** | The Generation shape with its trace fields (build rule R22: Package, Fit report, Rendered request, ResolvedInputs, captured inputs with frozen fingerprints, call log, estimate, actual, run history); `generation.create/preview/cancel/retry/activity`; the `authorised()` clause position; the single dispatch path and the F3 gate as an **ordered, closed list of fail-closed clauses** | `generation` → generation | MODULE §3.3; VERIFICATION §2.1; BUILD EI1 |
 | **FC8** | **Compile** | `compile(ResolvedInputs, ProfileSnapshot) → { Package, FitReport, Rendered request, digest } \| BlockedFit`; the Package shape (Layers, carried references with roles, typed parameters, the reserved style layer, the layer catalog's keys); `ResolvedInputs` | `compiler` → generation | MODULE §3.3; GENERATION-PACKAGE; BUILD EI11 |
 | **FC9** | **Job contract** | The Job states and transitions (compare-and-set), leases, deadlines, `enqueue/claim/transition/settle`, the two executor families, the **settler seam** (`settle(job, outputs, settler)`), retry classes, event types | `jobs` → platform | JOB-LIFECYCLE §§2–3, 5, 11–12; MODULE §3.3 |
 | **FC10** | **Provider contracts** | The capability-profile schema and the **closed operation-class vocabulary**, with the audio fields and the unpopulated classes (`audio.speech`, `audio.transform`, `audio.lipsync`, `audio.voice`, `audio.transcribe`, `world.generate`); the closed authorisation-precondition kinds (`attestation`, `speaker-verification`, `own-voice-only`, `allowlist`, `unknown`; adding one is a decision, VOICE §5.3); the catalogue-face functions (`select`, `profile`, `evaluate`, `dialect`, `priceEntry`, `gate`); the adapter face `ProviderTransport` (`submit`, `observe`, `cancel`, `lookup`, `fetch`, `billed-quantity`, `wire-capture`); error-to-class maps; `spend.estimate` and `spend.admit` | `providers`, `spend` → generation (providers), platform (spend) | MODULE §3.3; PROVIDERS §§3, 13; BUILD EI3; VOICE §5 |
@@ -96,13 +96,13 @@ Ownership of truth decides ownership of paths (ADR 0016); a lane is a set of mod
 |---|---|---|---|
 | **story** (VS1 to VS4) | `story`; the L-operation entries and guards it needs; its client surfaces | `history`, `contract` | By directory: one agent per kind or planner family (Source Material and Interview; documents; scene mapping). Operations are one file each |
 | **world** (VS5) | `world` (Entity, Look, coverage, Visual Style, Writing Style, Voice definition later); its client surfaces | `history`, `story` read | By kind; Look and coverage derivations are one owner (they are one rule, ADR 0002, 0003) |
-| **generation** (VS6 to VS8) | `production`; `compiler`; `generation`; `providers` (catalogue data and every adapter); later `previs` | `world`, `story` read; frozen FC3 to FC10 | **Widest swarm in the plan:** one agent per adapter directory with its fake and conformance run (R19, EI13); `production` planners by kind; the compiler core is one owner |
+| **generation** (VS6 to VS8) | `production`; `compiler`; `generation`; `providers` (catalogue data and every adapter); later `previs` | `world`, `story` read; frozen FC3 to FC10 | **Widest swarm in the plan:** one agent per adapter directory with its fake and conformance run (build rule R19, EI13); `production` planners by kind; the compiler core is one owner |
 | **delivery** (VS9) | `export`; playback and the Review surfaces | `production` and `story` read, `media` | By exporter (clips, xmeml, OTIO, documents), each behind the capability descriptor |
 | **platform** (T0 core, then throughout) | Store adapters and ports, `jobs`, `media`, `accounts`, `spend`, `project`, `testing/`, the pipeline, the operator console | all frozen contracts | `testing/` and pipeline work parallel to features; the Store and Scheduler adapters are single-owner (§5) |
 
 ### 4.2 Registry-shaped modules are owned per entry
 
-`workflows`, `guards`, `views`, `api` and the `client` are not owned as modules by any lane: **each operation, guard, read model, handler and screen belongs to the lane of the module whose truth it composes** (a cross-module workflow belongs to the lane of the slice that introduces it). Their indexes (the operation registry, the route table, the read-model list) are **generated from per-entry files**, never hand-edited, so adding an entry touches no shared file (BUILD EI2: a registry entry is picked up by the harness, G1 and G10 without new test code). The client's shell, navigation frame and shared components are one owner (§5).
+`workflows`, `guards`, `views`, `api` and the `client` are not owned as modules by any lane: **each operation, guard, read model, handler and screen belongs to the lane of the module whose truth it composes** (a cross-module workflow belongs to the lane of the slice that introduces it). Their indexes (the operation registry, the route table, the read-model list) are **generated from per-entry files**, never hand-edited, so adding an entry touches no shared file (BUILD EI2: a registry entry is picked up by the harness, isolation gate G1 and AI-map G10 without new test code). The client's shell, navigation frame and shared components are one owner (§5).
 
 ### 4.3 Three tiers
 
@@ -120,7 +120,7 @@ Slice order is integration order (BUILD §2.4): a lane may run ahead on groundwo
 |---|---|---|
 | **T0** | Every leg changes the contracts it is writing (BUILD §7) | One thread, or a pair. No lanes until T0 exit |
 | **The migration chain** | One linear, forward-only chain with checksums and a single schema snapshot (PERSISTENCE §10.2; D1) | Authored in the lane's change, **ordered by the merge queue** (merge order is chain order); never renumbered by hand after another migration lands; the snapshot is regenerated after rebase; two open changes may not alter the same table without the queue ordering them; every migration is expand-then-contract and passes D1 to D10 |
-| **The write gate and the Store** | A bypass or a second reading of the lock rule is V1's failure (R1) | `history` core (commit, derive, kind registry) and the Store adapters have one owner at a time. Kinds are *additive* and owned by their modules |
+| **The write gate and the Store** | A bypass or a second reading of the lock rule is V1's failure (build rule R1, MODULE) | `history` core (commit, derive, kind registry) and the Store adapters have one owner at a time. Kinds are *additive* and owned by their modules |
 | **The `contract` package** | Everything depends on it | Its structure, generator, id rules, envelopes and the **shared vocabularies** (those used by two or more modules: reason codes, job states, failure classes, layer keys, lock scopes, frame roles) are owned by a **steward**: one owner at a time. Module-specific commands, queries and read models sit in module-named partitions owned by the module's lane. Any addition is a contract-first change landing before its users |
 | **GLOSSARY and ADRs** | Shared language; ADR numbers are allocated | A **docs steward** is the only writer. Lanes put a proposed term or a hard-to-reverse decision in the change record (§10); the steward integrates it. A code change never edits GLOSSARY or an ADR itself |
 | **The Catalogue** | A bad default spends real money and is judged by evidence (F10, F11) | Offering and profile files are per Offering and parallel for **adding** an Offering as `preview`. **Default chains, ranking, tier, price, default-eligibility and overlay enablement** are serial, owner-decided, each with its evidence record in the same diff |
@@ -155,17 +155,17 @@ Slice order is integration order (BUILD §2.4): a lane may run ahead on groundwo
 
 ## 8. Definition of done
 
-**Slice done** (BUILD §0.9, §2.2, §7): the slice's exit evidence, plus the gates it makes live, plus its GP-S cases and harness entries, plus the seed boundary moved. This document adds: its early interfaces frozen at its exit (§2.2); the contracts it touched at their recorded versions; E1 and E2 replay green at the moved boundary; every item **produced by the pipeline and a verifier** and recorded (§10). **BAR** is the swarm's top-level done (BUILD §2.3); "Aiuteur works" (§3.1) is proved by VC16, never by the sum of slices.
+**Slice done** (BUILD §2.2, §2.3, §7): the slice's exit evidence, plus the gates it makes live, plus its GP-S cases and harness entries, plus the seed boundary moved. This document adds: its early interfaces frozen at its exit (§2.2); the contracts it touched at their recorded versions; E1 and E2 replay green at the moved boundary; every item **produced by the pipeline and a verifier** and recorded (§10). **BAR** is the swarm's top-level done (BUILD §2.3); "Aiuteur works" (§3.1) is proved by VC16, never by the sum of slices.
 
 **Evidence must match the claim.** A test double proves only what the double is verified to do.
 
 | Claim | Minimum evidence | Not enough |
 |---|---|---|
-| "This code behaves as specified" | Public-entry tests (R21); properties where a rule has a shape (VC3); mutation score where the module is in VC17's scope; the expected values come from the spec, a recorded corpus or an adversarial case, never from the implementation's own output | A snapshot regenerated to match |
+| "This code behaves as specified" | Public-entry tests (build rule R21); properties where a rule has a shape (VC3); mutation score where the module is in VC17's scope; the expected values come from the spec, a recorded corpus or an adversarial case, never from the implementation's own output | A snapshot regenerated to match |
 | "It works against the database" | Real Postgres (VC4, VC8, VC7) | An in-memory fake alone (the fake is covered by the shared conformance suite, not a substitute for it) |
 | "It works with a provider" | Conformance probes and live smoke on that Offering (VC13), within the smoke Account's cap, with an evidence record | A fake, a recorded response, or "the adapter compiles" |
 | "It works for the creator" | The golden workflow in a real browser against the real stack (VC9); live runs VC15 and VC16 where VERIFICATION §9 requires them | A mocked-API render, a component test |
-| "Nothing leaks across Accounts" | G1 to G11 generated from the contract, and the Two-Account harness for new operations (VC7) | A handler-level test |
+| "Nothing leaks across Accounts" | Isolation gates G1 to G11 generated from the contract, and the Two-Account harness for new operations (VC7) | A handler-level test |
 | "It survives failure" | Kill-a-worker at each state on virtual time; once for real on staging for the legs T0 names (VC4) | A happy-path run |
 
 ### 8.1 Per kind of work
@@ -174,19 +174,19 @@ Slice order is integration order (BUILD §2.4): a lane may run ahead on groundwo
 |---|---|
 | **Contract change** (FC1 to FC11 or a later-frozen contract) | §3: class recorded; VC6 and generated-code equality; R25 reference; consumers re-verified; D3, D10 where persisted; verifier sign-off |
 | **Domain module logic** (kinds, planners, derivations, Resolve) | Public-entry tests and properties through `history.commit` with the module's real kind (VC3, VC4 derive properties); GP-S cases for the states it makes reachable; no write on read (R10); VC1, VC2 |
-| **History, Store, migration** | D1 to D10 (VC8); Store conformance on **both** adapters (VC4); G1 to G11 and R14 to R18 for any new table (VC7); the upgrade snapshot added (D10); fault injection between fetch, promote and settle |
-| **Workflow operation** | Registry entry; the harness (VC5) passes it including the Initiation, record-before-send, one-send-path, shown-equals-sent and `HeldAsOption` assertions; for an L or M operation an adversarial recorded proposal and the live sampling of VERIFICATION §7.1 (VC14); one live run per new operation (VC13 LLM live smoke); G1 and G10 pick it up |
-| **Provider adapter, Offering, profile** | The fake extends `FakeTransport` and the adapter passes the `ProviderTransport` conformance suite (R19, EI13); live probe and smoke with the evidence record **in the same diff** (F11, R23); golden Fit fixtures rerun and diffs reviewed; the 'fake never default' lines hold (VC10) |
-| **Compiler or scaffold** | Version bump; VC2 golden diff reviewed as text; P-guards; wire parity; VC14 side-by-side judged by a human; `evidence` reference (R23) |
+| **History, Store, migration** | D1 to D10 (VC8); Store conformance on **both** adapters (VC4); isolation gates G1 to G11 and build rules R14 to R18 for any new table (VC7); the upgrade snapshot added (D10); fault injection between fetch, promote and settle |
+| **Workflow operation** | Registry entry; the harness (VC5) passes it including the Initiation, record-before-send, one-send-path, shown-equals-sent and `HeldAsOption` assertions; for an L or M operation an adversarial recorded proposal and the live sampling of VERIFICATION §7.1 (VC14); one live run per new operation (VC13 LLM live smoke); isolation gate G1 and AI-map G10 pick it up |
+| **Provider adapter, Offering, profile** | The fake extends `FakeTransport` and the adapter passes the `ProviderTransport` conformance suite (build rule R19, EI13); live probe and smoke with the evidence record **in the same diff** (F11, R23); golden Fit fixtures rerun and diffs reviewed; the 'fake never default' lines hold (VC10) |
+| **Compiler or scaffold** | Version bump; VC2 golden diff reviewed as text; P-guards; wire parity; VC14 side-by-side judged by a human; `evidence` reference (build rule R23) |
 | **Job, lifecycle, spend** | VC4 at every Job state; cap races; duplicate, late and out-of-order completion; completion in one transaction |
 | **UI change** | §8.2 |
 | **Export and delivery** | VERIFICATION §5.3 step 7 assertions (manifest equals selection, schema validation, unique names, frozen probe facts equal the files, dialogue identical); the hands-on NLE import recorded once per release |
-| **Platform and operations** | The deploy-by-digest and rollback; the secret canary (G8); heartbeat; the restore rehearsal or test with its record (OPERATIONAL-BASELINE §9) |
+| **Platform and operations** | The deploy-by-digest and rollback; the secret canary (isolation gate G8); heartbeat; the restore rehearsal or test with its record (OPERATIONAL-BASELINE §9) |
 | **Documentation or decision change** | Cross-reference check: every cited module, rule, gate and contract exists in its source; no contradiction of a higher authority. These are not slices |
 
 ### 8.2 How an agent proves a UI change
 
-1. **Statically:** R3 and the client rules of MODULE §4: the client imports only `contract` and computes no status, marker, lock, progress figure or price.
+1. **Statically:** build rule R3 and the client rules of MODULE §4: the client imports only `contract` and computes no status, marker, lock, progress figure or price.
 2. **Against the contract:** VC6 with the generated mock server, including an unknown vocabulary value rendering neutrally.
 3. **On the real stack, in a real browser:** the affected step of E1 or E2 (VC9) runs through the real UI against the built `web`, real Postgres, the fake transport and recorded proposals, with the seed boundary moved to include it. The assertion reads the **read model the screen displays**, not only the DOM.
 4. **Survives a reload and a stale client:** reload mid-flow shows the same state (the client holds nothing the product relies on); a stale client's write is refused by the server and the screen re-renders from the refusal.
@@ -218,7 +218,7 @@ Every change carries a **change record**: one content-free note kept with the ch
 
 The pipeline attaches the gate results to the digest; the evidence-record shape is FC11, so the same store serves promotion (VERIFICATION §9). The register of §2 keeps the current version of each contract and the record of its amendments. This is the trail a reviewer reads after the swarm has run unattended.
 
-## 11. Rules the build enforces (extend R1 to R24)
+## 11. Rules the build enforces (extend build rules R1 to R24)
 
 | # | Rule | Enforced by |
 |---|---|---|

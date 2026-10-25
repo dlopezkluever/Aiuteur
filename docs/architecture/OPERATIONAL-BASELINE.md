@@ -1,6 +1,6 @@
 # Aiuteur V2: Operational Baseline
 
-Resolution of Wayfinder ticket #75. The trade-offs are recorded in [ADR 0018](../adr/0018-own-auth-in-our-database-envelope-held-credentials-and-an-independent-backup-copy.md). Inputs: the [business contract](../domain/BUSINESS-AND-OPERATIONS.md) (invite-only Accounts, server-held operator keys, BYOK seam, alerts S10), the [runtime platform](RUNTIME-PLATFORM.md) (one VPS running `web`, `worker` and Postgres with R2 as the current, portable deploy choice; three database identities; the signals §7), the [module architecture](MODULE-ARCHITECTURE.md) (`accounts`, ports `Auth` and `Vault`, rules R1 to R13), the [job lifecycle](../domain/JOB-LIFECYCLE.md), [providers and models](../domain/PROVIDERS-AND-MODELS.md), the [Creator Ratification Record](../product/CREATOR-RATIFICATION-RECORD.md) (M4 to M7, which controls), [Record 2](../product/CREATOR-RATIFICATION-RECORD-2.md) (P11, P12 and P8-purge, which changed hosting, backups and drills; see the last section) and the #73 research (`research/platform-execution`, `postgres-auth.md` and `storage-cdn.md`; facts dated 2026-10-21; items marked *nv* there stay unverified here).
+Resolution of Wayfinder ticket #75. The trade-offs are recorded in [ADR 0018](../adr/0018-own-auth-in-our-database-envelope-held-credentials-and-an-independent-backup-copy.md). Inputs: the [business contract](../domain/BUSINESS-AND-OPERATIONS.md) (invite-only Accounts, server-held operator keys, BYOK seam, alerts S10), the [runtime platform](RUNTIME-PLATFORM.md) (one VPS running `web`, `worker` and Postgres with R2 as the current, portable deploy choice; three database identities; the signals §7), the [module architecture](MODULE-ARCHITECTURE.md) (`accounts`, ports `Auth` and `Vault`, build rules R1 to R13), the [job lifecycle](../domain/JOB-LIFECYCLE.md), [providers and models](../domain/PROVIDERS-AND-MODELS.md), the [Creator Ratification Record](../product/CREATOR-RATIFICATION-RECORD.md) (Record 1 M4 to M7, which controls), [Record 2](../product/CREATOR-RATIFICATION-RECORD-2.md) (Record 2 P11, P12 and P8-purge, which changed hosting, backups and drills; see the last section) and the #73 research (`research/platform-execution`, `postgres-auth.md` and `storage-cdn.md`; facts dated 2026-10-21; items marked *nv* there stay unverified here).
 
 Vocabulary is in [`GLOSSARY.md`](../../GLOSSARY.md). This document fixes **what the initial product must run with, and nothing more**: one decision per baseline item, and a deferral list. It does not fix schema, the row-level mechanism, key layout or the migration tool (Persistence, #72), nor the verification harness design (#76), nor numeric tuning (spec). Cost figures are estimates from the #73 price sheets and vendor pages read on 2026-10-21; re-check at build time.
 
@@ -146,14 +146,14 @@ Estimated added monthly cost over the hosting of RUNTIME-PLATFORM §0 (the VPS d
 ```diagram
  push ─▶ static ─▶ tests ─▶ isolation gates ─▶ migrations gate ─▶ build one image
         types, lint,   pure + real     two-Account, role      empty→head,        │ digest
-        R1–R13, RT2,   Postgres,       posture, canary,       drift, no outside  ▼
+        build rules R1–R13, RT2,   Postgres,       posture, canary,       drift, no outside  ▼
         secret scan    conformance     auth abuse             DDL        staging deploy ─▶ smoke ─▶ approval ─▶ production
                        on virtual time                                    (owner migrations first)             (same digest)
 ```
 
 | Stage | Contents | Blocks merge |
 |---|---|---|
-| **Static** | Types; lint; the architecture rules R1 to R13 (and R14 to R18, R19 to R24 of PERSISTENCE and VERIFICATION) as import-graph and type checks; RT2 (`pg_advisory_lock(`, bare `SET`, `LISTEN`); the `console` ban; the vendor-name search of R9; secret scan; dependency audit for known vulnerabilities | Yes |
+| **Static** | Types; lint; the architecture rules, build rules R1 to R13 (and R14 to R18, R19 to R24 of PERSISTENCE and VERIFICATION) as import-graph and type checks; RT2 (`pg_advisory_lock(`, bare `SET`, `LISTEN`); the `console` ban; the vendor-name search of build rule R9; secret scan; dependency audit for known vulnerabilities | Yes |
 | **Tests** | Pure modules (compiler goldens, guards); the shared conformance suites over each seam's real and fake adapters (Store, Scheduler, BlobStore, Vault, `ProviderTransport`); lifecycle recovery on virtual time; the operation harness and the golden workflow on replay (VERIFICATION-AND-OBSERVABILITY §§4, 5) | Yes |
 | **Isolation gates** | §11 | Yes |
 | **Migrations gate** | Applying the chain from an empty database reaches the committed schema snapshot; applying it to the previous release's schema reaches the same; no number reuse; no DDL outside the chain (the `owner` DSN exists only in the pipeline, so there is no console route for DDL) | Yes |
@@ -226,7 +226,7 @@ Delivered to the operator by email through the `Mailer` port (any push or chat c
 
 ### 8.1 The floor, required from day one (Record 2 P12)
 
-On the VPS default a single disk failure would otherwise lose every creator's work (Constitution §16.1, R1), so this floor is **non-negotiable**:
+On the VPS default a single disk failure would otherwise lose every creator's work (Constitution §16.1, Record 1 R1), so this floor is **non-negotiable**:
 
 | Data | Protection now | Recovery point |
 |---|---|---|
@@ -274,7 +274,7 @@ The dump job runs as its own process with its own secrets, so `web` and `worker`
 | Full manual drill (*deferred option*) | Starting from nothing but the operator's offline material: restore the database from the second vendor into a **new Postgres host**, restore a project's media from the replica, repoint a staging-shaped app, sign in, open a project, play a Take; recover own-key ciphertext with the offline KEK; replay the purge log; time the whole run | Whether and when it gates is deferred (P12.3); #75 proposed before the first invitation, after vendor or major schema changes, and quarterly |
 | Point-in-time drill (*deferred option*) | Recovers the database from the WAL archive to a moment before a deliberately bad change, into a separate database, and compares | Deferred (P12.3) |
 
-**Gate.** No creator other than the owner is invited until one restore test has passed and its result is recorded with date, duration and the recovery point reached (Record 2 P12.2). Cap defaults and the hidden operator ceiling size remain parked and must be set before the first invitation (Record 2 P12.4; BUSINESS §9). Recovery targets are not set until the backup policy is decided; the restore test's measured time is the first evidence for them.
+**Gate.** No creator other than the owner is invited until one restore test has passed and its result is recorded with date, duration and the recovery point reached (Record 2 P12.2). Cap defaults and the hidden operator ceiling size remain parked and must be set before the first invitation (Record 2 P12.4; BUSINESS §9). **Provisional second gate (CR-79.1, §15):** the legal-role review of synthetic-media disclosure is also named as a pre-invitation task unless the creator chooses otherwise. Recovery targets are not set until the backup policy is decided; the restore test's measured time is the first evidence for them.
 
 **Runbooks** are build deliverables in the repository, one page each, exercised in restore testing: worker down or stalled; deploy rollback by digest; Postgres down or restarted on the VPS; VPS loss (rebuild a host from the image and restore from off-machine backups); storage-account loss; point-in-time recovery from the WAL archive after a bad change; R2 object loss (what is recoverable depends on the deferred media-copy decision); provider key revoked or leaked (rotate, revoke, review spend); platform secret leaked (rotate, revoke sessions); KEK rotation; Account lockout and suspension; restore after a purge.
 
@@ -286,7 +286,7 @@ The dump job runs as its own process with its own secrets, so `web` and `worker`
 
 | Topic | Decision |
 |---|---|
-| **Catalogue** | Offerings, capability profiles, rankings and tiers are **reviewed data in the repository**, changed by diff with evidence and golden fixtures (ADR 0015). A search for vendor names outside Catalogue and adapters must find nothing (R9) |
+| **Catalogue** | Offerings, capability profiles, rankings and tiers are **reviewed data in the repository**, changed by diff with evidence and golden fixtures (ADR 0015). A search for vendor names outside Catalogue and adapters must find nothing (build rule R9) |
 | **Operational overlay** | Status, enablement and route ranking are audited data in the database, changed by operator actions or by drift detection, which can only suspend or alert (F5) |
 | **Per environment** | Keys, enablement and ranking are environment values. Production never loads a fake (F2). Staging enables real Offerings only where a staging key exists |
 | **Price entries** | Looked-up entries refresh automatically; published entries are reviewed data with a date; staleness and drift alert (BUSINESS §4.3) |
@@ -296,7 +296,7 @@ The dump job runs as its own process with its own secrets, so `web` and `worker`
 
 ## 11. Security tests: the isolation gates
 
-The baseline fixes the **gates** that must exist and block merge; the harness, the other checks and the gate matrix are in [`VERIFICATION-AND-OBSERVABILITY.md`](VERIFICATION-AND-OBSERVABILITY.md) (#76, checks VC1 to VC17; these gates are **VC7**, and the numbering G1 to G11 is unchanged). Each maps a V1 failure to an executable test. #76 extends two: **G8** also plants a prompt in a Rendered request and a call-log response and asserts absence from operator views, alerts, metrics and the verification status endpoint (not only logs and errors); **G11** also covers the fake-provider lines of that document's §3.2 (production root refuses a fake, the send gate refuses it, readiness reports none loaded).
+The baseline fixes the **gates** that must exist and block merge; the harness, the other checks and the gate matrix are in [`VERIFICATION-AND-OBSERVABILITY.md`](VERIFICATION-AND-OBSERVABILITY.md) (#76, checks VC1 to VC17; these gates are **VC7**, and the numbering of isolation gates G1 to G11 is unchanged). Each maps a V1 failure to an executable test. #76 extends two: **G8** also plants a prompt in a Rendered request and a call-log response and asserts absence from operator views, alerts, metrics and the verification status endpoint (not only logs and errors); **G11** also covers the fake-provider lines of that document's §3.2 (production root refuses a fake, the send gate refuses it, readiness reports none loaded).
 
 | Gate | Asserts | V1 failure answered |
 |---|---|---|
@@ -325,7 +325,7 @@ Not part of the baseline, and not to be invented without a decision:
 - A web application firewall, DDoS service or custom domain for private media (RUNTIME-PLATFORM §3 fact 7); application rate limits and platform limits are the baseline.
 - Automated failover across regions or vendors; chaos testing beyond the kill-a-worker tests. (Continuous WAL archiving is no longer deferred: it is part of the backup floor, §8.1.)
 - The backup policy beyond the floor (Record 2 P12.3): number of copies, retention, a second independent vendor, restore-drill cadence, no-delete backup credentials, the full manual drill gate.
-- Software bill of materials, signed builds and attestations; third-party penetration testing; compliance programmes. (Synthetic-media marking is a separate fog patch on the map.)
+- Software bill of materials, signed builds and attestations; third-party penetration testing; compliance programmes. (Synthetic-media disclosure is ruled in §15.)
 - The BYOK setup flow itself, permanent project and account purge and its purge log, anonymised spend retention after purge, an Account data export, and the default caps and ceiling values: all named elsewhere and scheduled after the core build.
 - Numeric tuning (session lifetimes, rate limits, thresholds, retention values, drill intervals as defaults): spec.
 
@@ -335,7 +335,7 @@ Not part of the baseline, and not to be invented without a decision:
 |---|---|
 | **Persistence and media storage** (#72) | The `identity`, `operator_read` and `backup` identities and their grants (§5); the auth schema kept apart; the migration gates (§4.2) for whatever tool is chosen; ciphertext rows for own keys bound to Account and provider; the purge log as a durable record that restores replay; backup retention once the deferred policy sets it (§8), and the project-separable key layout purge (and any later replica) relies on; content-free operator views as a named set |
 | **Build sequence** (#77) | Stand up first: one VPS running `web`, `worker`, Postgres and the backup job as containers; R2 for media and backups; the backup floor (daily dump and continuous WAL archiving off the machine, §8.1); the pipeline with its gates; **one successful restore test before any creator other than the owner is invited** (§9). Early tracer pieces: invitation → Account → `Scope`, the typed logger and scrubber, the heartbeat |
-| **Verification** (#76, resolved in [`VERIFICATION-AND-OBSERVABILITY.md`](VERIFICATION-AND-OBSERVABILITY.md)) | Gates G1 to G11 and their generation from the contract and grants; the secret canary (G8, extended); the role-posture check; `Mailer`, `Vault` and `ErrorSink` fakes under the conformance suites; environment guards (G11, extended); a verification status endpoint beside `/healthz/deep`; promotion reads live-evidence records; staging hosts capped smoke and eval Accounts |
+| **Verification** (#76, resolved in [`VERIFICATION-AND-OBSERVABILITY.md`](VERIFICATION-AND-OBSERVABILITY.md)) | Isolation gates G1 to G11 and their generation from the contract and grants; the secret canary (isolation gate G8, extended); the role-posture check; `Mailer`, `Vault` and `ErrorSink` fakes under the conformance suites; environment guards (isolation gate G11, extended); a verification status endpoint beside `/healthz/deep`; promotion reads live-evidence records; staging hosts capped smoke and eval Accounts |
 | **Providers** (#66) | Credential handle only; per-environment keys; webhook secret per environment; the retirement watch feeding alerts |
 | **Business and operations** (#68) | S10 mapped to alerts (§7.2); operator actions (§2.3); invoice reconciliation remains an operator task |
 
@@ -343,8 +343,27 @@ Not part of the baseline, and not to be invented without a decision:
 
 No requirement was found unworkable or contradictory; **no `CONSTITUTION AMENDMENT REQUIRED` is raised.** §15.5 (collaboration out) holds: the only capability that is not a creator's own is the deployment's operator, defined by configuration plus a second factor, with content-free views; there are no roles or permissions. §18.4 holds between creators and on every operator surface; §9 states the limit honestly. Principle 3 ("nothing is lost inside a project") is met at baseline by continuous WAL archiving and a daily dump off the machine, an offline route to the keys, and a restore test before others are invited (Record 2 P12); further copies and drill cadence are a deferred creator decision. Principle 12 is met: no extra state store, no queue, and every check reads the database that is already the truth. M4 to M7 are met by §2, §3 and §8.
 
+## 15. Synthetic-media disclosure (ruling, #79)
+
+Providers may embed marks or metadata in generated media (for example C2PA manifests or watermarks). Rulings:
+
+1. **Aiuteur never strips provider-embedded marks or metadata.** Originals are immutable. The one default transcode, VFR→CFR at export build, is the only re-encode and is recorded; whether it preserves marks is an export fact tested in the VC16 NLE import check (VERIFICATION-AND-OBSERVABILITY §5.3 step 7 and §5.4).
+2. **V2 adds no marking of its own** to Takes, Frames or exports.
+3. **The export manifest records `synthetic` provenance per Take**, read from the Generation record already stored. No new data is captured.
+4. **The legal-role review** (EU AI Act Art. 50 deployer or provider status, C2PA obligations) is a named operator task before the first creator other than the owner is invited. It is raised as Creator Review item CR-79.1 below. VOICE-AND-PERFORMANCE needs no change; the ruling here covers audio and voice output too.
+
+**Creator Review CR-79.1: is the Art. 50 / C2PA legal-role review a pre-invitation gate?**
+
+| Option | Meaning |
+|---|---|
+| **A. Gate before the first non-owner invitation (provisional, recommended)** | The review is listed with the restore test and the parked values as a BAR item (BUILD-SEQUENCE §2.3 item 4). No invitation until it is recorded |
+| B. Operator task with no gate | Done when convenient; invitations are not blocked |
+| C. Defer until launch to the public | Invited creators are treated as a private circle; the review happens before any public launch |
+
+**Recommendation: A.** The provisional default is A until the creator rules; choosing B or C removes the line from BAR item 4 and changes nothing else.
+
 ## Record 2 amendment (P12, P8-purge): backups and restore
 
-**Floor from day one** (a single VPS disk failure would otherwise lose every creator's work, violating Constitution §16.1 and R1): an automated **daily database dump plus continuous WAL archiving to storage off the machine** (R2 is acceptable). **One successful restore test before any creator other than the owner is invited.** **Deferred, not decided:** number of backups and copies, retention, a second independent vendor, restore-drill cadence, the no-delete backup credential design, and the full manual drill gate described above. The body (§0, §§8, 9, 12, 13) now states this floor as current; the second-vendor copy, weekly verification and full-drill gate appear there only as deferred options. Cap defaults and the hidden operator ceiling size remain parked and must be set before the first invitation.
+**Floor from day one** (a single VPS disk failure would otherwise lose every creator's work, violating Constitution §16.1 and Record 1 R1): an automated **daily database dump plus continuous WAL archiving to storage off the machine** (R2 is acceptable). **One successful restore test before any creator other than the owner is invited.** **Deferred, not decided:** number of backups and copies, retention, a second independent vendor, restore-drill cadence, the no-delete backup credential design, and the full manual drill gate described above. The body (§0, §§8, 9, 12, 13) now states this floor as current; the second-vendor copy, weekly verification and full-drill gate appear there only as deferred options. Cap defaults and the hidden operator ceiling size remain parked and must be set before the first invitation.
 
 **Purge promise (when purge ships, M7):** gone from Aiuteur at once; any backup copies expire within a stated retention window, which is told to the creator at purge time.

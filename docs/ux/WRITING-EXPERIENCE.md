@@ -46,6 +46,8 @@ The Treatment opens in the centre from the Outline. Its phase page begins with o
 - Setting it to 1 satisfies Constitution Phase 3 "just give me one". The allowed range is spec-level; the default is a design default, not law (§17.2).
 - Changing the setting affects future generations only. It never rewrites or removes existing options.
 
+**Writing Style home (ruling, #79).** The project's Writing Style is set in Project settings (NAVIGATION §4 Settings), not inside a writing page. Detail is spec-level.
+
 ### 2.3 New alternative treatment
 
 - An obvious **New alternative** action opens the regeneration box (§2.4). The creator may optionally say what to change or what earlier options misunderstood. Empty guidance is allowed.

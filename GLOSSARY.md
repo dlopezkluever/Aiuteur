@@ -11,7 +11,7 @@ The person making the film; the author. Every project has exactly one, and every
 _Avoid_: User, director
 
 **Account (studio)**:
-A creator's isolated space: their projects, media, settings, spend caps and usage records. Every project and every record belongs to exactly one account, and one account can never see or change another's data. Aiuteur serves many independent accounts, but there are no teams, shared projects, shared editing or permission roles. A project can later be purged with its media as a unit (see Purge).
+A creator's isolated space: their projects, media, settings, spend caps and usage records. Every project and every record belongs to exactly one account, and one account can never see or change another's data. Aiuteur serves many independent accounts, but there are no teams, shared projects, shared editing or permission roles. A project can later be purged with its media as a unit (see Purge). Accounts are invite-only.
 _Avoid_: Workspace, team, organisation, tenant (as a product term), user
 
 **Invite-only**:
@@ -31,7 +31,7 @@ The project-wide intent the creator sets at the start and may change: intended r
 _Avoid_: Config, preferences
 
 **Phase**:
-One step of the creative workflow (Input, Interview, Treatment, and so on). A phase is a stage of work, never an object that holds creative content.
+One step of the creative workflow (Input, Interview, Treatment, and so on). A phase is a stage of work, never an object that holds creative content. "Stage entry" is the ratified Record 3 phrase for entering an eligible empty phase.
 _Avoid_: Stage, wizard page
 
 **Phase disposition**:
@@ -79,7 +79,7 @@ The creator's commitment of a document as the basis for what follows. Accepting 
 ## World
 
 **Entity**:
-A reusable creative element with persistent identity that appears on screen: a Character, Location, Prop or Extra type. In the broad sense of Constitution §6.2, Visual Style, Writing Style and Voice are also entity types, but this glossary names them separately.
+A reusable creative element with persistent identity that appears on screen: a Character, Location, Prop or Extra type. In the broad sense of Constitution §6.2, Visual Style, Writing Style and Voice are also entity types, but this glossary names them separately. "Asset" survives only as creator-facing UI wording (Asset roster, asset drawer, Record 5 SP6); never as a model term.
 _Avoid_: Asset, element
 
 **Character**:
@@ -247,7 +247,7 @@ One generated video attempt for a shot: one clip in the edit, built from one or 
 _Avoid_: Video, render, generation (a take is a result, not the request)
 
 **Selected take**:
-The take the creator currently chooses for a shot; review and export use it. A shot has at most one. Choosing is reversible; Mark final is a separate voluntary lock.
+The take the creator currently chooses for a shot; review and export use it. A shot has at most one. Choosing is reversible; Mark final is a separate voluntary lock. Generate's *Use this Take* and Review's pick are the same Decision (Record 5 RB2).
 _Avoid_: Final take
 
 **Approve**:
@@ -415,72 +415,8 @@ Spend requiring a displayed estimate and explicit creator authorization under th
 A Generation estimated below $0.05. Needs no confirmation and may auto-retry when otherwise safe.
 _Avoid_: Free, cheap
 
-**Account**:
-A creator's identity and isolated studio: its projects, media, settings, caps and usage. Accounts are invite-only and never share data; there are no teams or shared editing.
-_Avoid_: User, tenant, workspace
-
-**Operator**:
-The deployment role that runs the service and pays provider bills with server-held keys. Not a collaborator in creators' projects.
-
-**Spend cap**:
-A limit a creator sets on their own Account's spend (daily, monthly, optionally per action). Reaching one needs the creator's explicit confirmation to proceed.
-
-**Operator ceiling**:
-A small hidden per-Account limit on operator-paid spend that exists only until BYOK. Not creator-adjustable.
-
-**BYOK**:
-Bring your own provider key: a creator pays providers with their own key. A priority follow-on to the core build; the seam exists from the start.
-
-**Retire**:
-To take an object out of active use while keeping it, and everything attached to it, recoverable. V2 retires; it does not delete creative work.
-_Avoid_: Delete, remove (for creative objects)
-"Never destroyed" applies inside a project. Whole-project and account removal is a Purge, a separate deliberate operation. Each project's data and media must stay separable so a purge can be added later.
-
-**Protected span**:
-Text the AI must not alter in an operation: everything outside a targeted rewrite's selection, and creator-written or imported dialogue inside a regenerated region. Preserved by construction (the AI refers to it, code restores it), not by instruction. Defined in `docs/ai/AI-RESPONSIBILITY-MAP.md`.
-_Avoid_: Locked text (Lock is protection on committed work)
-
-**Held result**:
-An AI output withheld from the project because it conflicts with an Established Fact, its base text changed during the call, or its target is in a locked scope. It is kept recoverable as an Option on its Generation, nothing is applied, and the creator decides to use it anyway, adjust the Fact, regenerate or discard.
-_Avoid_: Rejected (a rejected output failed a guard and is not offered)
-
-**Fact check**:
-An independent AI check of new content against Established Facts, whose verdict must quote the content it objects to. It is the enforcement point for "no generation contradicts an Established Fact".
-_Avoid_: Validation (alone; validations are deterministic)
-
-**Open question**:
-One item the Interview still needs the creator to resolve, with its evidence and the AI-made choice that would result if skipped. "Sufficiently informed" means no material open question remains; it is advisory, and only the creator moves the project on.
-_Avoid_: Clarification
-
-**Ledger**:
-The side panel of the Interview listing Established Facts and AI-made choices, grouped by topic and editable in place. Defined in `docs/ux/INTAKE-AND-INTERVIEW.md`.
-
-**Workflow operation**:
-A defined, code-bounded action the creator invokes: a button, an enabled auto-trigger, a targeted instruction field or a scope-then-invoke batch (for example Generate Master Narrative, Draft all scene plans, Regenerate flagged shots, Auto-block all, Generate missing location views, Rewrite this selection). The application fixes its steps and scope; the model makes creative choices only inside it, and the operation runs end to end without repeated permission prompts. Spend rules still apply to batches. It is not an agent: the model never chooses steps or scope. V2 has no universal chat agent; the project-aware assistant is LATER.
-_Avoid_: Agent, agentic loop, autopilot (a LATER end-to-end mode)
-
-**Interview topic**:
-A grouping of open questions (for example story, characters and locations, visual and audio style) that the creator can answer personally or delegate to Aiuteur. A guiding label, not a fixed schema; later decisions may supersede the list.
-
-## Navigation
-
-**Outline** **(Wayfinder)**:
-The persistent left sidebar inside a project: the film as a document, listing every phase and every scene in one tree, with each phase's honest status. Opens whatever is selected in the centre workspace.
-_Avoid_: Phase rail, wizard, stage list
-
-**Board** **(Wayfinder)**:
-The whole-film centre view, also called the Script Hub: a scene list drawn per scene, where selecting a scene shows its narrative portion, assets, runtime, progress and key frames, scope is chosen for batch actions, and any scene opens. Never drawn one mark per shot.
-_Avoid_: dashboard
-
-**Ending image**:
-The image that stands for a scene in overviews: its last shot's approved ending frame, else a still from that shot's selected take, else its main location's identity image. Frames are optional, so it is never assumed to be a frame.
-_Avoid_: End frame (for this meaning)
-
-**Prompt ingredients**:
-The inputs a generation's prompt was built from, shown beside the prompt: the entities and their Looks or states, references, continuity source, camera direction and frame role. Used to see why a result came out as it did without rewriting the prompt.
-
 **Scene workspace** **(Wayfinder)**:
-The main centre workspace for one scene, where the creator preps and makes its shots, in three steps shown as a pipeline: Scene Prep, Generate and Review (Record 5). Shot work is never confined to a side drawer.
+The main centre workspace for one scene, where the creator preps and makes its shots, in three steps shown as a pipeline: Scene Prep, Generate and Review (Record 5). Shot work is never confined to a side drawer. The rejected drawer is the Peek-style side editor; Record 5's asset and Generate drawers are panels inside the centre workspace.
 
 **Scene Prep** **(Wayfinder)**:
 The scene workspace step where shots are planned and what is in each is set: the Storyboard on arrival, the Shot editor under a horizontal shot strip, the fold-down Cast & Looks matrix and the asset drawer.
@@ -728,8 +664,108 @@ _Avoid_: File, asset
 
 - **Removed from Story**: Outline group for scenes retired by a narrative change that keep all their work; offers Bring back and Adopt work.
 - **Ad-hoc shot**: a shot with no parent scene and no narrative anchor, kept in the project's Ad-hoc shots section; excluded from runtime and playback, exported separately, movable into a scene.
-- **Identity readiness**: whether an entity is visually defined enough to use (canonical description plus approved reference). Never gates.
-- **Production coverage readiness**: whether the views the current shot plan needs exist. Quiet, never gates.
-- **Base Look**: the default appearance of an entity; it is the canonical identity, not a separate object.
 - **Superseded Fact**: an Established Fact quietly marked superseded when the creator's own edit contradicts it (a Revision, with Undo).
-- **World model**: a Catalogue provider class used by CineBlock to generate a navigable scene from an image; creator-initiated, operator-paid until BYOK.
+
+## Identifier namespaces
+
+Codes collide across documents, so every cross-document cite carries a document or Record prefix ("Record 2 P3", "AI-map G3", "Package P3"). Codes are never renamed.
+
+| Namespace | Codes | Where defined |
+|---|---|---|
+| Record 1 | R#, M# | `CREATOR-RATIFICATION-RECORD.md` |
+| Record 2 | P#, D#, X# | `CREATOR-RATIFICATION-RECORD-2.md` |
+| Records 3 to 5 | CR, W/Y, A5 SP GN RL RB VP | Records 3, 4 and 5 |
+| AI-map guards | G1–G10 | `AI-RESPONSIBILITY-MAP.md` |
+| Isolation gates | G1–G11 | OPERATIONAL-BASELINE §11 (VC7) |
+| Build rules | R1–R26 | MODULE-ARCHITECTURE, PERSISTENCE-AND-MEDIA, VERIFICATION-AND-OBSERVABILITY, SWARM-READINESS (R1–R13, R14–R18, R19–R24, R25–R26) |
+| Package checks | P1–P11 | `GENERATION-PACKAGE.md` |
+| Persistence | P1–P7 | `PERSISTENCE-AND-MEDIA.md` |
+| Provider limitations | L1–L18 | `PROVIDERS-AND-MODELS.md` |
+| Provider facts | F1–F12 | `PROVIDERS-AND-MODELS.md` |
+| Verification live layers | L1–L3 | VERIFICATION-AND-OBSERVABILITY §5.4 |
+| Drift checks | D1–D10 | PERSISTENCE-AND-MEDIA (VC8) |
+| Runtime rules | RT1–RT6 | `RUNTIME-PLATFORM.md` |
+| Verification, build, slices | VC, FC, EI, VS, IW, S, E1/E2 | VERIFICATION, SWARM-READINESS, BUILD-SEQUENCE |
+
+## Added terms (#79)
+
+**Review** (the step):
+The third step of the scene workspace after Scene Prep and Generate: playback and picking of Takes (Record 5 RB). Distinct from **Review & Export**, the project-level section for scene or whole-film playback and the export package.
+
+**Dialogue track**:
+The assembled audio of a shot's chosen Line audio (VOICE-AND-PERFORMANCE); not a separate creative object the creator edits.
+
+**Shot editor**:
+The centre editor for one shot in Scene Prep (action, dialogue and delivery, camera, cut, frame strategy), opened from a Storyboard card (Record 5 SP).
+
+**Shot strip**:
+The persistent horizontal strip of a scene's shots under the Shot editor, used to move between shots.
+
+**Cast & Looks**:
+The fold-down panel in Scene Prep (collapsed by default) showing the shot's Presences and their Looks.
+
+**Scene ribbon**:
+The per-scene ribbon of the Script Hub (Board); it shares one component with the Review timeline (Record 5 SP7).
+
+**Manifest** / **Export manifest**:
+The record of what an export contains, built from the selection: ordered Takes, files, documents, and per-Take `synthetic` provenance read from the Generation (OPERATIONAL-BASELINE §15).
+
+**Dispatch gate** (PROVIDERS F3):
+The check immediately before `submit` that refuses a send that is unauthorised, unfit or fake in production.
+
+**Highlight AI vs mine**:
+The toggle that shows provenance runs in a document; it changes no stored byte.
+
+**Settings**:
+The one app area for account settings (Treatment option count, per-family model choice), spend caps and the usage view, and project settings (including Writing Style). See NAVIGATION §4.
+
+**Draft plan** / **Draft all**:
+Creator-initiated AI drafting of a shot plan for a scene (priced, auto only below the $0.05 rule) / the bulk form across scenes.
+
+**Evidence record**:
+A stored result of a gate, live run or drill (date, build digest, outcome) that promotion or BAR reads (VERIFICATION-AND-OBSERVABILITY).
+
+**Settler**:
+The module-registered function that applies a Job's terminal outcome in the one settling transaction (MODULE-ARCHITECTURE).
+
+**Composition root**:
+The one place per process that wires concrete adapters to ports; production roots refuse fakes.
+
+**Outbox**:
+Events written in the settling transaction and delivered to the stream; delivery hints, not the source of truth.
+
+**Restore test**:
+The required successful restore of off-machine backups into a fresh Postgres, recorded with date, duration and recovery point; a BAR condition (OPERATIONAL-BASELINE §9).
+
+**FakeTransport**:
+The test-only provider transport that the conformance suite holds to the same contract as real adapters; never loaded in production.
+
+**Operation class**:
+The closed vocabulary naming a kind of provider operation (`image.frame`, `video.take`, `audio.voice`, `world.generate`, and so on) (PROVIDERS-AND-MODELS).
+
+**Adoption** / **late result**:
+Taking a provider result that arrives after its Job ended; it attaches as an unselected Attempt (JOB-LIFECYCLE).
+
+**Transformed performance**:
+A Line audio candidate made from a Performance by voice transformation, preserving delivery (VOICE-AND-PERFORMANCE).
+
+**Spoken line**:
+A Dialogue line as spoken in audio, from a Performance, a Voice or native dialogue.
+
+**Voice sample**:
+Uploaded audio used to define or clone a Voice; Supplied media.
+
+**Native dialogue**:
+Dialogue spoken by the video model itself from the request, when no Line audio is chosen.
+
+**Interview turn**:
+One question and answer exchange in the Interview (INTAKE-AND-INTERVIEW).
+
+**Action id**:
+The id that makes a repeated creator command idempotent.
+
+**Unselect**:
+Clearing a shot's selected Take, returning it to "needs a pick".
+
+**Fix this shot**:
+Review's jump to a shot's workspace to repair it, with a way back.

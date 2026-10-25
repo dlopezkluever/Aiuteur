@@ -6,20 +6,20 @@ Authority: Constitution §§4.3, 6.6, 8, 15.2; [`CREATOR-RATIFICATION-RECORD.md`
 
 **No `CONSTITUTION AMENDMENT REQUIRED`.** Previs stays optional, the IMPORTANT classification stays, CineBlock comes after the core loop works, and composition references stay in the CORE shot concept. One honest limit is carried, not an amendment: no vendor documents faithful whole-frame composition adherence (research #6; SHOT-MODEL §8.4), so delivery is best-effort and the frame step is the check.
 
-**What changed from the earlier draft of this ticket.** An earlier agent recommendation (file exchange now, linked app later, embedded not for V2) was rejected by the creator (D61). CineBlock is a **module of Aiuteur**, opened in its own tab under the same account. Everything below follows from that. The three-way boundary comparison survives only as the record in ADR 0024.
+**What changed from the earlier draft of this ticket.** An earlier agent recommendation (file exchange now, linked app later, embedded not for V2) was rejected by the creator (Record 2 D61). CineBlock is a **module of Aiuteur**, opened in its own tab under the same account. Everything below follows from that. The three-way boundary comparison survives only as the record in ADR 0024.
 
 ## 1. Decision
 
-1. **One application, one account.** CineBlock is a module of Aiuteur, not a second app. There is no second sign-in, no launch token and no cross-app seam. For flow and ease of development, the blocking stage opens in a **separate tab or window of Aiuteur under the same session**. Its data (scene state, captures) belongs to the same Account and project, so tenant isolation (M4), retire-never-delete (R1) and project purge (M7) cover it without extra work.
+1. **One application, one account.** CineBlock is a module of Aiuteur, not a second app. There is no second sign-in, no launch token and no cross-app seam. For flow and ease of development, the blocking stage opens in a **separate tab or window of Aiuteur under the same session**. Its data (scene state, captures) belongs to the same Account and project, so tenant isolation (Record 1 M4), retire-never-delete (Record 1 R1) and project purge (Record 1 M7) cover it without extra work.
 2. **A capture is blocking and framing only.** It is a Composition reference, never the frame itself and never sent to video. Every capture goes through **image generation** to produce the quality Frame, with placeholders replaced by the project's real entities (Constitution §8.2).
-3. **The world model is a Catalogue operation class** (`world.generate`, PROVIDERS-AND-MODELS §13). The operator pays until BYOK ships (M5); the price shows on the initiating button; a generation under $2.00 is one click (about $1.20 per world is the current estimate). A world is a stage for blocking, never a frame or a clip.
+3. **The world model is a Catalogue operation class** (`world.generate`, PROVIDERS-AND-MODELS §13). The operator pays until BYOK ships (Record 1 M5); the price shows on the initiating button; a generation under $2.00 is one click (about $1.20 per world is the current estimate). A world is a stage for blocking, never a frame or a clip.
 4. **The package contract is internal.** The versioned package is the handoff between the CineBlock tab and the shots. External previs packages, storyboards and shot lists are an IMPORTANT entry path (§4.3, §15.2) and use the same matching rules (§6).
 
 ## 2. The flow
 
 ```diagram
  Scene workspace (shots and assets determined)
-   │  creator chooses "Block with CineBlock" at frame generation
+   │  creator chooses "Block scene in CineBlock" / "Block this shot" in Generate (Frames mode) (Record 4 W60 §5.8, Record 5 GN3)
    ▼
  New Aiuteur tab: CineBlock stage  ◄── loads ALL the scene's shots (ids, actions, presences, aspect)
    │  world: pick/generate one (world.generate, priced on the button), or none (blank stage)
@@ -33,7 +33,7 @@ Authority: Constitution §§4.3, 6.6, 8, 15.2; [`CREATOR-RATIFICATION-RECORD.md`
    │  ✕ on any capture RETIRES the reference (never deletes)
    │  leftovers → short review list (§5)
    ▼
- Creator initiates frame generation (price on the button; X8: nothing runs on its own)
+ Creator initiates frame generation (price on the button; Record 2 X8: nothing runs on its own)
    │  capture + subject mapping + identity + Direction view  →  image Generation  →  Frame attempts
    ▼
  Creator approves a Frame  →  video as usual
@@ -45,7 +45,7 @@ Rules:
 - **Entry.** From the scene workspace (NAVIGATION §8): previs attaches to shots there, Direction is optional and never a required step, and there is no new top-level section. Opening the tab is an explicit creator action; opening writes nothing.
 - **All shots at once.** The stage receives every active Shot of the scene, so a camera, world and set stay consistent across shots. The creator may work on any subset.
 - **Send back is a creator action** and is atomic: one action group attaches all auto-linked captures, so Undo removes them together.
-- **Return never spends.** Attaching captures does not generate anything (X8). The Frame step is a separate creator-initiated action with its own price.
+- **Return never spends.** Attaching captures does not generate anything (Record 2 X8). The Frame step is a separate creator-initiated action with its own price.
 - **Closing without sending** keeps the saved scene state (§4) but attaches nothing.
 - **Concurrent edits.** If a Shot was split, merged or retired while the tab was open, its captures are leftovers (§5), never guessed onto another shot.
 - **Retire via ✕.** A retired reference is detached from the Shot; its capture Media and scene state stay reachable. Frames made with it are marked `shot-changed` (slice `composition`) as in SHOT-MODEL §8.3; the whisper offers the usual exits.
@@ -66,11 +66,11 @@ Rules:
 | **Storyboard import** | Each matched panel → a **layout** Composition reference on one Shot (opening role or whole shot). | `composition` | Story text, shot structure |
 | **Shot-list import** | Rows matched to Shots record an **external label** and offer camera and duration as **Options**; unmatched rows become **draft Shots** only if the creator chooses. | `camera`, `duration` (as Options), external label | `action`, `dialogue` of a matched shot |
 
-Cross-cutting rules (ratified in D61.5, restated as the contract):
+Cross-cutting rules (ratified in Record 2 D61.5, restated as the contract):
 
 - **Composition owns framing; entities own appearance; locations own environment** (§8.2). Identity inputs to the image Generation come only from the mapped Presences; the Generation records both lists (SHOT-MODEL §8.2, invariant 11).
 - **Delivery is best-effort.** The compiler delivers a capture as a layout image with replace-the-placeholders instructions, or as a conditioning input where a model supports one. The package reports delivery quality quietly and never blocks.
-- **Frames are the check.** The creator approves the generated Frame before video spend. A capture is "the strongest reason to use frames" (SHOT-MODEL §8.4); the skip path remains available, but a capture is never carried by a video request (D61.3): with frames skipped, the Fit report says the capture was not carried and offers to make the frame (GENERATION-PACKAGE §4.3).
+- **Frames are the check.** The creator approves the generated Frame before video spend. A capture is "the strongest reason to use frames" (SHOT-MODEL §8.4); the skip path remains available, but a capture is never carried by a video request (Record 2 D61.3): with frames skipped, the Fit report says the capture was not carried and offers to make the frame (GENERATION-PACKAGE §4.3).
 - **Camera facets and metadata may propose, never silently set.** A camera path or lens may propose camera facets as an AI-made choice.
 - **Captures promote.** Approving a Frame made from a capture records `source: generated` with the capture in its inputs. The unmodified capture is never promoted to a Frame by default; "use capture as the frame" is not offered, because a mannequin render is not a quality frame.
 
@@ -97,7 +97,7 @@ package { format: "aiuteur-previs-package", version: n,
 - Captures are uploaded as Media under the project (committed Media rules apply); only references travel in the package.
 - **Unknown versions fail closed:** a package whose version the app cannot read attaches nothing and says so (it never half-reads).
 - **Scene state** is stored as an Attempt-class record per scene (every save is kept; the latest is what Re-open loads). It is project data: it is copied on a full project duplicate (not by the new-version duplicate of a major import, which carries no scenes or shots, Record 2 D52.2) and purged with the project.
-- The World Labs coordinate convention, splat formats and similar details belong to the CineBlock module, not to this contract. Re-checked 2026-10-23: the current Marble API models are `marble-1.0`, `marble-1.1`, `marble-1.1-plus` (legacy 0.1 names still accepted); a world generation is billed at 1,500 credits ($1.00 per 1,250, about $1.20), and `marble-1.1-plus` may add up to 1,500 credits for larger worlds, so its estimate is a range; Spark is published on npm (2.3.1). The legacy client-side API key does **not** carry over: the key is operator-held server-side (M5) and the call is a Job through the Catalogue.
+- The World Labs coordinate convention, splat formats and similar details belong to the CineBlock module, not to this contract. Re-checked 2026-10-23: the current Marble API models are `marble-1.0`, `marble-1.1`, `marble-1.1-plus` (legacy 0.1 names still accepted); a world generation is billed at 1,500 credits ($1.00 per 1,250, about $1.20), and `marble-1.1-plus` may add up to 1,500 credits for larger worlds, so its estimate is a range; Spark is published on npm (2.3.1). The legacy client-side API key does **not** carry over: the key is operator-held server-side (Record 1 M5) and the call is a Job through the Catalogue.
 
 ## 5. The leftovers review list
 
@@ -125,7 +125,7 @@ These apply to material that arrives from **outside** (an uploaded storyboard, a
 - **Many-to-one: both rows are flagged ambiguous**, never only the second. Two panels or captures pointing at one Shot are shown together, with a proposal (the first as the opening role, the last as the ending role) the creator can accept, change or reject. Neither is auto-picked.
 - **One-to-many** (a panel that fits several shots, for example parts of a split Shot, [`SHOT-MODEL.md`](SHOT-MODEL.md) §5.2): ambiguous, with the related shots listed.
 - **No candidate above threshold:** *none*; nothing is guessed.
-- **AI assist** is one L call inside the creator-triggered import, only for ambiguous rows, receiving handles and returning a proposal with an exact-substring evidence quote that code verifies (G2). It proposes; it never decides, and "Ask AI" is optional.
+- **AI assist** is one L call inside the creator-triggered import, only for ambiguous rows, receiving handles and returning a proposal with an exact-substring evidence quote that code verifies (AI-map G2). It proposes; it never decides, and "Ask AI" is optional.
 
 **What the creator confirms**, in one list, when and only when the mapping contains something they could not already have intended: ambiguous or none rows; a target Shot that already has Frames or Takes (the composition slice changing marks them `shot-changed` with a whisper, which is information, not a gate); a row that would replace an existing reference. Exact and strong matches onto shots with no dependants are not asked. The import records one Decision (the mapping, the evidence, the choices) tied to the Generation, if any.
 
@@ -141,8 +141,8 @@ All three apply as **one action group**; Undo retires the attachments and any sh
 
 ## 7. Lineage and staleness
 
-- Adding, replacing or retiring a Composition reference marks work that read it `shot-changed` (slice `composition`), subtly (M1), with the usual exits. A reference attached to a role is part of that role's Frame inputs.
-- Re-sending captures for a shot whose Frames exist replaces nothing: the new reference is added (or the old one retired) and the whisper appears on the Frames. Nothing regenerates (R2, X8).
+- Adding, replacing or retiring a Composition reference marks work that read it `shot-changed` (slice `composition`), subtly (Record 1 M1), with the usual exits. A reference attached to a role is part of that role's Frame inputs.
+- Re-sending captures for a shot whose Frames exist replaces nothing: the new reference is added (or the old one retired) and the whisper appears on the Frames. Nothing regenerates (Record 1 R2, Record 2 X8).
 - Editing a world or scene state in the CineBlock tab changes nothing on the Shot until Send back.
 - A CineBlock capture is an Attempt-class Media record; it is never edited, and every capture is kept (Constitution §9.2).
 
@@ -173,9 +173,9 @@ All three apply as **one action group**; Undo retires the attachments and any sh
 
 | Ticket | Receives |
 |---|---|
-| **Scene and shot workspace** (#60, resolved by [Record 5](../product/CREATOR-RATIFICATION-RECORD-5.md)) | Entry is **Block scene in CineBlock** / **Block this shot** in Generate's Frames References tab (Record 4 W60 §5.8, Record 5 GN3); returned captures, uploaded references and storyboard panels (matched, then unmatched from the import tray) are browsable as thumbnails with an origin badge in the **reference library** (Record 5 RL). Also: the leftovers list and import tray as quiet surfaces, the ✕ retire on a reference, reference thumbnails on shots with the composition whisper. Ad-hoc shots (X5) can carry composition references like any shot; CineBlock addresses scene shots only. |
+| **Scene and shot workspace** (#60, resolved by [Record 5](../product/CREATOR-RATIFICATION-RECORD-5.md)) | Entry is **Block scene in CineBlock** / **Block this shot** in Generate's Frames References tab (Record 4 W60 §5.8, Record 5 GN3); returned captures, uploaded references and storyboard panels (matched, then unmatched from the import tray) are browsable as thumbnails with an origin badge in the **reference library** (Record 5 RL). Also: the leftovers list and import tray as quiet surfaces, the ✕ retire on a reference, reference thumbnails on shots with the composition whisper. Ad-hoc shots (Record 2 X5) can carry composition references like any shot; CineBlock addresses scene shots only. |
 | **Candidate review** (#62) | A Frame made from a capture shows its reference thumbnail; comparison per role is unchanged. |
-| **Generation package** (#65) | The capture as a layout input with replace-the-placeholders instructions; mapped Presences as the only identity sources; delivery-quality report; no Established Fact is injected (X3). |
+| **Generation package** (#65) | The capture as a layout input with replace-the-placeholders instructions; mapped Presences as the only identity sources; delivery-quality report; no Established Fact is injected (Record 2 X3). |
 | **Providers and models** (#66) | The `world.generate` class (already in the Catalogue); world-size range pricing for `marble-1.1-plus`; operator-paid until BYOK. |
 | **Business and spend** (#68) | A world generation is a Generation with its own spend record and caps; one click under $2.00; the estimate is a range where the provider may add cost. |
 | **Module architecture** (#71) | The previs module of [`MODULE-ARCHITECTURE.md`](../architecture/MODULE-ARCHITECTURE.md) §3.6 and its dependency rules. |
