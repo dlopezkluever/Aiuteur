@@ -695,6 +695,26 @@ The point in the golden workflow before which steps are replayed from golden-pro
 **Early interface (EI)** **(Wayfinder)**:
 An interface built in the tracer or a CORE slice so that an IMPORTANT capability lands later without redesign. Listed in `docs/architecture/BUILD-SEQUENCE.md` §5.
 
+## Swarm readiness (Wayfinder #78)
+
+Defined in `docs/architecture/SWARM-READINESS.md`.
+
+**Frozen contract** **(Wayfinder)**:
+A module's published surface (FC1 to FC11 at T0 exit, others at the exit of the slice that completes them) that changes only through a contract amendment. Before its freeze it is Draft.
+_Avoid_: Locked contract (a Lock is creative domain state)
+
+**Contract amendment** **(Wayfinder)**:
+The recorded, owner-approved, version-bumping change to a frozen contract that migrates every caller in one change and is re-verified by every consuming lane.
+_Avoid_: Contract update, hotfix
+
+**Lane** **(Wayfinder)**:
+A set of modules and paths one agent group owns (story, world, generation, delivery, platform); never a layer.
+_Avoid_: Team, layer
+
+**Change record** **(Wayfinder)**:
+The content-free note kept with every change: lane, contracts touched, evidence, decisions, and what was raised.
+_Avoid_: Report, commit message
+
 ## Reference
 
 **Design reference**:
