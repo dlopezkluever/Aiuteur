@@ -1,5 +1,7 @@
 # #60 Scene production, final synthesis (canonical UX reference)
 
+> **This prototype remains a UX/reference artifact but predates later ratified decisions. Do not implement it literally. See the Prototype Reconciliation delta register: [docs/product/PROTOTYPE-RECONCILIATION.md](../../../docs/product/PROTOTYPE-RECONCILIATION.md).** It is a reference for interaction structure and placement only. Prices, models, ids, flags, split/merge/retire behaviour, voice authorisation and staleness are mock. Its "two prototype-level choices" note at the bottom is superseded by RD-12 and RD-13.
+
 **This is the canonical interaction reference for the resolved Wayfinder #60 direction.** It visualises the model ratified in [Creator Ratification Record 5](../../../docs/product/CREATOR-RATIFICATION-RECORD-5.md) (SP, GN, RL, RB, VP) as amended by [Record 6](../../../docs/product/CREATOR-RATIFICATION-RECORD-6.md) (V6 voice paths, L6 Direction coverage). `/to-spec` and implementation agents should inspect this prototype for the chosen #60 interaction model.
 
 **Authority order is unchanged:** Constitution, Records, ADRs, domain and UX docs all outrank this prototype. Where they differ, the docs win and this prototype is wrong. Visuals (mock inline SVG) are not approved. Nothing here is code to reuse.

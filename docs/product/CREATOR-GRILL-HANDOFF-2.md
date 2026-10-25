@@ -1,5 +1,7 @@
 # Creator Grill Handoff 2 (delta only)
 
+> **SUPERSEDED. Historical handoff only.** Its decisions were ratified by Records 2 to 6, and several of its "Recommended" lines were rejected. Its prototype pointers target branches now ARCHIVED. Do not use it for prototype or design guidance. See [PROTOTYPE-RECONCILIATION.md](PROTOTYPE-RECONCILIATION.md).
+
 Purpose: a fresh session ratifies decisions made since the first Ratification Record and decides six open creator tickets. Not a project brief. Do not resume orchestration; do not run `/to-spec`, `/to-tickets` or implementation.
 
 ## Sources

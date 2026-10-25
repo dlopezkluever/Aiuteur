@@ -2,6 +2,8 @@
 
 Resolution of Wayfinder ticket #59. Authority: the Product Constitution (§4.2 Phase 6, §6, §13.4, with the §6.4 and §15.1 amendment of [Creator Ratification Record 2](../product/CREATOR-RATIFICATION-RECORD-2.md) §8), then Record 2 **D59, X2, X8, X9, X10** and [Record 1](../product/CREATOR-RATIFICATION-RECORD.md), which control wherever this document or the prototype differs. The domain model is [`ENTITIES-AND-LOOKS.md`](../domain/ENTITIES-AND-LOOKS.md) and [ADR 0003](../adr/0003-location-coverage-is-directions-by-looks-resolved-by-one-rule.md); spend rules are [`BUSINESS-AND-OPERATIONS.md`](../domain/BUSINESS-AND-OPERATIONS.md); the shell is [`NAVIGATION.md`](NAVIGATION.md). Vocabulary is in [`GLOSSARY.md`](../../GLOSSARY.md). This document names surfaces and behaviour, never components, routes or pixel layout. No `CONSTITUTION AMENDMENT REQUIRED` is raised; the approved §6.4 amendment is applied by the parent.
 
+> Prototype status: `v2-58-writing` / `v2-59-world` predate later decisions in places (v2-59 predates Record 6 and its Coverage model must follow ADR 0003 as amended). Read [PROTOTYPE-RECONCILIATION.md](../product/PROTOTYPE-RECONCILIATION.md) before using them.
+
 ## 1. Decision
 
 **Record 4 W59.** The fresh prototype `prototype/v2-59-world` is ratified as the starting point (some visual decisions will change): home tiles grouped by entity type, per-entity Identity / Looks / Coverage tabs, one needs line per entity naming the shots that need it, the coverage wall as an optional second view, and Complete coverage one disclosure away. [Record 4](../product/CREATOR-RATIFICATION-RECORD-4.md) controls where it refines this document.
