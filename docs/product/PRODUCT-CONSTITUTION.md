@@ -391,7 +391,7 @@ Locations are different from characters and props: a character reference shows t
 - **Per-location simplification.** The creator can choose, **per location**, to use only one establishing/background image instead (e.g. for a location used briefly).
 - **AI-generated coverage.** From a single background image, **AI can generate the other walls/angles** automatically.
 - **Frame reuse is an ordinary continuity path.** Reusing and editing approved frames from earlier shots to hold a background steady is a normal, everyday tool, not an advanced feature.
-- **Shots know their location.** Every shot is associated with its location (and, where coverage exists, the appropriate direction) without the creator having to manage that manually.
+- **Shots know their location.** Every shot is associated with its location and, where coverage exists, the direction or directions needed to cover the space the shot reveals, without the creator having to manage that manually.
 - **Design requirement:** shot-driven multi-direction coverage must be **designed well**. In V1 the creator found the setup burden too heavy; in V2 it is the default *outcome*, produced largely by AI from the views the planned shots need and cheap to accept in bulk, never a laborious mandatory setup ritual.
 
 ### 6.5 Visual style
@@ -723,6 +723,7 @@ Classification at capability-family level. **IMPORTANT items must be supported b
 | Audio-first projects (audio drives the visuals) |
 | Audio stems, music/score generation, mixing |
 | Features and episodic series as optimized formats |
+| Location spatial layout: Directions may later participate in a Location spatial model, which may include named areas, relative relationships, orientation and optional layout references (V2 must not assume Directions are unrelated images) |
 
 ### 15.4 EXPERIMENTAL
 
@@ -944,7 +945,7 @@ The decisions made in the grilling session that this Constitution encodes. Recor
 | **Canonical identity** | An entity's single creator-approved description plus reference image(s). |
 | **Look** | A named, story-driven appearance of an entity (e.g. "Marcus, muddy suit"), anchored to its canonical identity and carried forward until the story changes it. |
 | **Extra type** | A recognizable kind of background figure generated with natural variation; no individual identity. |
-| **Location coverage** | A location's set of directional views (walls/angles); multi-direction by default, single image by choice. |
+| **Location coverage** | The set of visual references needed to preserve a Location's spatial and visual identity. Coverage follows the shots and their camera paths: one canonical reference first, then named production views generated as needed to cover the directions and areas the cinematography reveals, with additional views addable at any time; or, per Location, a single establishing/background image by choice (§6.4). |
 | **Visual Style** | The project-wide look; required, easy to set. Identity outranks style. |
 | **Writing Style** | Optional guidance for the voice of written documents and dialogue. |
 | **Reference Media** | Creator-supplied images/video used for inspiration, parody or shot recreation; subjects are replaced by project entities. |
@@ -982,3 +983,4 @@ The decisions made in the grilling session that this Constitution encodes. Recor
 | 2026-10-21 | §15.2 (NLE timeline export row) | Same CapCut correction: "Resolve / Premiere sequence; CapCut: ordered clips". | As above. |
 | 2026-10-21 | §16.2 principle 3 | "Nothing is lost inside a project"; the only exception is a deliberate, creator-initiated purge of a whole project or account (a later requirement). | Ratified permanent project/account deletion (M7) contradicted the absolute wording; creator-approved. |
 | 2026-10-22 | §6.4 (two bullets), §15.1 (World definition row) | Location coverage follows the shots: one canonical reference first, shot-driven multi-direction coverage later, extra views any time. | Predicting coverage before any shot exists is a setup ritual; identity first and shot-driven coverage later is cheaper and faster (D59, Record 2). |
+| 2026-10-25 | §6.4 ("Shots know their location" bullet), §15.3 (new LATER row), Appendix B (Location coverage) | A shot resolves one or more Directions, as many as the space it reveals requires (not a camera-movement label rule); Appendix B aligned with §6.4 and keeps the per-location single-image choice; Location spatial layout added as LATER. | Appendix B was stale after the 2026-10-22 amendment, and moving or wide shots need references for everything the camera reveals (Final audit #79 C-A; Record 6 §3). |

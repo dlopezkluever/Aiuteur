@@ -34,7 +34,7 @@ Authority: Constitution §§4.3, 6.6, 8, 15.2; [`CREATOR-RATIFICATION-RECORD.md`
    │  leftovers → short review list (§5)
    ▼
  Creator initiates frame generation (price on the button; Record 2 X8: nothing runs on its own)
-   │  capture + subject mapping + identity + Direction view  →  image Generation  →  Frame attempts
+   │  capture + subject mapping + identity + Direction views  →  image Generation  →  Frame attempts
    ▼
  Creator approves a Frame  →  video as usual
    "Re-open in CineBlock" at any time restores the saved scene state
@@ -78,7 +78,7 @@ Cross-cutting rules (ratified in Record 2 D61.5, restated as the contract):
 
 The CineBlock tab and the shots exchange a **previs package**, versioned and internal. It is a contract, not a file the creator handles.
 
-**Outbound (Aiuteur → CineBlock tab), the shot brief** for a scene: for each active Shot its id (the **echoed key**), derived label, action text (display only), derived Presence (entity ids, names, Look), Direction name and View media if any, aspect ratio and the saved scene state, if any.
+**Outbound (Aiuteur → CineBlock tab), the shot brief** for a scene: for each active Shot its id (the **echoed key**), derived label, action text (display only), derived Presence (entity ids, names, Look), the names and View media, if any, of its ordered Directions, aspect ratio and the saved scene state, if any.
 
 **Inbound (CineBlock tab → Aiuteur):**
 

@@ -121,19 +121,19 @@ A derived link between an entity and a passage of the Master Narrative (on-scree
 _Avoid_: Tag, appearance record
 
 **Location coverage**:
-A Location's set of named directional Views. It starts from one canonical reference image; Directions come from the shots (picked or proposed at shot planning) or are added by the creator at any time; a single image by choice (Constitution §6.4 as amended, Record 2 D59).
+The set of visual references needed to preserve a Location's spatial and visual identity: named directional Views. It starts from one canonical reference image; Directions come from the shots and the space their camera reveals (picked or proposed at shot planning, one or more per shot) or are added by the creator at any time; or, per Location, a single establishing image by choice (Constitution §6.4 and Appendix B as amended 2026-10-25, Record 2 D59, Record 6 §3).
 
 **Identity readiness**:
 Whether an entity is visually defined enough to use: an approved canonical description and identity image, or a deliberate lightweight text-only definition. Derived, quiet, never blocks. Distinct from Production coverage readiness.
 
 **Production coverage readiness**:
-Whether a Location has the additional Views the current shot plan needs (for example "3 production views needed"). Derived from the shots' resolved Directions against existing Views; reappears quietly when the plan changes. Never blocks and never triggers generation by itself.
+Whether a Location has the additional Views the current shot plan needs (for example "3 production views needed"). Derived from every resolved Direction of each shot (by Look) against existing Views; reappears quietly when the plan changes. Never blocks and never triggers generation by itself.
 
 **Base Look**:
 An entity's default appearance. It equals the canonical identity, not a separate object; "no Look assignment in effect" means base. Alternate Looks are added only when needed.
 
 **Direction**:
-A named place to look from within a Location's coverage (for example "toward the window"), with a View Slot for each Look of the Location. A shot refers to a Direction, never to one particular View.
+A named place to look from within a Location's coverage (for example "toward the window"), with a View Slot for each Look of the Location. A shot refers to one or more ordered Directions, as many as the space it reveals needs (Record 6 §3), never to one particular View. Directions may later belong to a Location spatial model (LATER, Constitution §15.3), so V2 never treats them as unrelated images.
 _Avoid_: Angle, camera direction
 
 **View**:
@@ -161,7 +161,7 @@ Optional guidance for the voice of the written documents and dialogue.
 _Avoid_: Style capsule (for writing)
 
 **Voice**:
-A Character's persistent voice identity: a plain-words description plus the creator's Supplied voice samples, defined in World Definition and applied across the film. It is not a provider object; a provider voice handle is created lazily per project (`docs/domain/VOICE-AND-PERFORMANCE.md` §1.1, §6.4).
+A Character's persistent, reusable voice identity: a plain-words description plus the creator's Supplied voice samples, a stock voice, or a designed voice (a chosen voice-design preview saved as its fixed identity), defined in World Definition and applied across the film. Generating speech needs a cloned, stock or designed Voice (Record 6 §1). It is not a provider object; a provider voice handle is created lazily per project (`docs/domain/VOICE-AND-PERFORMANCE.md` §1.1, §6.4).
 
 **Line audio**:
 The one chosen audio for a Dialogue line: a Performance, a Transformed performance or a Spoken line. With none chosen the line is native dialogue. Never trimmed or stretched to fit the shot.
@@ -546,7 +546,7 @@ A merge-blocking test that proves one Account cannot read, change or learn of an
 _Avoid_: Security review
 
 **Independent copy** **(Wayfinder)**:
-A backup of database and media held at a second vendor under credentials that cannot delete. A deferred option (Record 2 P12.3), not a current requirement; the current floor is a daily dump plus continuous WAL archiving off the machine (OPERATIONAL-BASELINE §8.1).
+A backup held at a second vendor under credentials that cannot delete. For media it is required before the first non-owner invitation (Backblaze B2, copy-only-new, Record 6 §4); for the database it is a deferred option (Record 2 P12.3) beside the floor of a daily dump plus continuous WAL archiving off the machine (OPERATIONAL-BASELINE §8.1).
 _Avoid_: Mirror, replica (as a product term)
 
 ## Persistence (Wayfinder #72)
@@ -735,7 +735,7 @@ The one place per process that wires concrete adapters to ports; production root
 Events written in the settling transaction and delivered to the stream; delivery hints, not the source of truth.
 
 **Restore test**:
-The required successful restore of off-machine backups into a fresh Postgres, recorded with date, duration and recovery point; a BAR condition (OPERATIONAL-BASELINE §9).
+The required successful restore of off-machine backups into a fresh Postgres, plus a media sample from the independent copy, recorded with date, duration and recovery point; a BAR condition (OPERATIONAL-BASELINE §9).
 
 **FakeTransport**:
 The test-only provider transport that the conformance suite holds to the same contract as real adapters; never loaded in production.
@@ -750,13 +750,22 @@ Taking a provider result that arrives after its Job ended; it attaches as an uns
 A Line audio candidate made from a Performance by voice transformation, preserving delivery (VOICE-AND-PERFORMANCE).
 
 **Spoken line**:
-A Dialogue line as spoken in audio, from a Performance, a Voice or native dialogue.
+A Line audio candidate generated from a line's text and delivery in the Character's Voice, with no Performance ("Generate as Character Voice", `audio.speech`; Record 6 §1).
 
 **Voice sample**:
 Uploaded audio used to define or clone a Voice; Supplied media.
 
 **Native dialogue**:
 Dialogue spoken by the video model itself from the request, when no Line audio is chosen.
+
+**Revoiced Take**:
+A new Take derived from a native Take whose speech was transformed into the Character's Voice; the picture is reused and the source Take is untouched. Not selected automatically and not a Line audio candidate; offered only with one speaking Character or declared speaker isolation; never offers write-back. Optional and best-effort (Record 6 §1).
+
+**Generate unvoiced lines**:
+A batch action in a shot's Dialogue section, or for a whole scene, that makes a Spoken line for every line with no chosen Line audio. The control shows the line count and total price first; the usual spend checks apply; results become the chosen Line audio (Record 6 V6.4).
+
+**Designed voice**:
+A Voice whose fixed identity is a voice-design preview the creator picked; basis `synthetic`, no attestation (Record 6 V6.1).
 
 **Interview turn**:
 One question and answer exchange in the Interview (INTAKE-AND-INTERVIEW).

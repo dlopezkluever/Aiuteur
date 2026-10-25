@@ -27,18 +27,20 @@ Limits: the auditors read primary docs in full but covered the rest by search. T
 
 Post-terminal reconciliation, local-work Jobs, operator-scoped cross-Account state, the lip-sync Segment-slot model, reference-library build scope, ad-hoc and Removed-from-Story placement, Writing Style and Settings homes, Package inspector placement, export folder layout, NLE check timing, and the synthetic-media rule (never strip provider marks; add none; record `synthetic` provenance per Take). Each is written in its owning doc.
 
-## Creator sign-off list (none blocks /to-spec; each has a provisional default)
+## Creator sign-off list: resolved by Record 6
 
-- **CR-69.1** (voice doc §11): may a line with no performance be spoken in the character's voice? Default A: yes, as an explicit priced "Speak line as <character>'s voice" action.
-- **CR-79.1** (OPERATIONAL-BASELINE §15): is the EU AI Act Art. 50 / C2PA legal-role review a gate before the first non-owner invitation? Default A: yes. Not legal advice.
-- **C-A, Constitution Appendix B** reads "Location coverage… multi-direction by default, single image by choice", stale against amended §6.4 ("coverage follows the shots"). Only the creator can amend the Constitution. Proposed text: "Location coverage… follows the shots; production views are named and generated from the actual shots (§6.4)". The authoritative text is §6.4, so /to-spec is not misled.
-- **C-B, media backup**: Record 2 P12.1's floor covers the database; media has no second copy until the P12.3 backup policy is decided. Confirm this is acceptable meanwhile, or bring media into the floor.
-- **C-C, sign-off record**: Record 3 makes ordinary Treatment auto-drafting (about $0.18) non-material spend with no estimate beforehand, versus Constitution §13.4(2). The creator ratified it as consistent; record it here.
+All five items were settled on 2026-10-25 in [Creator Ratification Record 6](CREATOR-RATIFICATION-RECORD-6.md). No provisional default remains.
+
+- **CR-69.1**: A, extended. Generate as Character Voice (exact line in a cloned, stock or designed Voice), Performance → Character Voice, and an optional best-effort Native → Character Voice revoiced Take; a priced Generate unvoiced lines batch (Record 6 §1).
+- **CR-79.1**: not a BAR or invitation gate. The Art. 50 / C2PA legal-role review happens before expanding to jurisdictions such as the EU, and is written up only as reference in `docs/post-release/LEGAL-AND-COMPLIANCE.md`, with no hook or checker (Record 6 §2).
+- **C-A**: Constitution amended (§6.4, §15.3, Appendix B). A shot resolves one or more Directions for the space it reveals; Fit keeps path coverage; Location spatial layout is LATER (Record 6 §3).
+- **C-B**: media joins the floor before the first non-owner invitation: an independent B2 copy, a primary R2 Bucket Lock and a media sample in the restore test (Record 6 §4).
+- **C-C**: Record 3 confirmed. Stage entry initiates only the two ratified, bounded initial-drafting operations; media always needs a separate action (Record 6 §5).
 
 ## Intentional deferrals (verified as stated)
 
-Creator cap defaults and the hidden operator ceiling (set before the first invitation); backup policy beyond the floor; commercial billing and credits (creator-ruled); BYOK setup flow (seam built now); purge and Account data export (post-BAR, unscheduled); synthetic-media legal-role analysis (CR-79.1); spec-level numeric values (timing constants, tolerances, retention windows, performance numbers); cross-project voice library (LATER); evidence limits in the voice doc (ElevenLabs consent API, non-humanoid lip-sync vendor claims, US state law); unverified facts (R2 prefix-scoped presigned URLs, VPS price, the NLE hands-on check).
+Creator cap defaults and the hidden operator ceiling (set before the first invitation); backup policy beyond the floor (retention values, copy frequency, a database second vendor, drill cadence; Record 6 §4); commercial billing and credits (creator-ruled); BYOK setup flow (seam built now); purge and Account data export (post-BAR, unscheduled); synthetic-media legal-role analysis (before expansion to jurisdictions such as the EU; Record 6 §2); spec-level numeric values (timing constants, tolerances, retention windows, performance numbers); cross-project voice library (LATER); evidence limits in the voice doc (ElevenLabs consent API, non-humanoid lip-sync vendor claims, US state law); unverified facts (R2 prefix-scoped presigned URLs, VPS price, the NLE hands-on check).
 
 ## Hand-off note for /to-spec
 
-Read in this order: Constitution; Records 1 to 5 (later controls); this report; `GLOSSARY.md` (including the identifier-namespace table); `docs/domain/`, `docs/ux/`, `docs/ai/`, `docs/architecture/` with `BUILD-SEQUENCE.md` (tracer T0, slices VS1 to VS9, BAR, IW1 to IW3) and `SWARM-READINESS.md` (frozen contracts FC1 to FC11 and lanes) as the delivery spine; ADRs 0001 to 0026. Spec-level values are listed per doc under their "not decided here" sections. Treat the provisional defaults above as in force until the creator signs off.
+Read in this order: Constitution; Records 1 to 6 (later controls); this report; `GLOSSARY.md` (including the identifier-namespace table); `docs/domain/`, `docs/ux/`, `docs/ai/`, `docs/architecture/` with `BUILD-SEQUENCE.md` (tracer T0, slices VS1 to VS9, BAR, IW1 to IW3) and `SWARM-READINESS.md` (frozen contracts FC1 to FC11 and lanes) as the delivery spine; ADRs 0001 to 0026. Spec-level values are listed per doc under their "not decided here" sections. Every creator sign-off item is resolved (Record 6); there are no provisional defaults.

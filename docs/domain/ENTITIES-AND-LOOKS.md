@@ -14,7 +14,7 @@ PROJECT
  │     ├── Voice 0..1 (Character; #69)
  │     └── Location only
  │           ├── Coverage (mode: multi-direction | single-image)
- │           │     └── Direction 0..*   (a named place to look from; has opposite?)
+ │           │     └── Direction 0..*   (a named place to look from; has opposite?; relatable to a LATER spatial model)
  │           │           └── View Slot per (Direction × Look-or-base) ◄── View Attempts (1 active)
  │           └── parent ~> Location 0..1  (sub-location; a project relation)
  │
@@ -24,7 +24,8 @@ PROJECT
  └── Reference Media 0..*   (Supplied)  ── attached to shots with a Subject mapping (#55)
 
 SCENE / SHOT
- └── Presence ~> (entity, Look-or-base)   derived from Mentions + Look assignments; explicit overrides only
+ ├── Presence ~> (entity, Look-or-base)   derived from Mentions + Look assignments; explicit overrides only
+ └── location ~> Location + Direction 0..* (ordered; as many as the shot reveals)   ~> Direction Slots, never View Attempts
 ```
 
 Three ownership lines carry the whole design:
@@ -143,14 +144,14 @@ Resolves:  base base base Muddy Age12 Age12 Muddy Clean Clean
 
 ## 5. Location coverage
 
-**Decision (ADR 0003).** Coverage belongs to the Location. A Location has **Directions** (places to look from) and a **View** Slot for each Direction under each Look; resolving a shot's view is one rule.
+**Decision (ADR 0003).** Coverage belongs to the Location. A Location has **Directions** (places to look from) and a **View** Slot for each Direction under each Look; resolving a shot's views is one rule. A shot resolves **one or more ordered Directions**, as many as the space it reveals needs (Record 6 L6.3).
 
 ### 5.1 Structure
 
 | Concept | Rule |
 |---|---|
-| **Coverage** | Part of the Location, Editable. A **mode**: *multi-direction* (the default outcome) or *single-image* (creator's per-location choice). In single-image mode there is one Direction, "establishing". |
-| **Direction** | A named Slot-group within coverage: a label ("toward the window", "north wall"), a short description of what is seen, and optionally an **opposite** Direction (for shot / reverse-shot). Own id; label is a label. **Directions are proposed at shot planning, not up front** (Ratification Record 2, D59.11): for each shot, planning picks an existing named Direction or proposes a new named one ("toward the window" and its reverse). A new Direction's empty View becomes a production coverage need (§7). Adding the Direction is part of the shot's shot-owned Direction choice and raises no write-back (Record 2 P2). The creator may also add Directions by hand at any time, including before any shots exist. |
+| **Coverage** | Part of the Location, Editable. A **mode**: *multi-direction* (the default outcome) or *single-image* (creator's per-location choice). In single-image mode there is one Direction, "establishing"; a shot that reveals more than that image covers gets a quiet reference-quality note, never a block (Record 6 L6.5). |
+| **Direction** | A named Slot-group within coverage: a label ("toward the window", "north wall"), a short description of what is seen, and optionally an **opposite** Direction (for shot / reverse-shot). Own id; label is a label. **Directions are proposed at shot planning, not up front** (Ratification Record 2, D59.11; Record 6 L6.3): for each shot, planning picks existing named Directions or proposes new named ones ("toward the window" and its reverse), one or more in order, as many as cover the space the shot reveals. The criterion is the revealed space, never a camera-movement label: a static wide shot may need several, a small pan may need one. A new Direction's empty View becomes a production coverage need (§7). Adding the Direction is part of the shot's shot-owned Direction choice and raises no write-back (Record 2 P2). A Direction is not assumed to be an unrelated image: nothing prevents relating Directions to a later Location spatial model (LATER, Constitution §15.3; Record 6 L6.6), and no spatial structure is built now. The creator may also add Directions by hand at any time, including before any shots exist. |
 | **View** | An Attempt (immutable image) for the Slot (Direction × Look-or-base). Sources: AI-generated from the location's identity, uploaded, or **promoted from an approved Frame** (lineage recorded; frame reuse is ordinary). One active per Slot. |
 | **Look × Direction** | Coverage is a sparse matrix. A Location Look ("burned down") needs its own Views only when a shot needs that Direction in that Look; that Slot becomes a coverage need, generated when the creator asks, using the base Views as geometry references. Nothing is pre-generated for Looks no shot uses. |
 | **Sub-location** | A sub-location is itself a Location (own identity, description, coverage). Its `parent` link is a project relation. Its generation uses the parent's identity image as a "same building or place" reference. A shot in the sub-location never borrows the parent's Views: a kitchen is not the house's front. |
@@ -169,10 +170,10 @@ Two separate resolutions, each a single rule (V1 had two disagreeing classifiers
 
 **Location.** A shot's Location is the Location **setting Mention** at the shot's narrative anchor (the scene heading's place, updated by any in-scene setting change). The creator may set an explicit location on the shot; explicit beats derived. An ad-hoc shot has no anchor, so its location is explicit or unresolved. The state is one of **explicit**, **derived**, or **unresolved** (with the candidate Locations listed). There is no stored confidence and no threshold: mentions are an index matched at derivation time, and the only stored fact is the creator's explicit choice or Mention decision.
 
-**View.** Resolve a **Direction**, then the **active View** for (Direction, the Location's resolved Look at that position):
+**Views.** Resolve the shot's **ordered Directions**, then, for each Direction, the **active View** for (Direction, the Location's resolved Look at that position):
 
-1. **Direction:** the shot's explicit Direction if the creator set one; otherwise the Direction the AI chose at shot planning, which is persisted as an **AI-made choice** (visible, overridable, and not silently re-derived when other things change); otherwise the coverage's primary Direction if it has one (in single-image mode, its one Direction). With no Direction, the ladder starts at the identity image. The shot refers to the **Direction Slot**, never to a View Attempt, so choosing a new active View never invalidates the link. The Direction is shot-owned: changing it never raises the write-back/deviation choice (Record 2 P2).
-2. **View ladder** (first that exists): active View of (Direction, Look) → active View of (Direction, base) with the Look's delta in text → the establishing active View, if coverage has one → the Location's identity image → text only (description plus Direction description). The rung reached is reported quietly as reference quality ("no image for this direction yet"); it never blocks.
+1. **Directions** (one or more, ordered along the revealed camera path): the shot's explicit Directions if the creator set them; otherwise the Directions the AI proposed from the shot's cinematography at shot planning, persisted as an **AI-made choice** (visible, editable, and not silently re-derived when other things change; the default, with no advanced setting); otherwise the coverage's primary Direction if it has one (in single-image mode, its one Direction). With no Direction, the ladder starts at the identity image. The shot refers to its **Direction Slots**, never to View Attempts, so choosing a new active View never invalidates the link. The Directions are shot-owned: changing, adding, removing or reordering them never raises the write-back/deviation choice (Record 2 P2). Nothing generates until the creator starts the priced coverage action.
+2. **View ladder**, per Direction (first that exists): active View of (Direction, Look) → active View of (Direction, base) with the Look's delta in text → the establishing active View, if coverage has one → the Location's identity image → text only (description plus Direction description). The rung reached is reported quietly as reference quality ("no image for this direction yet"); it never blocks. When an Offering accepts fewer location references than the shot resolved, Fit chooses the subset that best covers the revealed camera path, never an arbitrary one, and warns when the path cannot be fully covered ([`GENERATION-PACKAGE.md`](GENERATION-PACKAGE.md); Record 6 L6.4).
 
 Frame reuse is an additional, explicit input a shot may carry (#55); it is not part of this resolution.
 
@@ -184,7 +185,7 @@ Frame reuse is an additional, explicit input a shot may carry (#55); it is not p
 |---|---|---|
 | Scene Presence | entity (+ Look) | Derived: entities with on-screen or setting Mentions inside the scene's span. The Look is derived by §4.2. |
 | Shot Presence | entity (+ Look) | Derived from the scene's Presences and the shot's narrative anchor; explicit adds, removals and Look overrides recorded on the shot (#55 owns the shot model). |
-| Shot location | Location (+ Direction) | §5.3. |
+| Shot location | Location (+ one or more ordered Directions) | §5.3. |
 | Generation | the **exact Revisions** of the entity, Look, Visual Style and the active View/identity Attempts it used (ADR 0001) | Basis for "possibly out of date" (#54). |
 
 **Composition at use time** (the compiled-context specifics are #65's): for each Presence, effective description = base + Look delta; images = Look image (else base identity image, with the Look delta in text); Visual Style applied after identity, never overriding it. Identity references outrank style (§6.1).
@@ -200,7 +201,7 @@ An entity is **needed for a scene** when it has a Presence in that scene that is
 **Two readiness levels** are derived, quiet and never blocking (Record 2 D59.4, Record 2 X9):
 
 - **Identity readiness:** is the entity visually defined enough to use? (Canonical description plus an approved identity image, or a lightweight text-only definition.)
-- **Production coverage readiness:** do the Locations have the additional Views the *current shot plan* needs? Shown as, for example, "Hale Kitchen: Identity ✓ · 3 production views needed". When the shot plan changes and reveals new needs, a quiet attention marker reappears ("1 new view needed"). It is derived from the Slots (resolved Direction × resolved Look, §5.3) that the shots point to, compared against existing Views. Shots of retired (Removed from Story) scenes are excluded, because no new generation is offered there ([`SCENE-IDENTITY.md`](SCENE-IDENTITY.md) §5.1). It is never stored, and it never triggers generation by itself.
+- **Production coverage readiness:** do the Locations have the additional Views the *current shot plan* needs? Shown as, for example, "Hale Kitchen: Identity ✓ · 3 production views needed". When the shot plan changes and reveals new needs, a quiet attention marker reappears ("1 new view needed"). It is derived from the Slots (every resolved Direction of each shot × resolved Look, §5.3) that the shots point to, compared against existing Views. Shots of retired (Removed from Story) scenes are excluded, because no new generation is offered there ([`SCENE-IDENTITY.md`](SCENE-IDENTITY.md) §5.1). It is never stored, and it never triggers generation by itself.
 
 **Readiness** is derived per Presence, quietly, from the entity:
 
@@ -281,11 +282,11 @@ No requirement was found unworkable; no `CONSTITUTION AMENDMENT REQUIRED` is rai
 
 | Ticket | Receives |
 |---|---|
-| **Shot model** (#55) | Shot Presence is derived from Mentions and Look resolution with explicit overrides; shot location is the §5.3 rule; shot refers to a Direction Slot, never a View; Composition reference carries the Subject mapping (§9); frame promotion to View records lineage. Resolved in [`SHOT-MODEL.md`](SHOT-MODEL.md): Presence overrides stored only as differences (§4), split/merge effect on anchors (§5), frame reuse (§6.3), composition reference (§8). |
+| **Shot model** (#55) | Shot Presence is derived from Mentions and Look resolution with explicit overrides; shot location is the §5.3 rule; a shot refers to one or more ordered Direction Slots, never a View; Composition reference carries the Subject mapping (§9); frame promotion to View records lineage. Resolved in [`SHOT-MODEL.md`](SHOT-MODEL.md): Presence overrides stored only as differences (§4), split/merge effect on anchors (§5), frame reuse (§6.3), composition reference (§8). |
 | **World Definition** (#59, resolved: [`docs/ux/WORLD-DEFINITION.md`](../ux/WORLD-DEFINITION.md)) | The entity states (`proposed`, `kept`, `deferred`, `retired`), depth, merge/type-change effects (§§2.3–2.4), Look proposal and assignment review, bulk-accept coverage, needed/deferrable readiness (§7), Visual Style default as AI-made choice. |
 | **Lineage and staleness** (#54) | Entities, Looks, Directions, Visual Style, Writing Style are Editable; Views, identity and Look images are Attempts; Look assignments and Mention decisions are creator-truth records; "narrative changed since description compiled" and "Look resolved to a different Revision" as marking reasons; writing-style change does not mark documents; write-back/deviation for identity (§6). |
 | **Story documents** (#51) and **Scene identity** (#52) | Mentions and Look assignments need passage anchors that survive Master Narrative Revisions, and Scene ids as anchor targets; degrade to scene on anchor loss. |
-| **AI responsibility map** (#64) and **Generation package** (#65, resolved in [`GENERATION-PACKAGE.md`](GENERATION-PACKAGE.md)) | Generations introduced: entity extraction and Mention derivation, description compile (Revision or Option), Look proposal, Direction pick-or-propose at shot planning, View generation from the canonical reference, Reference Media subject annotation, merge-text Option. Composition order at use time: base + Look delta, identity before style, exact Revisions recorded. |
+| **AI responsibility map** (#64) and **Generation package** (#65, resolved in [`GENERATION-PACKAGE.md`](GENERATION-PACKAGE.md)) | Generations introduced: entity extraction and Mention derivation, description compile (Revision or Option), Look proposal, Direction pick-or-propose at shot planning (one or more ordered Directions per shot, Record 6 L6.3), View generation from the canonical reference, Reference Media subject annotation, merge-text Option. Composition order at use time: base + Look delta, identity before style, exact Revisions recorded. |
 | **Voice** (#69, resolved in [`VOICE-AND-PERFORMANCE.md`](VOICE-AND-PERFORMANCE.md)) | Voice is owned by the Character and travels in the entity closure with its samples and authorisation history; a provider voice handle does not travel (created lazily per project). |
 | **Persistence** (#72) | Entity closure for copy-on-use; shared immutable Media across a copy; scope owner on entities. |
 | **Spend** (#68) | Bulk coverage generation is one creator action with one estimate. |

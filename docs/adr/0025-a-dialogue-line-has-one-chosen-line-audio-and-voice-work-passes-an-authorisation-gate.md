@@ -22,3 +22,13 @@ Decision: **Voice** is a Character-owned Editable definition (description plus S
 - A line carried by Line audio satisfies the exactly-once dialogue guards by reference rather than as spoken text.
 - Spend: audio Generations are creator-initiated and priced; a lip-synced Take is one Take for the confirm rule.
 - Reverting later would mean re-modelling Performances and the authorisation history already recorded, which is why this is an ADR.
+
+## Amendment (Record 6, 2026-10-25)
+
+[Creator Ratification Record 6 §1](../product/CREATOR-RATIFICATION-RECORD-6.md#1-cr-691-generated-speech-in-a-characters-voice-voice-and-performance-11) resolves CR-69.1 (Option A, extended). The decision above stands; it gains:
+
+- **Designed voices.** A Voice is a persistent identity reused across the film inside the project. Speech needs a cloned, stock or **designed** Voice; a designed Voice is a voice-design preview the creator picks (an Attempt), fixed as the Voice's identity, basis `synthetic`, no attestation. A description-only Voice informs native dialogue only.
+- **Three creator dialogue paths**, all explicit and priced: the Spoken line (`audio.speech`, becomes the chosen Line audio), the Transformed performance (`audio.transform`), and the **revoiced Take**: `audio.transform` on a native Take's audio, producing a new Take Attempt derived from the source, picture reused, source never altered, not auto-selected, offered only with one speaker or declared speaker isolation, no write-back. It is per Take, not a Line audio candidate; its target Voice passes the same gate.
+- **Generate unvoiced lines**: a batch of Spoken lines for a shot or scene, count and total on the control, ordinary spend checks, results chosen, existing Takes marked `performance-changed`.
+
+Build order: speech and the batch after transform, the revoiced Take last; each unavailable without an Offering. Design: [`VOICE-AND-PERFORMANCE.md`](../domain/VOICE-AND-PERFORMANCE.md) §1.1, §1.4, §4.2, §11.
