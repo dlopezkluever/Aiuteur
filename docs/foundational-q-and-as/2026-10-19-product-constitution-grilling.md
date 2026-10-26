@@ -1,5 +1,7 @@
 # Q&A Session: Product Constitution Grilling
 
+> **Status: HISTORICAL PROCESS RECORD.** The decision record behind the Constitution. Do not use as implementation authority; the Constitution (as amended) controls. See [docs/README.md](../README.md).
+
 | | |
 |---|---|
 | **Date** | 2026-10-19 |

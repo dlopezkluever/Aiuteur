@@ -1,5 +1,7 @@
 # Final Wayfinder audit (#79)
 
+> **Status: VERIFICATION / HANDOFF EVIDENCE.** Shows the corpus was audited and ready for `/to-spec`; it is not a competing source of product authority. Rulings it lists live in their owning docs, and Record 6 settled its sign-off items. Its closing hand-off reading order predates [docs/README.md](../README.md), which now owns the reading order.
+
 Date: 2026-10-25. Method: four read-only auditors, one per slice of the #79 checklist, each reading the Constitution, Records 1 to 5, the strong-model audit and the primary docs for its items, then hunting contradictions with targeted searches. Their mechanical defects and small gaps were then fixed in three writer passes with disjoint file ownership. Link check after the fixes: no broken relative links in `docs/`, `GLOSSARY.md`, `AGENTS.md`.
 
 Limits: the auditors read primary docs in full but covered the rest by search. The Constitution was read in full by the first auditor and in part by the others. No line-by-line re-read of the fixed corpus was done; fixes were verified by grep and section-reference checks.

@@ -1,5 +1,7 @@
 # Strong-Model Wayfinder Audit (map #49)
 
+> **Status: HISTORICAL PROCESS RECORD.** Do not use as implementation authority. Its findings were resolved by Ratification Records 3 to 6 and reconciled into the current docs. See [docs/README.md](../README.md).
+
 Date: 2026-10-23. Thread: https://ampcode.com/threads/T-01a1691f-0e6f-7664-b75d-9da34e4f75b0.
 Status: audit record for the next creator grilling session. It records findings and corrections. It does **not** decide anything that belongs to the creator.
 

@@ -1,5 +1,7 @@
 # Prototypes index
 
+Documentation router and authority order: [docs/README.md](../docs/README.md). Prototypes are evidence only.
+
 **Read [docs/product/PROTOTYPE-RECONCILIATION.md](../docs/product/PROTOTYPE-RECONCILIATION.md) first**, then [PROTOTYPE-COVERAGE-GAPS.md](../docs/product/PROTOTYPE-COVERAGE-GAPS.md) for what the prototypes do not show. Prototypes are throwaway UX evidence. They never override the Constitution, Ratification Records, ADRs or docs. Mock prices, models, ids, flags and data are not requirements.
 
 Only the #60 prototypes and the shared kit live on `main`; the rest are on never-merged `prototype/*` branches (kept as historical record).

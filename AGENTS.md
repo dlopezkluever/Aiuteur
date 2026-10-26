@@ -1,3 +1,7 @@
+# Aiuteur V2
+
+**Planning, specification and implementation agents: start at [`docs/README.md`](docs/README.md) before exploring the wider corpus.** It owns the documentation hierarchy, the authority order, the reading strategy and what to skip. Do not read the whole corpus by default. The Wayfinder map (#49) is complete and ratified; do not reopen settled decisions.
+
 ## Agent skills
 
 ### Issue tracker
@@ -10,7 +14,7 @@ Default five-role vocabulary: `needs-triage`, `needs-info`, `ready-for-agent`, `
 
 ### Domain docs
 
-Single-context. `GLOSSARY.md` and `docs/adr/` exist (created lazily by `/domain-modeling`, now populated); `_inputs/` holds two reference corpora that are evidence, not V2 requirements. See `docs/agents/domain.md`.
+Single-context. `GLOSSARY.md` (terminology authority) and `docs/adr/` exist and are populated. `docs/README.md` routes to the Constitution, the current domain/UX/AI/architecture docs and the Ratification Records. `_inputs/` is legacy reference and evidence only, not V2 requirements. See `docs/agents/domain.md`.
 
 ### Prototypes
 
