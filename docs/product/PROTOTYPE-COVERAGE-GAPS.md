@@ -65,7 +65,7 @@ Sections G1 to G11 cover the shell through cross-cutting Scene Prep; G12 to G20 
 | gap | authority | elsewhere |
 |---|---|---|
 | Card shows opening Frame only if approved, else blank | Record 5 SP1 | RD-70 |
-| Accept plan reads "Plan accepted"; gates nothing; also a Decision "or edited the plan" (ambiguous) | Record 5 SP8; SHOT-MODEL §3.1; Record 4 Y2 | prototype: button only |
+| Accept plan reads "Plan accepted"; gates nothing; recorded only on Accept plan; a field edit makes only that field "yours" (settled, issue #80) | Record 5 SP8; SHOT-MODEL §3.1; Record 4 Y2 | prototype: button only |
 | "Accept plan" absent in Shot editor, so a creator who edits then cannot accept without returning | Record 5 SP1/SP8 (lives on Storyboard) | prototype matches; spec question |
 | AI-made marks remain visible per item until acceptance; on-demand project-wide list | TRUST-SIGNALS §2; Record 1 R7; Record 4 Y2 | no list |
 | Shot-plan lock offer when first Frame generation for the scene begins, independent of Accept plan | TRUST-SIGNALS §4 point 4; Record 5 SP8 | `v2-60-scene-hub` lock only (film.js:148); no offer drawn anywhere |
