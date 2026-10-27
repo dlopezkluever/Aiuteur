@@ -1,0 +1,11 @@
+{
+  "name": "@aiuteur/providers",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@aiuteur/contract": "workspace:*"
+  }
+}
