@@ -16,6 +16,15 @@ export interface AuthenticatedSubject {
 export interface Auth {
   authenticate(headers: Headers): Promise<AuthenticatedSubject | null>;
 }
+export interface MailMessage {
+  readonly to: string;
+  readonly subject: string;
+  readonly text: string;
+}
+/** Transactional email (OPERATIONAL-BASELINE §2.3). `send` rejects when the transport or the recipient refuses the message. */
+export interface Mailer {
+  send(message: MailMessage): Promise<void>;
+}
 export interface ReadTx {
   account(id: AccountId): Promise<Account | null>;
   settings(): Promise<Settings>;

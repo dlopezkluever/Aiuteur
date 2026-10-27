@@ -4,7 +4,7 @@ import { betterAuth } from "better-auth";
 import { createAuthMiddleware } from "better-auth/api";
 import { twoFactor } from "better-auth/plugins";
 import { accountIdSchema, creatorIdSchema, DEFAULT_SETTINGS } from "@aiuteur/contract";
-import { assertRuntimeRole, type Auth, type Clock, type Ids } from "@aiuteur/store";
+import { assertRuntimeRole, type Auth, type Clock, type Ids, type Mailer } from "@aiuteur/store";
 import type { Identity } from "./index.ts";
 
 export interface BetterAuthOptions {
@@ -15,6 +15,7 @@ export interface BetterAuthOptions {
   ids: Ids;
   idleSessionSeconds: number;
   absoluteSessionSeconds: number;
+  mailer: Mailer;
 }
 
 export async function createBetterAuth(options: BetterAuthOptions): Promise<{
@@ -32,21 +33,33 @@ export async function createBetterAuth(options: BetterAuthOptions): Promise<{
       basePath: "/api/auth",
       secret: options.secret,
       database: { db: connection, type: "postgres", schemaName: "auth", transaction: !inTransaction },
-      emailAndPassword: { enabled: true, disableSignUp: true, requireEmailVerification: true, minPasswordLength: 12, maxPasswordLength: 128 },
+      emailAndPassword: {
+        enabled: true, disableSignUp: true, requireEmailVerification: true, minPasswordLength: 12, maxPasswordLength: 128,
+        // Recovery signs out every session of the user, in the same transaction that consumes the single-use link.
+        revokeSessionsOnPasswordReset: true,
+        resetPasswordTokenExpiresIn: 3600,
+        sendResetPassword: async ({ user, url }) => {
+          await options.mailer.send({ to: user.email, subject: "Recover your Aiuteur account", text: `Use this single-use link to choose a new password. Using it signs out every session of your account.\n\n${url}\n\nIf you did not ask for this, ignore this email.` });
+        },
+      },
       session: {
         expiresIn: options.idleSessionSeconds,
         updateAge: 0,
         cookieCache: { enabled: false },
         additionalFields: { secondFactor: { type: "boolean", defaultValue: false, input: false } },
       },
-      advanced: { useSecureCookies: true, database: { generateId: () => options.ids.uuid() }, defaultCookieAttributes: { httpOnly: true, secure: true, sameSite: "lax" } },
+      // Mail is sent in the background: awaiting an SMTP send would make a known email slower than an unknown one.
+      advanced: {
+        useSecureCookies: true, database: { generateId: () => options.ids.uuid() }, defaultCookieAttributes: { httpOnly: true, secure: true, sameSite: "lax" },
+        backgroundTasks: { handler: (promise) => { void promise; } },
+      },
       plugins: [twoFactor()],
       hooks: { after: createAuthMiddleware(async (ctx) => {
         if (ctx.path === "/two-factor/verify-totp" && ctx.context.newSession) {
           await ctx.context.internalAdapter.updateSession(ctx.context.newSession.session.token, { secondFactor: true });
         }
       }) },
-      rateLimit: { enabled: false }, // T0-02 owns application abuse limits.
+      rateLimit: { enabled: false }, // Abuse limits live in accounts (admitAuthRequest), not in Better Auth.
       telemetry: { enabled: false },
       logger: { disabled: true },
     });
@@ -73,6 +86,17 @@ export async function createBetterAuth(options: BetterAuthOptions): Promise<{
           if (input.issuedBy) await sql`INSERT INTO auth.audit_event (id, actor, action, occurred_at)
             VALUES (${input.auditId}, ${input.issuedBy}, 'invitation.issued', ${new Date(input.at)})`.execute(tx);
         });
+      },
+      async attempt({ bucket, at, windowMs }) {
+        const now = new Date(at);
+        const windowFloor = new Date(at - windowMs);
+        const { rows } = await sql<{ hits: number }>`INSERT INTO auth.abuse_counter AS counter (bucket, window_start, hits)
+          VALUES (${bucket}, ${now}, 1)
+          ON CONFLICT (bucket) DO UPDATE SET
+            window_start = CASE WHEN counter.window_start <= ${windowFloor} THEN ${now} ELSE counter.window_start END,
+            hits = CASE WHEN counter.window_start <= ${windowFloor} THEN 1 ELSE counter.hits + 1 END
+          RETURNING hits`.execute(db);
+        return rows[0]?.hits ?? 0;
       },
       async redeem(input) {
         try {

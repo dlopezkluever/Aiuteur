@@ -110,6 +110,48 @@
     },
     {
       "schema": "auth",
+      "name": "abuse_counter",
+      "owner": "owner",
+      "rls": false,
+      "force_rls": false,
+      "grants": "{owner=arwdDxt/owner,identity=arw/owner,backup=r/owner}",
+      "columns": [
+        {
+          "name": "bucket",
+          "type": "text",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "window_start",
+          "type": "timestamp with time zone",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "hits",
+          "type": "integer",
+          "default": null,
+          "nullable": false
+        }
+      ],
+      "constraints": [
+        {
+          "name": "abuse_counter_hits_check",
+          "definition": "CHECK ((hits > 0))"
+        },
+        {
+          "name": "abuse_counter_pkey",
+          "definition": "PRIMARY KEY (bucket)"
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX abuse_counter_pkey ON auth.abuse_counter USING btree (bucket)"
+      ],
+      "policies": []
+    },
+    {
+      "schema": "auth",
       "name": "account",
       "owner": "owner",
       "rls": false,

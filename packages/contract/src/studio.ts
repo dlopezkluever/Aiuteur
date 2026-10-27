@@ -16,7 +16,7 @@ export const studioSchema = z.strictObject({ account: accountSchema, settings: s
 // No Project kind or creation operation exists at T0-01.
 export const projectListSchema = z.strictObject({ projects: z.array(z.never()) });
 
-export const ERROR_CODES = ["not-found", "unauthenticated", "forbidden", "invalid-request", "invitation-refused", "internal-error"] as const;
+export const ERROR_CODES = ["not-found", "unauthenticated", "forbidden", "invalid-request", "invitation-refused", "rate-limited", "internal-error"] as const;
 export const errorSchema = z.strictObject({ code: z.enum(ERROR_CODES) });
 export type ErrorCode = z.infer<typeof errorSchema>["code"];
 export const EVENT_TYPES = ["account.created"] as const;
@@ -38,6 +38,9 @@ export const redeemInvitationSchema = z.strictObject({
   password: z.string().min(12).max(128),
 });
 export type RedeemInvitation = z.infer<typeof redeemInvitationSchema>;
+/** The email field that sign-in and recovery requests are limited by (the rest of each body belongs to Better Auth). */
+export const emailRequestSchema = z.object({ email: emailSchema });
+export const passwordRecoverySchema = z.object({ newPassword: z.string() });
 
 export const AUDIT_ACTIONS = ["invitation.issued"] as const;
 
@@ -52,4 +55,6 @@ export const ROUTES = [
   { method: "POST", path: "/api/auth/sign-out", access: "auth" },
   { method: "POST", path: "/api/auth/two-factor/enable", access: "auth" },
   { method: "POST", path: "/api/auth/two-factor/verify-totp", access: "auth" },
+  { method: "POST", path: "/api/auth/request-password-reset", access: "auth" },
+  { method: "POST", path: "/api/auth/reset-password", access: "auth" },
 ] as const;
