@@ -17,6 +17,8 @@ export interface BetterAuthOptions {
   absoluteSessionSeconds: number;
 }
 
+const signInLockKey = (email: string) => `signin:${email.trim().toLowerCase()}`;
+
 export async function createBetterAuth(options: BetterAuthOptions): Promise<{
   auth: Auth; identity: Identity; handle(request: Request): Promise<Response>; close(): Promise<void>;
 }> {
@@ -95,11 +97,27 @@ export async function createBetterAuth(options: BetterAuthOptions): Promise<{
           return row.email;
         });
       },
+      async serializeSignIn(email, run) {
+        // Held on its own connection for the whole sign-in, so recovery cannot slip between
+        // credential verification and session creation.
+        const client = await pool.connect();
+        try {
+          await client.query("SELECT pg_advisory_lock(hashtextextended($1, 0))", [signInLockKey(email)]);
+          try { return await run(); }
+          finally { await client.query("SELECT pg_advisory_unlock(hashtextextended($1, 0))", [signInLockKey(email)]); }
+        } finally { client.release(); }
+      },
       async completeRecovery(input) {
         return db.transaction().execute(async (tx) => {
           const found = await sql<{ user_id: string; expires_at: Date }>`SELECT user_id, expires_at FROM auth.recovery
             WHERE token_hash = ${input.tokenHash} FOR UPDATE`.execute(tx);
           const row = found.rows[0];
+          // Wait out any sign-in for this creator in flight: it either committed its session (deleted below)
+          // or starts after this commit and sees the new password. Taken before the Clock is sampled.
+          if (row) {
+            const owner = await sql<{ email: string }>`SELECT email FROM auth."user" WHERE id = ${row.user_id}`.execute(tx);
+            await sql`SELECT pg_advisory_xact_lock(hashtextextended(${signInLockKey(owner.rows[0]?.email ?? "")}, 0))`.execute(tx);
+          }
           // Sampled after the row lock, so expiry while waiting for it is honoured.
           if (!row || row.expires_at.getTime() <= options.clock.now()) return false;
           const context = await library(tx, true).$context;

@@ -192,6 +192,51 @@ it("refuses a recovery link that expires while its completion waits for the row 
   expect((await signIn(a.email, password)).status).toBe(200);
 });
 
+it("a sign-in with the old password that overlaps recovery cannot leave a session behind", async () => {
+  clock.advance(WINDOW);
+  const a = await creator();
+  const b = await creator();
+  const older = [await session(a.email), await session(a.email)];
+  const bystander = await session(b.email);
+  await requestLink(a.email);
+  const token = linkToken(a.email);
+  // Recovery pauses on a test-held lock at its final statement: password changed, sessions deleted, not committed.
+  await database.inspect.query(`CREATE FUNCTION auth.test_pause() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM pg_advisory_xact_lock(424242); RETURN OLD; END $$;
+    CREATE TRIGGER test_pause BEFORE DELETE ON auth.recovery FOR EACH ROW EXECUTE FUNCTION auth.test_pause()`);
+  const hold = await database.inspect.connect();
+  let recovery: Promise<Response> | undefined;
+  let overlapping: Promise<Response> | undefined;
+  try {
+    await hold.query("SELECT pg_advisory_lock(424242)");
+    recovery = request("/api/recovery/complete", { token, password: newPassword });
+    const waiting = async (count: number) => {
+      for (let attempt = 0; attempt < 200; attempt++) {
+        const result = await database.inspect.query("SELECT FROM pg_stat_activity WHERE datname = current_database() AND usename = 'identity' AND wait_event_type = 'Lock'");
+        if (result.rowCount === count) return true;
+        await setTimeout(10);
+      }
+      return false;
+    };
+    expect(await waiting(1)).toBe(true);
+    overlapping = signIn(a.email, password);
+    // Recovery is paused mid-transaction and the sign-in is parked behind it, not racing past it.
+    expect(await waiting(2)).toBe(true);
+  } finally { await hold.query("SELECT pg_advisory_unlock(424242)"); hold.release(); }
+  try {
+    if (!recovery || !overlapping) throw new Error("not started");
+    expect((await recovery).status).toBe(200);
+    const concurrent = await overlapping;
+    expect(concurrent.status).toBe(401);
+    expect(concurrent.headers.getSetCookie()).toEqual([]);
+  } finally { await database.inspect.query("DROP TRIGGER test_pause ON auth.recovery; DROP FUNCTION auth.test_pause()"); }
+  for (const cookie of older) expect(await studioStatus(cookie, a.accountId)).toBe(401);
+  expect(await studioStatus(bystander, b.accountId)).toBe(200);
+  expect((await database.inspect.query('SELECT count(*) FROM auth.session s JOIN auth."user" u ON u.id = s."userId" WHERE u.email = $1', [a.email])).rows).toEqual([{ count: "0" }]);
+  clock.advance(WINDOW);
+  expect((await signIn(a.email, password)).status).toBe(401);
+  expect((await signIn(a.email, newPassword)).status).toBe(200);
+});
+
 it("concurrent use of one recovery link succeeds exactly once", async () => {
   const a = await creator();
   await requestLink(a.email);
@@ -287,9 +332,10 @@ it("sign-in accepts JSON only, so a form-encoded request cannot skip the per-ema
   expect(refused.status).toBe(400);
   expect(await refused.json()).toEqual({ code: "invalid-request" });
   expect(refused.headers.getSetCookie()).toEqual([]);
-  // Even in a fresh window the form encoding never authenticates, and it consumes no attempts.
+  // In a fresh window the form encoding never authenticates and consumes no attempts: three more
+  // rejected forms leave the whole per-email allowance for JSON.
   clock.advance(WINDOW);
-  expect((await form(a.email, password)).status).toBe(400);
+  for (let attempt = 0; attempt < 3; attempt++) expect((await form(a.email, password)).status).toBe(400);
   expect((await database.inspect.query("SELECT count(*) FROM auth.session s JOIN auth.\"user\" u ON u.id = s.\"userId\" WHERE u.email = $1", [a.email])).rows).toEqual([{ count: "0" }]);
   expect((await signIn(a.email, password)).status).toBe(200);
 });
