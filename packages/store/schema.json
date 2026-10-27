@@ -1,0 +1,748 @@
+{
+  "tables": [
+    {
+      "schema": "accounts",
+      "name": "account",
+      "owner": "owner",
+      "rls": true,
+      "force_rls": true,
+      "grants": "{owner=arwdDxt/owner,app=r/owner,backup=r/owner}",
+      "columns": [
+        {
+          "name": "account_id",
+          "type": "uuid",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": null,
+          "nullable": false
+        }
+      ],
+      "constraints": [
+        {
+          "name": "account_pkey",
+          "definition": "PRIMARY KEY (account_id)"
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX account_pkey ON accounts.account USING btree (account_id)"
+      ],
+      "policies": [
+        {
+          "name": "account_scope",
+          "check": "(account_id = (NULLIF(current_setting('aiuteur.account_id'::text, true), ''::text))::uuid)",
+          "roles": [
+            "public"
+          ],
+          "using": "(account_id = (NULLIF(current_setting('aiuteur.account_id'::text, true), ''::text))::uuid)",
+          "command": "ALL"
+        }
+      ]
+    },
+    {
+      "schema": "accounts",
+      "name": "settings",
+      "owner": "owner",
+      "rls": true,
+      "force_rls": true,
+      "grants": "{owner=arwdDxt/owner,app=r/owner,backup=r/owner}",
+      "columns": [
+        {
+          "name": "account_id",
+          "type": "uuid",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "key",
+          "type": "text",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "schema_version",
+          "type": "integer",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "payload",
+          "type": "jsonb",
+          "default": null,
+          "nullable": false
+        }
+      ],
+      "constraints": [
+        {
+          "name": "settings_account_id_fkey",
+          "definition": "FOREIGN KEY (account_id) REFERENCES accounts.account(account_id)"
+        },
+        {
+          "name": "settings_key_check",
+          "definition": "CHECK ((key = 'studio'::text))"
+        },
+        {
+          "name": "settings_pkey",
+          "definition": "PRIMARY KEY (account_id, key)"
+        },
+        {
+          "name": "settings_schema_version_check",
+          "definition": "CHECK ((schema_version = 1))"
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX settings_pkey ON accounts.settings USING btree (account_id, key)"
+      ],
+      "policies": [
+        {
+          "name": "account_scope",
+          "check": "(account_id = (NULLIF(current_setting('aiuteur.account_id'::text, true), ''::text))::uuid)",
+          "roles": [
+            "public"
+          ],
+          "using": "(account_id = (NULLIF(current_setting('aiuteur.account_id'::text, true), ''::text))::uuid)",
+          "command": "ALL"
+        }
+      ]
+    },
+    {
+      "schema": "auth",
+      "name": "account",
+      "owner": "owner",
+      "rls": false,
+      "force_rls": false,
+      "grants": "{owner=arwdDxt/owner,identity=arwd/owner,backup=r/owner}",
+      "columns": [
+        {
+          "name": "id",
+          "type": "text",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "accountId",
+          "type": "text",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "providerId",
+          "type": "text",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "userId",
+          "type": "text",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "accessToken",
+          "type": "text",
+          "default": null,
+          "nullable": true
+        },
+        {
+          "name": "refreshToken",
+          "type": "text",
+          "default": null,
+          "nullable": true
+        },
+        {
+          "name": "idToken",
+          "type": "text",
+          "default": null,
+          "nullable": true
+        },
+        {
+          "name": "accessTokenExpiresAt",
+          "type": "timestamp with time zone",
+          "default": null,
+          "nullable": true
+        },
+        {
+          "name": "refreshTokenExpiresAt",
+          "type": "timestamp with time zone",
+          "default": null,
+          "nullable": true
+        },
+        {
+          "name": "scope",
+          "type": "text",
+          "default": null,
+          "nullable": true
+        },
+        {
+          "name": "password",
+          "type": "text",
+          "default": null,
+          "nullable": true
+        },
+        {
+          "name": "createdAt",
+          "type": "timestamp with time zone",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "updatedAt",
+          "type": "timestamp with time zone",
+          "default": null,
+          "nullable": false
+        }
+      ],
+      "constraints": [
+        {
+          "name": "account_pkey",
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "account_providerId_accountId_key",
+          "definition": "UNIQUE (\"providerId\", \"accountId\")"
+        },
+        {
+          "name": "account_userId_fkey",
+          "definition": "FOREIGN KEY (\"userId\") REFERENCES auth.\"user\"(id) ON DELETE CASCADE"
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX account_pkey ON auth.account USING btree (id)",
+        "CREATE UNIQUE INDEX \"account_providerId_accountId_key\" ON auth.account USING btree (\"providerId\", \"accountId\")",
+        "CREATE INDEX \"account_userId_idx\" ON auth.account USING btree (\"userId\")"
+      ],
+      "policies": []
+    },
+    {
+      "schema": "auth",
+      "name": "audit_event",
+      "owner": "owner",
+      "rls": false,
+      "force_rls": false,
+      "grants": "{owner=arwdDxt/owner,identity=ar/owner,backup=r/owner}",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "actor",
+          "type": "text",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "action",
+          "type": "text",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "occurred_at",
+          "type": "timestamp with time zone",
+          "default": null,
+          "nullable": false
+        }
+      ],
+      "constraints": [
+        {
+          "name": "audit_action",
+          "definition": "CHECK ((action = 'invitation.issued'::text))"
+        },
+        {
+          "name": "audit_event_actor_fkey",
+          "definition": "FOREIGN KEY (actor) REFERENCES auth.\"user\"(id)"
+        },
+        {
+          "name": "audit_event_pkey",
+          "definition": "PRIMARY KEY (id)"
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX audit_event_pkey ON auth.audit_event USING btree (id)"
+      ],
+      "policies": []
+    },
+    {
+      "schema": "auth",
+      "name": "invitation",
+      "owner": "owner",
+      "rls": false,
+      "force_rls": false,
+      "grants": "{owner=arwdDxt/owner,identity=arwd/owner,backup=r/owner}",
+      "columns": [
+        {
+          "name": "token_hash",
+          "type": "text",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "email",
+          "type": "text",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "redeemed_by",
+          "type": "text",
+          "default": null,
+          "nullable": true
+        },
+        {
+          "name": "issued_by",
+          "type": "text",
+          "default": null,
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": null,
+          "nullable": false
+        }
+      ],
+      "constraints": [
+        {
+          "name": "invitation_issued_by_fkey",
+          "definition": "FOREIGN KEY (issued_by) REFERENCES auth.\"user\"(id)"
+        },
+        {
+          "name": "invitation_pkey",
+          "definition": "PRIMARY KEY (token_hash)"
+        },
+        {
+          "name": "invitation_redeemed_by_fkey",
+          "definition": "FOREIGN KEY (redeemed_by) REFERENCES auth.\"user\"(id)"
+        },
+        {
+          "name": "invitation_redeemed_by_key",
+          "definition": "UNIQUE (redeemed_by)"
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX invitation_pkey ON auth.invitation USING btree (token_hash)",
+        "CREATE UNIQUE INDEX invitation_redeemed_by_key ON auth.invitation USING btree (redeemed_by)"
+      ],
+      "policies": []
+    },
+    {
+      "schema": "auth",
+      "name": "session",
+      "owner": "owner",
+      "rls": false,
+      "force_rls": false,
+      "grants": "{owner=arwdDxt/owner,identity=arwd/owner,backup=r/owner}",
+      "columns": [
+        {
+          "name": "id",
+          "type": "text",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "expiresAt",
+          "type": "timestamp with time zone",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "token",
+          "type": "text",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "createdAt",
+          "type": "timestamp with time zone",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "updatedAt",
+          "type": "timestamp with time zone",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "ipAddress",
+          "type": "text",
+          "default": null,
+          "nullable": true
+        },
+        {
+          "name": "userAgent",
+          "type": "text",
+          "default": null,
+          "nullable": true
+        },
+        {
+          "name": "userId",
+          "type": "text",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "secondFactor",
+          "type": "boolean",
+          "default": "false",
+          "nullable": false
+        }
+      ],
+      "constraints": [
+        {
+          "name": "session_pkey",
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "session_token_key",
+          "definition": "UNIQUE (token)"
+        },
+        {
+          "name": "session_userId_fkey",
+          "definition": "FOREIGN KEY (\"userId\") REFERENCES auth.\"user\"(id) ON DELETE CASCADE"
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX session_pkey ON auth.session USING btree (id)",
+        "CREATE UNIQUE INDEX session_token_key ON auth.session USING btree (token)",
+        "CREATE INDEX \"session_userId_idx\" ON auth.session USING btree (\"userId\")"
+      ],
+      "policies": []
+    },
+    {
+      "schema": "auth",
+      "name": "subject_map",
+      "owner": "owner",
+      "rls": false,
+      "force_rls": false,
+      "grants": "{owner=arwdDxt/owner,backup=r/owner}",
+      "columns": [
+        {
+          "name": "subject",
+          "type": "text",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "account_id",
+          "type": "uuid",
+          "default": null,
+          "nullable": false
+        }
+      ],
+      "constraints": [
+        {
+          "name": "subject_map_account_id_fkey",
+          "definition": "FOREIGN KEY (account_id) REFERENCES accounts.account(account_id)"
+        },
+        {
+          "name": "subject_map_account_id_key",
+          "definition": "UNIQUE (account_id)"
+        },
+        {
+          "name": "subject_map_pkey",
+          "definition": "PRIMARY KEY (subject)"
+        },
+        {
+          "name": "subject_map_subject_fkey",
+          "definition": "FOREIGN KEY (subject) REFERENCES auth.\"user\"(id)"
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX subject_map_account_id_key ON auth.subject_map USING btree (account_id)",
+        "CREATE UNIQUE INDEX subject_map_pkey ON auth.subject_map USING btree (subject)"
+      ],
+      "policies": []
+    },
+    {
+      "schema": "auth",
+      "name": "twoFactor",
+      "owner": "owner",
+      "rls": false,
+      "force_rls": false,
+      "grants": "{owner=arwdDxt/owner,identity=arwd/owner,backup=r/owner}",
+      "columns": [
+        {
+          "name": "id",
+          "type": "text",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "secret",
+          "type": "text",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "backupCodes",
+          "type": "text",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "userId",
+          "type": "text",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "verified",
+          "type": "boolean",
+          "default": "true",
+          "nullable": false
+        },
+        {
+          "name": "failedVerificationCount",
+          "type": "integer",
+          "default": "0",
+          "nullable": false
+        },
+        {
+          "name": "lockedUntil",
+          "type": "timestamp with time zone",
+          "default": null,
+          "nullable": true
+        }
+      ],
+      "constraints": [
+        {
+          "name": "twoFactor_pkey",
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "twoFactor_userId_fkey",
+          "definition": "FOREIGN KEY (\"userId\") REFERENCES auth.\"user\"(id) ON DELETE CASCADE"
+        },
+        {
+          "name": "twoFactor_userId_key",
+          "definition": "UNIQUE (\"userId\")"
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX \"twoFactor_pkey\" ON auth.\"twoFactor\" USING btree (id)",
+        "CREATE UNIQUE INDEX \"twoFactor_userId_key\" ON auth.\"twoFactor\" USING btree (\"userId\")"
+      ],
+      "policies": []
+    },
+    {
+      "schema": "auth",
+      "name": "user",
+      "owner": "owner",
+      "rls": false,
+      "force_rls": false,
+      "grants": "{owner=arwdDxt/owner,identity=arwd/owner,backup=r/owner}",
+      "columns": [
+        {
+          "name": "id",
+          "type": "text",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "email",
+          "type": "text",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "emailVerified",
+          "type": "boolean",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "image",
+          "type": "text",
+          "default": null,
+          "nullable": true
+        },
+        {
+          "name": "createdAt",
+          "type": "timestamp with time zone",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "updatedAt",
+          "type": "timestamp with time zone",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "twoFactorEnabled",
+          "type": "boolean",
+          "default": "false",
+          "nullable": false
+        }
+      ],
+      "constraints": [
+        {
+          "name": "user_email_key",
+          "definition": "UNIQUE (email)"
+        },
+        {
+          "name": "user_pkey",
+          "definition": "PRIMARY KEY (id)"
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX user_email_key ON auth.\"user\" USING btree (email)",
+        "CREATE UNIQUE INDEX user_pkey ON auth.\"user\" USING btree (id)"
+      ],
+      "policies": []
+    },
+    {
+      "schema": "auth",
+      "name": "verification",
+      "owner": "owner",
+      "rls": false,
+      "force_rls": false,
+      "grants": "{owner=arwdDxt/owner,identity=arwd/owner,backup=r/owner}",
+      "columns": [
+        {
+          "name": "id",
+          "type": "text",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "identifier",
+          "type": "text",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "value",
+          "type": "text",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "expiresAt",
+          "type": "timestamp with time zone",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "createdAt",
+          "type": "timestamp with time zone",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "updatedAt",
+          "type": "timestamp with time zone",
+          "default": null,
+          "nullable": false
+        }
+      ],
+      "constraints": [
+        {
+          "name": "verification_pkey",
+          "definition": "PRIMARY KEY (id)"
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX verification_identifier_idx ON auth.verification USING btree (identifier)",
+        "CREATE UNIQUE INDEX verification_pkey ON auth.verification USING btree (id)"
+      ],
+      "policies": []
+    },
+    {
+      "schema": "public",
+      "name": "migrations",
+      "owner": "owner",
+      "rls": false,
+      "force_rls": false,
+      "grants": "{owner=arwdDxt/owner,backup=r/owner}",
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "name",
+          "type": "character varying(100)",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "hash",
+          "type": "character varying(40)",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "executed_at",
+          "type": "timestamp without time zone",
+          "default": "CURRENT_TIMESTAMP",
+          "nullable": true
+        }
+      ],
+      "constraints": [
+        {
+          "name": "migrations_name_key",
+          "definition": "UNIQUE (name)"
+        },
+        {
+          "name": "migrations_pkey",
+          "definition": "PRIMARY KEY (id)"
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX migrations_name_key ON public.migrations USING btree (name)",
+        "CREATE UNIQUE INDEX migrations_pkey ON public.migrations USING btree (id)"
+      ],
+      "policies": []
+    }
+  ],
+  "functions": [
+    {
+      "schema": "accounts",
+      "name": "create_studio",
+      "definition": "CREATE OR REPLACE FUNCTION accounts.create_studio(subject_id text, new_account uuid, at_time timestamp with time zone, defaults jsonb)\n RETURNS uuid\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog'\nAS $function$\nBEGIN\n  IF NOT EXISTS (SELECT FROM auth.\"user\" WHERE id = subject_id AND \"emailVerified\") THEN\n    RAISE EXCEPTION 'unverified subject';\n  END IF;\n  PERFORM set_config('aiuteur.account_id', new_account::text, true);\n  INSERT INTO accounts.account VALUES (new_account, at_time);\n  INSERT INTO accounts.settings VALUES (new_account, 'studio', 1, defaults);\n  INSERT INTO auth.subject_map VALUES (subject_id, new_account);\n  RETURN new_account;\nEND $function$\n",
+      "owner": "owner",
+      "grants": "{owner=X/owner,identity=X/owner}"
+    },
+    {
+      "schema": "accounts",
+      "name": "map_subject",
+      "definition": "CREATE OR REPLACE FUNCTION accounts.map_subject(subject_id text)\n RETURNS uuid\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'pg_catalog'\nAS $function$\n  SELECT m.account_id FROM auth.subject_map m\n  JOIN auth.\"user\" u ON u.id = m.subject\n  WHERE m.subject = subject_id AND u.\"emailVerified\"\n$function$\n",
+      "owner": "owner",
+      "grants": "{owner=X/owner,identity=X/owner}"
+    }
+  ],
+  "schemas": [
+    {
+      "name": "accounts",
+      "owner": "owner",
+      "grants": "{owner=UC/owner,app=U/owner,identity=U/owner,backup=U/owner}"
+    },
+    {
+      "name": "auth",
+      "owner": "owner",
+      "grants": "{owner=UC/owner,identity=U/owner,backup=U/owner}"
+    }
+  ]
+}

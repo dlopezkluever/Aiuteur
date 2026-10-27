@@ -6,3 +6,5 @@ export * from "./fake-profiles.ts";
 export * from "./fake-transport.ts";
 export * from "./mark.ts";
 export * from "./script.ts";
+export * from "./conformance/store.ts";
+export * from "./fake-store.ts";

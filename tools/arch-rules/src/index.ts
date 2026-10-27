@@ -9,6 +9,7 @@ import { ResolverFactory } from "oxc-resolver";
 //        composition roots import it. A ProviderTransport is implemented (`implements`)
 //        only in an adapter or in `testing/`, and only `testing/` extends FakeTransport.
 //   R20  Module-mocking APIs are banned on repository modules.
+//   EI12 No CORE module imports previs (BUILD-SEQUENCE §5; issue #98).
 //
 // Names are judged by what they are bound to, not how they are spelled: an import is
 // judged by the file it resolves to (package `imports` and `exports`, workspace links,
@@ -17,7 +18,7 @@ import { ResolverFactory } from "oxc-resolver";
 // evasions; they are not a proof against deliberately obfuscated code.
 
 export interface Violation {
-  readonly rule: "R19" | "R20";
+  readonly rule: "R19" | "R20" | "EI12";
   /** Workspace-relative, `/`-separated. */
   readonly path: string;
   readonly line: number;
@@ -65,7 +66,7 @@ export function collectWorkspaceSources(root: string): string[] {
   return files.sort();
 }
 
-/** Checks R19 and R20 over every source of the workspace at `root`. */
+/** Checks R19, R20 and EI12 over every source of the workspace at `root`. */
 export function checkWorkspace(root: string): Violation[] {
   root = resolve(root);
   const resolver = new ResolverFactory({
@@ -93,9 +94,10 @@ function checkFile(path: string, text: string, resolveFrom: (path: string, speci
     violations.push({ rule, path, line: text.slice(0, at).split("\n").length, message });
   const into = (specifier: string, dir: string) => resolveFrom(path, specifier)?.startsWith(dir) === true;
 
-  // R19: only test-side files may reach testing/, under whatever name it is imported.
+  // R19 and EI12 share resolved static imports, exports and literal import().
   const mayImportTesting = path.startsWith(TESTING_DIR) || isTestFile(path) || isNonProductionCompositionRoot(path);
-  if (!mayImportTesting) {
+  const core = path.startsWith("packages/") && !path.startsWith("packages/previs/") && !path.startsWith(TESTING_DIR) && !isTestFile(path);
+  if (!mayImportTesting || core) {
     const specifiers = [
       ...result.module.staticImports.map((i) => ({ value: i.moduleRequest.value, start: i.start })),
       ...result.module.staticExports.flatMap((e) => e.entries.flatMap((x) => (x.moduleRequest ? [{ value: x.moduleRequest.value, start: e.start }] : []))),
@@ -107,7 +109,8 @@ function checkFile(path: string, text: string, resolveFrom: (path: string, speci
       }
     });
     for (const { value, start } of specifiers) {
-      if (into(value, TESTING_DIR)) report("R19", start, `non-test module imports testing/ ("${value}"); only tests and local, ci and staging composition roots may`);
+      if (!mayImportTesting && into(value, TESTING_DIR)) report("R19", start, `non-test module imports testing/ ("${value}"); only tests and local, ci and staging composition roots may`);
+      if (core && into(value, "packages/previs/")) report("EI12", start, "CORE must not import previs; wire the stage at its composition root");
     }
   }
 

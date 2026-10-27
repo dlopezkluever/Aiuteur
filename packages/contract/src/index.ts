@@ -1,5 +1,5 @@
-// Draft FC1 (identity and vocabulary): only the ids and closed vocabularies the
-// provider adapter face needs at T0-00. Later tickets add to this module.
+// Draft FC1/FC2. Contracts freeze at T0 exit, not at this ticket.
+export * from "./studio.ts";
 
 declare const brand: unique symbol;
 type Brand<T, B extends string> = T & { readonly [brand]: B };
