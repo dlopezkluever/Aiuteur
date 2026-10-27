@@ -32,8 +32,8 @@ export interface Identity {
   attempt(input: { key: string; at: number; windowStart: number; expiresAt: number }): Promise<number>;
   /** Stores a recovery token for the creator with this email and returns the stored address, or null when none exists. */
   issueRecovery(input: { email: string; tokenHash: string; at: number; expiresAt: number }): Promise<string | null>;
-  /** Sets the new password, ends every session and consumes the token in one transaction. False when the token is unknown, used or expired. */
-  completeRecovery(input: { tokenHash: string; password: string; at: number }): Promise<boolean>;
+  /** Sets the new password, ends every session and consumes the token in one transaction, judging expiry by the Clock after its row lock is held. False when the token is unknown, used or expired. */
+  completeRecovery(input: { tokenHash: string; password: string }): Promise<boolean>;
 }
 export interface AccountsOptions {
   auth: Auth;
@@ -101,7 +101,7 @@ export function createAccounts(options: AccountsOptions) {
     /** Ends every session of the creator; they sign in again with the new password. */
     async completeRecovery(input: RecoveryComplete): Promise<void> {
       if (commonPasswords.has(input.password.toLowerCase())) throw new AccountRefusal("recovery-refused");
-      if (!await identity.completeRecovery({ tokenHash: tokenHash(input.token), password: input.password, at: clock.now() })) throw new AccountRefusal("recovery-refused");
+      if (!await identity.completeRecovery({ tokenHash: tokenHash(input.token), password: input.password })) throw new AccountRefusal("recovery-refused");
     },
     resolveScope,
     async issueInvitation(subject: AuthenticatedSubject, email: string) {

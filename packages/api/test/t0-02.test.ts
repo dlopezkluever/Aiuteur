@@ -1,4 +1,5 @@
 import { randomBytes, randomUUID, createHash } from "node:crypto";
+import { setTimeout } from "node:timers/promises";
 import { afterAll, beforeAll, expect, it } from "vitest";
 import { createAccounts, createBetterAuth } from "@aiuteur/accounts";
 import { createPostgresStore } from "@aiuteur/store";
@@ -156,6 +157,38 @@ it("refuses an unknown, expired, superseded or weak-password recovery without ch
   expect(expired.status).toBe(403);
   expect(await expired.json()).toEqual(refused);
   expect(await studioStatus(cookie, a.accountId)).toBe(200);
+  expect((await signIn(a.email, password)).status).toBe(200);
+});
+
+it("refuses a recovery link that expires while its completion waits for the row lock, changing nothing", async () => {
+  const a = await creator();
+  const cookie = await session(a.email);
+  await requestLink(a.email);
+  const token = linkToken(a.email);
+  const hash = createHash("sha256").update(token).digest("hex");
+  // Expires 30 s from now; valid when the request starts.
+  await database.inspect.query("UPDATE auth.recovery SET expires_at = $1 WHERE token_hash = $2", [new Date(clock.now() + 30_000), hash]);
+  const lock = await database.inspect.connect();
+  let response: Promise<Response> | undefined;
+  try {
+    await lock.query("BEGIN");
+    await lock.query("SELECT FROM auth.recovery WHERE token_hash = $1 FOR UPDATE", [hash]);
+    response = request("/api/recovery/complete", { token, password: newPassword });
+    let waiting = false;
+    for (let attempt = 0; attempt < 100 && !waiting; attempt++) {
+      waiting = (await database.inspect.query("SELECT FROM pg_stat_activity WHERE datname = current_database() AND usename = 'identity' AND wait_event_type = 'Lock'")).rowCount === 1;
+      if (!waiting) await setTimeout(10);
+    }
+    expect(waiting).toBe(true);
+    clock.advance(30_000);
+  } finally { await lock.query("ROLLBACK"); lock.release(); }
+  if (!response) throw new Error("completion not started");
+  const refused = await response;
+  expect(refused.status).toBe(403);
+  expect(await refused.json()).toEqual({ code: "recovery-refused" });
+  expect(await studioStatus(cookie, a.accountId)).toBe(200);
+  clock.advance(WINDOW);
+  expect((await signIn(a.email, newPassword)).status).toBe(401);
   expect((await signIn(a.email, password)).status).toBe(200);
 });
 

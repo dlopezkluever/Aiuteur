@@ -100,7 +100,8 @@ export async function createBetterAuth(options: BetterAuthOptions): Promise<{
           const found = await sql<{ user_id: string; expires_at: Date }>`SELECT user_id, expires_at FROM auth.recovery
             WHERE token_hash = ${input.tokenHash} FOR UPDATE`.execute(tx);
           const row = found.rows[0];
-          if (!row || row.expires_at.getTime() <= input.at) return false;
+          // Sampled after the row lock, so expiry while waiting for it is honoured.
+          if (!row || row.expires_at.getTime() <= options.clock.now()) return false;
           const context = await library(tx, true).$context;
           const password = await context.password.hash(input.password);
           await context.internalAdapter.updatePassword(row.user_id, password);
