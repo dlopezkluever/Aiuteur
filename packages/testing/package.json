@@ -1,0 +1,17 @@
+{
+  "name": "@aiuteur/testing",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "generate:video-asset": "node scripts/generate-video-asset.ts"
+  },
+  "dependencies": {
+    "@aiuteur/contract": "workspace:*",
+    "@aiuteur/providers": "workspace:*",
+    "fast-check": "^4.10.2",
+    "vitest": "^5.0.5"
+  }
+}

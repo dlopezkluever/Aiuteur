@@ -1,0 +1,11 @@
+{
+  "name": "@aiuteur/arch-rules",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "oxc-parser": "^0.155.0"
+  }
+}
