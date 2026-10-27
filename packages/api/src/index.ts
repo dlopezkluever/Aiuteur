@@ -22,8 +22,12 @@ export function createApi(options: { accounts: Accounts; views: Views; handleAut
     const address = options.clientAddress(c.req.raw);
     if (route.access === "auth") {
       if (route.path === "/api/auth/sign-in/email") {
-        const body: unknown = await c.req.raw.clone().json().catch(() => null);
+        // The API contract is JSON. Sign-in is forwarded only when its email was read and counted,
+        // so no other encoding Better Auth might parse can skip the per-email limit.
+        const json = c.req.header("content-type")?.split(";")[0]?.trim().toLowerCase() === "application/json";
+        const body: unknown = json ? await c.req.raw.clone().json().catch(() => null) : null;
         const email = body && typeof body === "object" && "email" in body && typeof body.email === "string" ? body.email : null;
+        if (email === null) return c.json(errorSchema.parse({ code: "invalid-request" }), 400);
         await options.accounts.attempt("signIn", address, email);
       }
       return options.handleAuth(c.req.raw);

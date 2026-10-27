@@ -11,7 +11,7 @@ export interface MailMessage {
   readonly text: string;
 }
 
-/** FC11 Draft: a failed delivery rejects with MailDeliveryError; success means the provider accepted the message. */
+/** Draft platform port (MODULE-ARCHITECTURE §3.5): a failed delivery rejects with MailDeliveryError; success means the provider accepted the message. */
 export interface Mailer {
   send(message: MailMessage): Promise<void>;
 }

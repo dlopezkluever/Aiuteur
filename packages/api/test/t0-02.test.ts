@@ -272,6 +272,28 @@ it("sign-in is throttled per email and per address, the right password included,
   expect(rotating).toEqual([401, 401, 401, 401, 401, 401, 429, 429]);
 });
 
+it("sign-in accepts JSON only, so a form-encoded request cannot skip the per-email limit", async () => {
+  clock.advance(WINDOW);
+  const a = await creator();
+  const form = (email: string, pass: string) => api.request(`${origin}/api/auth/sign-in/email`, {
+    method: "POST",
+    headers: { origin, "content-type": "application/x-www-form-urlencoded", "x-aiuteur-command": "1", "x-test-address": freshAddress() },
+    body: new URLSearchParams({ email, password: pass }),
+  });
+  for (let attempt = 0; attempt < 3; attempt++) expect((await signIn(a.email, "wrong-password-entirely")).status).toBe(401);
+  // The email is at its limit: neither encoding, with the right password, gets through.
+  expect((await signIn(a.email, password)).status).toBe(429);
+  const refused = await form(a.email, password);
+  expect(refused.status).toBe(400);
+  expect(await refused.json()).toEqual({ code: "invalid-request" });
+  expect(refused.headers.getSetCookie()).toEqual([]);
+  // Even in a fresh window the form encoding never authenticates, and it consumes no attempts.
+  clock.advance(WINDOW);
+  expect((await form(a.email, password)).status).toBe(400);
+  expect((await database.inspect.query("SELECT count(*) FROM auth.session s JOIN auth.\"user\" u ON u.id = s.\"userId\" WHERE u.email = $1", [a.email])).rows).toEqual([{ count: "0" }]);
+  expect((await signIn(a.email, password)).status).toBe(200);
+});
+
 it("invitation redemption is throttled per submitted email", async () => {
   clock.advance(WINDOW);
   const email = `${randomUUID()}@example.test`;
