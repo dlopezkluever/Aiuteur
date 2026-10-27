@@ -74,6 +74,41 @@ export async function createBetterAuth(options: BetterAuthOptions): Promise<{
             VALUES (${input.auditId}, ${input.issuedBy}, 'invitation.issued', ${new Date(input.at)})`.execute(tx);
         });
       },
+      async attempt(input) {
+        const result = await sql<{ attempts: number }>`INSERT INTO auth.rate_limit (key, window_start, expires_at, attempts)
+          VALUES (${input.key}, ${new Date(input.windowStart)}, ${new Date(input.expiresAt)}, 1)
+          ON CONFLICT (key, window_start) DO UPDATE SET attempts = auth.rate_limit.attempts + 1
+          RETURNING attempts`.execute(db);
+        // Expired windows are dead rows; sweeping them here keeps the table bounded without a worker.
+        await sql`DELETE FROM auth.rate_limit WHERE expires_at < ${new Date(input.at)}`.execute(db);
+        return Number(result.rows[0]?.attempts);
+      },
+      async issueRecovery(input) {
+        return db.transaction().execute(async (tx) => {
+          const user = await sql<{ id: string; email: string }>`SELECT id, email FROM auth."user"
+            WHERE email = ${input.email} AND "emailVerified"`.execute(tx);
+          const row = user.rows[0];
+          if (!row) return null;
+          await sql`DELETE FROM auth.recovery WHERE user_id = ${row.id}`.execute(tx);
+          await sql`INSERT INTO auth.recovery (token_hash, user_id, expires_at, created_at)
+            VALUES (${input.tokenHash}, ${row.id}, ${new Date(input.expiresAt)}, ${new Date(input.at)})`.execute(tx);
+          return row.email;
+        });
+      },
+      async completeRecovery(input) {
+        return db.transaction().execute(async (tx) => {
+          const found = await sql<{ user_id: string; expires_at: Date }>`SELECT user_id, expires_at FROM auth.recovery
+            WHERE token_hash = ${input.tokenHash} FOR UPDATE`.execute(tx);
+          const row = found.rows[0];
+          if (!row || row.expires_at.getTime() <= input.at) return false;
+          const context = await library(tx, true).$context;
+          const password = await context.password.hash(input.password);
+          await context.internalAdapter.updatePassword(row.user_id, password);
+          await sql`DELETE FROM auth.session WHERE "userId" = ${row.user_id}`.execute(tx);
+          await sql`DELETE FROM auth.recovery WHERE user_id = ${row.user_id}`.execute(tx);
+          return true;
+        });
+      },
       async redeem(input) {
         try {
           return await db.transaction().execute(async (tx) => {

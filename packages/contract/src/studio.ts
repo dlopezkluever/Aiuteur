@@ -16,7 +16,7 @@ export const studioSchema = z.strictObject({ account: accountSchema, settings: s
 // No Project kind or creation operation exists at T0-01.
 export const projectListSchema = z.strictObject({ projects: z.array(z.never()) });
 
-export const ERROR_CODES = ["not-found", "unauthenticated", "forbidden", "invalid-request", "invitation-refused", "internal-error"] as const;
+export const ERROR_CODES = ["not-found", "unauthenticated", "forbidden", "invalid-request", "invitation-refused", "recovery-refused", "rate-limited", "internal-error"] as const;
 export const errorSchema = z.strictObject({ code: z.enum(ERROR_CODES) });
 export type ErrorCode = z.infer<typeof errorSchema>["code"];
 export const EVENT_TYPES = ["account.created"] as const;
@@ -39,12 +39,24 @@ export const redeemInvitationSchema = z.strictObject({
 });
 export type RedeemInvitation = z.infer<typeof redeemInvitationSchema>;
 
+// T0-02. A request always answers the same body, whether or not the email has an Account.
+export const recoveryRequestSchema = z.strictObject({ email: emailSchema });
+export const recoveryRequestedSchema = z.strictObject({ status: z.literal("accepted") });
+export const recoveryCompleteSchema = z.strictObject({
+  token: z.string().min(32).max(256),
+  password: z.string().min(12).max(128),
+});
+export type RecoveryComplete = z.infer<typeof recoveryCompleteSchema>;
+export const recoveryCompletedSchema = z.strictObject({ status: z.literal("recovered") });
+
 export const AUDIT_ACTIONS = ["invitation.issued"] as const;
 
 // FC2 route authority. The API and G1/G2 both consume this inventory; there is
 // no wildcard forwarding to Better Auth (especially no signup endpoint).
 export const ROUTES = [
   { method: "POST", path: "/api/invitations/redeem", access: "invitation" },
+  { method: "POST", path: "/api/recovery/request", access: "recovery" },
+  { method: "POST", path: "/api/recovery/complete", access: "recovery" },
   { method: "POST", path: "/api/operator/invitations", access: "operator" },
   { method: "GET", path: "/api/studios/:accountId", access: "scope" },
   { method: "GET", path: "/api/studios/:accountId/projects", access: "scope" },
