@@ -6,6 +6,7 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "oxc-parser": "^0.155.0"
+    "oxc-resolver": "^11.24.2",
+    "typescript-api": "npm:typescript@5.9.3"
   }
 }
