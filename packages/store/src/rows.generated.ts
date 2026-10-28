@@ -12,6 +12,7 @@ export interface accounts_attempt {
   "project_id": string;
   "based_on": number;
   "origin": string;
+  "generation_id": string | null;
   "body": unknown;
   "created_at": Date;
 }
@@ -49,6 +50,7 @@ export interface accounts_revision {
   "cause": string;
   "actor_kind": string;
   "action_group": string;
+  "generation_id": string | null;
   "schema_version": number;
   "body": unknown;
   "body_hash": string;

@@ -25,7 +25,7 @@ export function createViews(store: Store) {
         sideLine: found.sideLine.map((entry) => {
           const body = sourceMaterialKind.parse(entry.body);
           if (!body) throw new Error("stored side-line body does not parse");
-          return { attemptId: entry.attemptId, basedOn: entry.basedOn, origin: entry.origin, text: body.text, role: body.role, createdAt: entry.createdAt };
+          return { attemptId: entry.attemptId, basedOn: entry.basedOn, origin: entry.origin, generationId: entry.generationId, text: body.text, role: body.role, createdAt: entry.createdAt };
         }),
       });
     },

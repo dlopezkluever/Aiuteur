@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { ActionGroupId, ActorKind, ObjectId, ProjectId, RefusalReason, RevisionCause } from "@aiuteur/contract";
+import { AI_CAUSES, type ActionGroupId, type ActorKind, type GenerationId, type ObjectId, type ProjectId, type RefusalReason, type RevisionCause } from "@aiuteur/contract";
 import type { AttemptRow, Ids, ReadTx, RevisionRow, Scope, WriteTx } from "@aiuteur/store";
 
 // Draft FC3 (the write gate) and FC4 (kind declaration). Neither is frozen at T0-03.
@@ -48,6 +48,8 @@ export interface CommitContext {
   readonly cause: RevisionCause;
   /** Ties this commit to the creator action it belongs to; minted by the use case in `workflows` (MODULE §5.1). */
   readonly actionGroup: ActionGroupId;
+  /** The Generation that made the content. Required when the actor is a Generation or the cause is AI-made, and refused otherwise (MODULE §5.1, AI-map G7). Opaque until #102. */
+  readonly generationId?: GenerationId;
   /** From the injected Clock. */
   readonly at: number;
   readonly ids: Ids;
@@ -88,6 +90,9 @@ async function commit(kinds: ReadonlyMap<string, KindDeclaration>, wtx: WriteTx,
   const refuse = (reason: RefusalReason): CommitResult => ({ result: "Refused", reason });
   const declaration = typeof change.kind === "string" ? kinds.get(change.kind) : undefined;
   if (!declaration) return refuse("unknown-kind");
+  // AI-made content needs its Generation; nothing else may claim one. Refused before anything is stored.
+  const aiMade = ctx.actor === "generation" || AI_CAUSES.includes(ctx.cause);
+  if (aiMade !== (ctx.generationId !== undefined) || (aiMade && ctx.actor !== "generation")) return refuse("missing-provenance");
   if (!await wtx.project(change.projectId)) return refuse("not-found");
   const object = await wtx.object(change.objectId);
   if (object && object.projectId !== change.projectId) return refuse("not-found");
@@ -105,7 +110,7 @@ async function commit(kinds: ReadonlyMap<string, KindDeclaration>, wtx: WriteTx,
   const at = new Date(ctx.at).toISOString();
   const keep = async (origin: AttemptRow["origin"]) => {
     const attemptId = ctx.ids.ordered();
-    await wtx.insertAttempt({ attemptId, objectId: change.objectId, projectId: change.projectId, basedOn: change.base, origin, body, createdAt: at });
+    await wtx.insertAttempt({ attemptId, objectId: change.objectId, projectId: change.projectId, basedOn: change.base, origin, generationId: ctx.generationId ?? null, body, createdAt: at });
     return attemptId;
   };
 
@@ -125,7 +130,7 @@ async function commit(kinds: ReadonlyMap<string, KindDeclaration>, wtx: WriteTx,
   if (!object) await wtx.insertObject({ objectId: change.objectId, projectId: change.projectId, kind: declaration.kind, createdAt: at });
   const revision: RevisionRow = {
     objectId: change.objectId, projectId: change.projectId, sequence: headSequence + 1, parent: headSequence,
-    cause: ctx.cause, actorKind: ctx.actor, actionGroup: ctx.actionGroup, schemaVersion: declaration.schemaVersion, body, bodyHash: hash, fingerprints: fingerprints(declaration, body), createdAt: at,
+    cause: ctx.cause, actorKind: ctx.actor, actionGroup: ctx.actionGroup, generationId: ctx.generationId ?? null, schemaVersion: declaration.schemaVersion, body, bodyHash: hash, fingerprints: fingerprints(declaration, body), createdAt: at,
   };
   await wtx.appendRevision(revision);
   return { result: "Applied", appended: true, revision };

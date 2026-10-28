@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { actionGroupIdSchema, objectIdSchema, projectIdSchema, type ObjectId, type ProjectId } from "@aiuteur/contract";
+import { actionGroupIdSchema, generationIdSchema, objectIdSchema, projectIdSchema, type ObjectId, type ProjectId } from "@aiuteur/contract";
 import { createHistory, derive, read, type CommitContext, type CommitResult } from "@aiuteur/history";
 import type { Scope } from "@aiuteur/store";
 import { sourceMaterialKind } from "@aiuteur/story";
@@ -11,6 +11,7 @@ import type { StoreSubject } from "./store.ts";
 const ids = { uuid: randomUUID, ordered: uuidv7, token: randomUUID };
 let tick = Date.UTC(2026, 0, 1);
 const context = (extra: Partial<CommitContext> = {}): CommitContext => ({ actor: "creator", cause: "import", actionGroup: actionGroupIdSchema.parse(uuidv7()), at: (tick += 1000), ids, ...extra });
+const gen = () => generationIdSchema.parse(uuidv7());
 const KIND = sourceMaterialKind.kind;
 /** Composition registers the owning module's declaration, as production does. */
 const { commit } = createHistory([sourceMaterialKind]);
@@ -85,7 +86,7 @@ export function describeHistoryConformance(name: string, subject: () => Promise<
       const head = (await readBack(a, objectId))?.head;
       const before = await rowCounts();
       expect(await write(a, objectId, 1, "the original, edited")).toMatchObject({ result: "Refused", reason: "invariant-violated" });
-      expect(await write(a, objectId, 1, "THE ORIGINAL", { actor: "generation" })).toMatchObject({ result: "Refused", reason: "invariant-violated" });
+      expect(await write(a, objectId, 1, "THE ORIGINAL", { actor: "generation", generationId: gen() })).toMatchObject({ result: "Refused", reason: "invariant-violated" });
       expect(await write(a, objectId, 1, "the original ", {}, undefined, "supporting")).toMatchObject({ result: "Refused", reason: "invariant-violated" });
       expect(await rowCounts()).toEqual(before);
       expect((await readBack(a, objectId))?.head).toEqual(head);
@@ -127,6 +128,28 @@ export function describeHistoryConformance(name: string, subject: () => Promise<
       expect(await write(a, objectId, 2, "grouped", { actionGroup: other }, undefined, "supporting")).toMatchObject({ result: "Applied", appended: false, revision: { sequence: 2, actionGroup: group } });
       expect(await write(a, objectId, 1, "grouped", { actionGroup: other }, undefined, "primary")).toMatchObject({ result: "StaleBase" });
       expect((await readBack(a, objectId))?.sequences).toEqual([1, 2]);
+    });
+
+    it("MODULE §5.1 (4): AI-made content without a Generation is refused before anything is stored; valid provenance is kept", async () => {
+      const { write, newObject, read: readBack, rowCounts, lockObject, a } = await setup();
+      const objectId = await newObject("ai target");
+      const head = (await readBack(a, objectId))?.head;
+      const before = await rowCounts();
+      const refused = { result: "Refused", reason: "missing-provenance" };
+      expect(await write(a, objectId, 1, "ai target", { actor: "generation", cause: "ai_generation" }, undefined, "supporting")).toMatchObject(refused);
+      expect(await write(a, objectId, 1, "ai target", { cause: "ai_generation" }, undefined, "supporting")).toMatchObject(refused);
+      expect(await write(a, objectId, 1, "ai target", { actor: "generation", generationId: gen() }, undefined, "supporting")).toMatchObject({ result: "Applied" });
+      expect(await write(a, objectId, 1, "ai target", { generationId: gen() }, undefined, "primary")).toMatchObject(refused);
+      expect(await rowCounts()).toEqual({ ...before, revision: (before["revision"] ?? 0) + 1 });
+      expect((await readBack(a, objectId))?.sideLine).toEqual([]);
+      expect((await readBack(a, objectId, 1))?.revision).toEqual(head);
+      const id = gen();
+      expect(await write(a, objectId, 2, "ai target", { actor: "generation", cause: "ai_generation", generationId: id }, undefined, "primary")).toMatchObject({ result: "Applied", revision: { generationId: id, actorKind: "generation", cause: "ai_generation" } });
+      expect((await readBack(a, objectId))?.head.generationId).toBe(id);
+      await lockObject(a, objectId);
+      const held = gen();
+      expect(await write(a, objectId, 3, "ai target", { actor: "generation", generationId: held }, undefined, "supporting")).toMatchObject({ result: "HeldAsOption" });
+      expect((await readBack(a, objectId))?.sideLine).toMatchObject([{ origin: "held", generationId: held }]);
     });
 
     it("ADR 0020: a Revision stores frozen slice fingerprints that read back exactly and are never recomputed", async () => {
@@ -201,7 +224,7 @@ export function describeHistoryConformance(name: string, subject: () => Promise<
       expect(await write(a, objectId, 1, "locked text", {}, undefined, "supporting")).toMatchObject({ result: "NeedsConfirmation", impact: { version: 1, reached: [] } });
       expect(await rowCounts()).toEqual(before);
       expect(await store.read(a, (tx) => derive(tx, a, objectId))).toEqual({ markers: [], impact: { version: 1, reached: [] } });
-      const held = await write(a, objectId, 1, "locked text", { actor: "generation" }, undefined, "supporting");
+      const held = await write(a, objectId, 1, "locked text", { actor: "generation", generationId: gen() }, undefined, "supporting");
       expect(held).toMatchObject({ result: "HeldAsOption" });
       expect((await readBack(a, objectId))?.sideLine).toMatchObject([{ origin: "held", body: { text: "locked text", role: "supporting" } }]);
       expect((await readBack(a, objectId))?.sequences).toEqual([1]);
@@ -218,7 +241,7 @@ export function describeHistoryConformance(name: string, subject: () => Promise<
       const seen = new Set<CommitResult["result"]>();
       for (const result of [await write(a, objectId, 1, "first", {}, undefined, "supporting"), await write(a, objectId, 1, "first", {}, undefined, "primary"), await write(a, objectIdSchema.parse(uuidv7()), 1, "x")]) seen.add(result.result);
       await lockObject(a, objectId);
-      for (const result of [await write(a, objectId, 2, "first"), await write(a, objectId, 2, "first", { actor: "generation" })]) seen.add(result.result);
+      for (const result of [await write(a, objectId, 2, "first"), await write(a, objectId, 2, "first", { actor: "generation", generationId: gen() })]) seen.add(result.result);
       expect([...seen].sort()).toEqual(["Applied", "HeldAsOption", "NeedsConfirmation", "Refused", "StaleBase"]);
     });
 

@@ -1,13 +1,15 @@
 import { randomBytes, randomUUID, createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { setTimeout } from "node:timers/promises";
 import { Pool } from "pg";
 import { afterAll, beforeAll, expect, it } from "vitest";
 import { TOTP, Secret } from "otpauth";
 import { createAccounts, createBetterAuth } from "@aiuteur/accounts";
-import { accountIdSchema, commitOutcomeSchema, creatorIdSchema, projectSchema, sourceMaterialReadSchema, type ObjectId, studioSchema, projectListSchema, invitationSchema, redeemedInvitationSchema, ROUTES, eventSchema, AUDIT_ACTIONS } from "@aiuteur/contract";
+import { ACTOR_KINDS, ATTEMPT_ORIGINS, REVISION_CAUSES, accountIdSchema, commitOutcomeSchema, creatorIdSchema, projectSchema, sourceMaterialReadSchema, type ObjectId, studioSchema, projectListSchema, invitationSchema, redeemedInvitationSchema, ROUTES, eventSchema, AUDIT_ACTIONS } from "@aiuteur/contract";
 import { createPostgresStore, migrateDatabase, schemaCatalogue, type Scope } from "@aiuteur/store";
 import { createViews } from "@aiuteur/views";
 import { createHistory } from "@aiuteur/history";
@@ -359,6 +361,42 @@ it("D1/D3: the fresh migration chain equals the snapshot, generated rows and voc
   const { rows } = await database.inspect.query<{ definition: string }>("SELECT pg_get_constraintdef(oid) AS definition FROM pg_constraint WHERE conname = 'audit_action'");
   const values = [...(rows[0]?.definition ?? "").matchAll(/'([^']+)'::text/g)].map((match) => match[1]);
   expect(values).toEqual([...AUDIT_ACTIONS]);
+  // History vocabularies: each live CHECK equals its contract set, rejects others and accepts every member.
+  const live = async (constraint: string) => [...((await database.inspect.query<{ definition: string }>("SELECT pg_get_constraintdef(oid) AS definition FROM pg_constraint WHERE conname = $1", [constraint])).rows[0]?.definition ?? "").matchAll(/'([^']+)'::text/g)].map((match) => match[1]);
+  expect(await live("revision_cause")).toEqual([...REVISION_CAUSES]);
+  expect(await live("revision_actor_kind")).toEqual([...ACTOR_KINDS]);
+  expect(await live("attempt_origin")).toEqual([...ATTEMPT_ORIGINS]);
+  const c = await creator();
+  const project = projectSchema.parse(await (await request(`/api/studios/${c.accountId}/projects`, {}, c.cookie)).json());
+  const owner = await database.inspect.connect();
+  try {
+    const attempt = async (column: "cause" | "actor_kind" | "origin", value: string) => {
+      await owner.query("BEGIN; SET LOCAL ROLE owner");
+      await owner.query("SELECT set_config('aiuteur.account_id', $1, true)", [c.accountId]);
+      const object = uuidv7();
+      await owner.query("INSERT INTO accounts.object VALUES ($1, $2, $3, 'k', now())", [object, c.accountId, project.projectId]);
+      const gen = column === "origin" || value === "generation" ? uuidv7() : null;
+      const result = column === "origin"
+        ? owner.query("INSERT INTO accounts.attempt (attempt_id, object_id, account_id, project_id, based_on, origin, generation_id, body, created_at) VALUES ($1, $2, $3, $4, 0, $5, $6, '{}', now())", [uuidv7(), object, c.accountId, project.projectId, value, gen])
+        : owner.query("INSERT INTO accounts.revision (object_id, sequence, account_id, project_id, parent, cause, actor_kind, action_group, generation_id, schema_version, body, body_hash, fingerprints, created_at) VALUES ($1, 1, $2, $3, 0, $4, $5, $6, $7, 1, '{}', 'h', '{}', now())", [object, c.accountId, project.projectId, column === "cause" ? value : "import", column === "actor_kind" ? value : "creator", uuidv7(), gen]);
+      const outcome = await result.then(() => "ok", (error: { code?: string }) => error.code);
+      await owner.query("ROLLBACK");
+      return outcome;
+    };
+    for (const [column, values] of [["cause", REVISION_CAUSES], ["actor_kind", ACTOR_KINDS], ["origin", ATTEMPT_ORIGINS]] as const) {
+      for (const value of values) expect(await attempt(column, value), `${column}=${value}`).toBe("ok");
+      expect(await attempt(column, "not-a-value"), column).toBe("23514");
+    }
+  } finally { await owner.query("ROLLBACK").catch(() => undefined); owner.release(); }
+  // D3 negative evidence: the generated block differs if a CHECK is missing or allows an extra value.
+  const migration = readFileSync(new URL("../../store/migrations/5-history.sql", import.meta.url), "utf8");
+  for (const broken of [migration.replace(/ALTER TABLE accounts\.attempt ADD CONSTRAINT attempt_origin[^\n]*\n/, ""), migration.replace("'stale-base'", "'stale-base', 'extra'")]) {
+    const dir = mkdtempSync(join(tmpdir(), "d3-"));
+    try {
+      writeFileSync(join(dir, "5-history.sql"), broken);
+      expect(() => execFileSync(process.execPath, [fileURLToPath(new URL("../../store/scripts/vocabulary.ts", import.meta.url)), "--check"], { env: { ...process.env, MIGRATIONS_DIR: dir }, stdio: "pipe" })).toThrow();
+    } finally { rmSync(dir, { recursive: true }); }
+  }
 });
 
 it("D4/G7: catalogue classification, forced policies, composite tenant keys, role grants and definer allowlist", async () => {

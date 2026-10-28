@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { Pool, type PoolClient } from "pg";
-import { ACTOR_KINDS, ATTEMPT_ORIGINS, REVISION_CAUSES, accountSchema, actionGroupIdSchema, objectIdSchema, projectIdSchema, settingsSchema, type AccountId, type ObjectId, type Project, type ProjectId, type Settings } from "@aiuteur/contract";
+import { ACTOR_KINDS, ATTEMPT_ORIGINS, REVISION_CAUSES, accountSchema, actionGroupIdSchema, generationIdSchema, objectIdSchema, projectIdSchema, settingsSchema, type AccountId, type ObjectId, type Project, type ProjectId, type Settings } from "@aiuteur/contract";
 import type { AttemptRow, ReadTx, RevisionRow, Scope, Store, WriteTx } from "./index.ts";
 import type { accounts_account, accounts_attempt, accounts_lock, accounts_object, accounts_project, accounts_revision, accounts_settings } from "./rows.generated.ts";
 
@@ -21,7 +21,7 @@ export async function assertRuntimeRole(pool: Pool, expected: "app" | "identity"
 const project = (row: Pick<accounts_project, "project_id" | "created_at">): Project => ({ projectId: projectIdSchema.parse(row.project_id), createdAt: row.created_at.toISOString() });
 const revision = (row: accounts_revision): RevisionRow => ({
   objectId: objectIdSchema.parse(row.object_id), projectId: projectIdSchema.parse(row.project_id), sequence: row.sequence, parent: row.parent,
-  cause: z.enum(REVISION_CAUSES).parse(row.cause), actorKind: z.enum(ACTOR_KINDS).parse(row.actor_kind), actionGroup: actionGroupIdSchema.parse(row.action_group), schemaVersion: row.schema_version, body: row.body, bodyHash: row.body_hash, fingerprints: z.record(z.string(), z.string()).parse(row.fingerprints), createdAt: row.created_at.toISOString(),
+  cause: z.enum(REVISION_CAUSES).parse(row.cause), actorKind: z.enum(ACTOR_KINDS).parse(row.actor_kind), actionGroup: actionGroupIdSchema.parse(row.action_group), generationId: row.generation_id === null ? null : generationIdSchema.parse(row.generation_id), schemaVersion: row.schema_version, body: row.body, bodyHash: row.body_hash, fingerprints: z.record(z.string(), z.string()).parse(row.fingerprints), createdAt: row.created_at.toISOString(),
 });
 
 function readTx(client: PoolClient): ReadTx {
@@ -55,7 +55,7 @@ function readTx(client: PoolClient): ReadTx {
       const { rows } = await client.query<accounts_attempt>("SELECT * FROM accounts.attempt WHERE object_id = $1 ORDER BY position", [id]);
       return rows.map((row): AttemptRow => ({
         attemptId: row.attempt_id, objectId: objectIdSchema.parse(row.object_id), projectId: projectIdSchema.parse(row.project_id),
-        basedOn: row.based_on, origin: z.enum(ATTEMPT_ORIGINS).parse(row.origin), body: row.body, createdAt: row.created_at.toISOString(),
+        basedOn: row.based_on, origin: z.enum(ATTEMPT_ORIGINS).parse(row.origin), generationId: row.generation_id === null ? null : generationIdSchema.parse(row.generation_id), body: row.body, createdAt: row.created_at.toISOString(),
       }));
     },
     async lockState(id: ObjectId) {
@@ -105,14 +105,14 @@ export async function createPostgresStore(connectionString: string): Promise<Sto
     },
     async appendRevision(row) {
       await client.query(
-        `INSERT INTO accounts.revision (object_id, sequence, account_id, project_id, parent, cause, actor_kind, action_group, schema_version, body, body_hash, fingerprints, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11, $12::jsonb, $13)`,
-        [row.objectId, row.sequence, scope.accountId, row.projectId, row.parent, row.cause, row.actorKind, row.actionGroup, row.schemaVersion, JSON.stringify(row.body), row.bodyHash, JSON.stringify(row.fingerprints), row.createdAt]);
+        `INSERT INTO accounts.revision (object_id, sequence, account_id, project_id, parent, cause, actor_kind, action_group, generation_id, schema_version, body, body_hash, fingerprints, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12, $13::jsonb, $14)`,
+        [row.objectId, row.sequence, scope.accountId, row.projectId, row.parent, row.cause, row.actorKind, row.actionGroup, row.generationId, row.schemaVersion, JSON.stringify(row.body), row.bodyHash, JSON.stringify(row.fingerprints), row.createdAt]);
     },
     async insertAttempt(row) {
       await client.query(
-        "INSERT INTO accounts.attempt (attempt_id, object_id, account_id, project_id, based_on, origin, body, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8)",
-        [row.attemptId, row.objectId, scope.accountId, row.projectId, row.basedOn, row.origin, JSON.stringify(row.body), row.createdAt]);
+        "INSERT INTO accounts.attempt (attempt_id, object_id, account_id, project_id, based_on, origin, generation_id, body, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9)",
+        [row.attemptId, row.objectId, scope.accountId, row.projectId, row.basedOn, row.origin, row.generationId, JSON.stringify(row.body), row.createdAt]);
     },
   });
   return {

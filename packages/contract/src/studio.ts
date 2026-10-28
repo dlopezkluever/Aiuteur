@@ -19,6 +19,10 @@ export const objectIdSchema = z.uuidv7().brand<"ObjectId">();
 // An action group ties the appends of one creator action together (LINEAGE §1 class 1); `workflows` mints one per command.
 export const actionGroupIdSchema = z.uuidv7().brand<"ActionGroupId">();
 export type ActionGroupId = z.infer<typeof actionGroupIdSchema>;
+// The id of the Generation that made AI content (VERIFICATION §2.1: the root of the trace). The Generation record is #102's;
+// until it exists the gate keeps this reference opaque and cannot check that the Generation exists.
+export const generationIdSchema = z.uuidv7().brand<"GenerationId">();
+export type GenerationId = z.infer<typeof generationIdSchema>;
 export type ProjectId = z.infer<typeof projectIdSchema>;
 export type ObjectId = z.infer<typeof objectIdSchema>;
 export const projectSchema = z.strictObject({ projectId: projectIdSchema, createdAt: z.iso.datetime() });

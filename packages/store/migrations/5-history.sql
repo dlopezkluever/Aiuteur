@@ -33,6 +33,8 @@ CREATE TABLE accounts.revision (
   actor_kind text NOT NULL,
   -- Ties the appends of one creator action together (LINEAGE §1 class 1); minted by the caller.
   action_group uuid NOT NULL,
+  -- The Generation that made the content; opaque until the Generation record exists (#102), so no foreign key.
+  generation_id uuid,
   schema_version integer NOT NULL,
   body jsonb NOT NULL,
   body_hash text NOT NULL,
@@ -40,6 +42,7 @@ CREATE TABLE accounts.revision (
   fingerprints jsonb NOT NULL,
   created_at timestamptz NOT NULL,
   PRIMARY KEY (object_id, sequence),
+  CHECK ((actor_kind = 'generation') = (generation_id IS NOT NULL)),
   FOREIGN KEY (account_id, project_id, object_id) REFERENCES accounts.object(account_id, project_id, object_id)
 );
 CREATE TABLE accounts.attempt (
@@ -50,8 +53,10 @@ CREATE TABLE accounts.attempt (
   project_id uuid NOT NULL,
   based_on integer NOT NULL CHECK (based_on >= 0),
   origin text NOT NULL,
+  generation_id uuid,
   body jsonb NOT NULL,
   created_at timestamptz NOT NULL,
+  CHECK (origin <> 'held' OR generation_id IS NOT NULL),
   FOREIGN KEY (account_id, project_id, object_id) REFERENCES accounts.object(account_id, project_id, object_id)
 );
 -- The lock table exists empty at T0-03: no runtime role can write it yet.
@@ -66,6 +71,14 @@ CREATE TABLE accounts.lock (
   PRIMARY KEY (object_id, sequence),
   FOREIGN KEY (account_id, project_id, object_id) REFERENCES accounts.object(account_id, project_id, object_id)
 );
+
+-- Closed vocabularies are text with a generated CHECK (ADR 0023, D3). This block is
+-- written by scripts/vocabulary.ts from `contract`; `--check` fails if it differs.
+-- BEGIN GENERATED VOCABULARY
+ALTER TABLE accounts.revision ADD CONSTRAINT revision_cause CHECK (cause IN ('creator_edit', 'ai_generation', 'ai_targeted_rewrite', 'sync', 'import', 'restore'));
+ALTER TABLE accounts.revision ADD CONSTRAINT revision_actor_kind CHECK (actor_kind IN ('creator', 'generation', 'import'));
+ALTER TABLE accounts.attempt ADD CONSTRAINT attempt_origin CHECK (origin IN ('stale-base', 'held'));
+-- END GENERATED VOCABULARY
 
 DO $$
 DECLARE t text;

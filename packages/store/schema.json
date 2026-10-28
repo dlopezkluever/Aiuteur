@@ -93,6 +93,12 @@
           "nullable": false
         },
         {
+          "name": "generation_id",
+          "type": "uuid",
+          "default": null,
+          "nullable": true
+        },
+        {
           "name": "body",
           "type": "jsonb",
           "default": null,
@@ -113,6 +119,14 @@
         {
           "name": "attempt_based_on_check",
           "definition": "CHECK ((based_on >= 0))"
+        },
+        {
+          "name": "attempt_check",
+          "definition": "CHECK (((origin <> 'held'::text) OR (generation_id IS NOT NULL)))"
+        },
+        {
+          "name": "attempt_origin",
+          "definition": "CHECK ((origin = ANY (ARRAY['stale-base'::text, 'held'::text])))"
         },
         {
           "name": "attempt_pkey",
@@ -397,6 +411,12 @@
           "nullable": false
         },
         {
+          "name": "generation_id",
+          "type": "uuid",
+          "default": null,
+          "nullable": true
+        },
+        {
           "name": "schema_version",
           "type": "integer",
           "default": null,
@@ -433,8 +453,20 @@
           "definition": "FOREIGN KEY (account_id, project_id, object_id) REFERENCES accounts.object(account_id, project_id, object_id)"
         },
         {
+          "name": "revision_actor_kind",
+          "definition": "CHECK ((actor_kind = ANY (ARRAY['creator'::text, 'generation'::text, 'import'::text])))"
+        },
+        {
+          "name": "revision_cause",
+          "definition": "CHECK ((cause = ANY (ARRAY['creator_edit'::text, 'ai_generation'::text, 'ai_targeted_rewrite'::text, 'sync'::text, 'import'::text, 'restore'::text])))"
+        },
+        {
           "name": "revision_check",
           "definition": "CHECK ((parent = (sequence - 1)))"
+        },
+        {
+          "name": "revision_check1",
+          "definition": "CHECK (((actor_kind = 'generation'::text) = (generation_id IS NOT NULL)))"
         },
         {
           "name": "revision_pkey",

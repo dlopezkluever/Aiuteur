@@ -1,4 +1,4 @@
-import type { Account, AccountId, ActionGroupId, ActorKind, AttemptOrigin, RevisionCause, CreatorId, ObjectId, Project, ProjectId, Settings } from "@aiuteur/contract";
+import type { Account, AccountId, ActionGroupId, GenerationId, ActorKind, AttemptOrigin, RevisionCause, CreatorId, ObjectId, Project, ProjectId, Settings } from "@aiuteur/contract";
 
 /** FC5 Draft: obtained by accounts.resolveScope, never from client input. */
 export interface Scope {
@@ -31,6 +31,8 @@ export interface RevisionRow {
   readonly cause: RevisionCause;
   readonly actorKind: ActorKind;
   readonly actionGroup: ActionGroupId;
+  /** Set exactly when the actor is a Generation. Opaque until #102 owns the Generation record. */
+  readonly generationId: GenerationId | null;
   readonly schemaVersion: number;
   readonly body: unknown;
   readonly bodyHash: string;
@@ -45,6 +47,7 @@ export interface AttemptRow {
   readonly projectId: ProjectId;
   readonly basedOn: number;
   readonly origin: AttemptOrigin;
+  readonly generationId: GenerationId | null;
   readonly body: unknown;
   readonly createdAt: string;
 }
