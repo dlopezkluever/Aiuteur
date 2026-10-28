@@ -1,23 +1,28 @@
 import { randomBytes, randomUUID, createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { setTimeout } from "node:timers/promises";
 import { Pool } from "pg";
 import { afterAll, beforeAll, expect, it } from "vitest";
 import { TOTP, Secret } from "otpauth";
 import { createAccounts, createBetterAuth } from "@aiuteur/accounts";
-import { accountIdSchema, creatorIdSchema, studioSchema, projectListSchema, invitationSchema, redeemedInvitationSchema, ROUTES, eventSchema, AUDIT_ACTIONS } from "@aiuteur/contract";
-import { createPostgresStore, migrateDatabase, schemaCatalogue } from "@aiuteur/store";
+import { IDEMPOTENT_OPERATIONS, ACTOR_KINDS, ATTEMPT_ORIGINS, REVISION_CAUSES, accountIdSchema, commitOutcomeSchema, creatorIdSchema, projectSchema, sourceMaterialReadSchema, type ObjectId, studioSchema, projectListSchema, invitationSchema, redeemedInvitationSchema, ROUTES, eventSchema, AUDIT_ACTIONS } from "@aiuteur/contract";
+import { createPostgresStore, migrateDatabase, schemaCatalogue, type Scope } from "@aiuteur/store";
 import { createViews } from "@aiuteur/views";
-import { describeStoreConformance, FakeMailer, ManualClock } from "@aiuteur/testing";
+import { createHistory } from "@aiuteur/history";
+import { sourceMaterialKind } from "@aiuteur/story";
+import { createWorkflows } from "@aiuteur/workflows";
+import { describeHistoryConformance, describeStoreConformance, storeIgnoringScope, FakeMailer, ManualClock, uuidv7 } from "@aiuteur/testing";
 import { createApi } from "@aiuteur/api";
 import { freshDatabase } from "./database.ts";
 
 const origin = "https://aiuteur.test";
 const password = "Paper-crane-lighthouse-98!";
 const clock = new ManualClock(Date.now());
-const ids = { uuid: randomUUID, token: () => randomBytes(32).toString("base64url") };
+const ids = { uuid: randomUUID, ordered: uuidv7, token: () => randomBytes(32).toString("base64url") };
 let database: Awaited<ReturnType<typeof freshDatabase>>;
 let adapter: Awaited<ReturnType<typeof createBetterAuth>>;
 let store: Awaited<ReturnType<typeof createPostgresStore>>;
@@ -31,14 +36,14 @@ beforeAll(async () => {
   const generous = { max: 1_000_000, windowMs: 60_000 };
   const limit = { address: generous, email: generous };
   accounts = createAccounts({ ...adapter, clock, ids, invitationTtlMs: 60_000, operatorEmails: ["operator@example.test"], mailer: new FakeMailer(), limits: { signIn: limit, recovery: limit, redemption: limit }, recoveryTtlMs: 600_000, recoveryPage: `${origin}/recover`, onMailFailure: (error) => { throw error; } });
-  api = createApi({ accounts, views: createViews(store), handleAuth: adapter.handle, origin, clientAddress: () => "203.0.113.1" });
+  api = createApi({ accounts, views: createViews(store), workflows: createWorkflows({ store, history: createHistory([sourceMaterialKind]), clock, ids }), handleAuth: adapter.handle, origin, clientAddress: () => "203.0.113.1" });
 });
 afterAll(async () => { await store?.close(); await adapter?.close(); await database?.close(); });
 
 async function request(path: string, body?: unknown, cookie = "") {
   return api.request(`${origin}${path}`, {
     method: body === undefined ? "GET" : "POST",
-    headers: { origin, "content-type": "application/json", "x-aiuteur-command": "1", cookie },
+    headers: { origin, "content-type": "application/json", "x-aiuteur-command": "1", "idempotency-key": randomUUID(), cookie },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
 }
@@ -86,23 +91,87 @@ it("two invited creators sign in and read only their own studio and empty projec
   }
 });
 
-describeStoreConformance("Postgres, migrated database", async () => {
+async function postgresSubject() {
   const a = await creator();
   const b = await creator();
-  return { store, a: a.scope, b: b.scope };
-});
+  return {
+    store, a: a.scope, b: b.scope,
+    // Seams run as the owner: no runtime role can write the lock table yet.
+    async lockObject(scope: Scope, objectId: ObjectId) {
+      const client = await database.inspect.connect();
+      try {
+        await client.query("BEGIN; SET LOCAL ROLE owner");
+        await client.query("SELECT set_config('aiuteur.account_id', $1, true)", [scope.accountId]);
+        await client.query(`INSERT INTO accounts.lock (object_id, sequence, account_id, project_id, locked, actor, created_at)
+          SELECT o.object_id, (SELECT coalesce(max(sequence), 0) + 1 FROM accounts.lock WHERE object_id = o.object_id), o.account_id, o.project_id, true, 'test', now()
+          FROM accounts.object o WHERE o.object_id = $1`, [objectId]);
+        await client.query("COMMIT");
+      } catch (error) { await client.query("ROLLBACK"); throw error; } finally { client.release(); }
+    },
+    async rowCounts() {
+      const { rows } = await database.inspect.query<Record<string, string>>("SELECT (SELECT count(*) FROM accounts.project) AS project, (SELECT count(*) FROM accounts.object) AS object, (SELECT count(*) FROM accounts.revision) AS revision, (SELECT count(*) FROM accounts.attempt) AS attempt, (SELECT count(*) FROM accounts.lock) AS lock, (SELECT count(*) FROM accounts.idempotency) AS idempotency");
+      return Object.fromEntries(Object.entries(rows[0] ?? {}).map(([table, count]) => [table, Number(count)]));
+    },
+  };
+}
+describeStoreConformance("Postgres, migrated database", postgresSubject);
+describeHistoryConformance("Postgres, migrated database", postgresSubject);
 
-it("G1: all scoped routes return the identical not-found response for another Account and an absent id", async () => {
+/**
+ * G1, generated from the route inventory: for every scoped operation, with its real method and a
+ * minimally valid body, Account B on Account A's identifiers must get exactly the answer it gets
+ * for identifiers that do not exist. A route that needs a body and has no entry fails, so a new
+ * operation cannot join the inventory without being exercised.
+ */
+const bodies: Record<string, unknown> = {
+  "POST /api/studios/:accountId/projects/:projectId/source-material": { text: "probe" },
+  "POST /api/studios/:accountId/projects/:projectId/source-material/:objectId/role": { base: 1, role: "supporting" },
+};
+async function assertG1(target: ReturnType<typeof createApi>, owner: { accountId: string; project: string; object: string }, intruder: { accountId: string; cookie: string }) {
+  const send = (method: string, path: string, body: unknown) => target.request(`${origin}${path}`, {
+    method, headers: { origin, "content-type": "application/json", "x-aiuteur-command": "1", "idempotency-key": randomUUID(), cookie: intruder.cookie }, ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  });
+  const fill = (path: string, named: { accountId: string; project: string; object: string }) =>
+    path.replace(":accountId", named.accountId).replace(":projectId", named.project).replace(":objectId", named.object).replace(":sequence", "1");
+  const absent = { accountId: ids.uuid(), project: ids.ordered(), object: ids.ordered() };
+  for (const route of ROUTES.filter((route) => route.access === "scope")) {
+    const key = `${route.method} ${route.path}`;
+    const body = route.method === "POST" ? (route.path.includes(":projectId") ? bodies[key] : {}) : undefined;
+    if (route.method === "POST" && body === undefined) throw new Error(`G1: no minimal valid body for ${key}`);
+    // The intruder's own Account id with the owner's project and object ids only matters where the path names them.
+    const forged = route.path.includes(":projectId") ? [owner, { ...owner, accountId: intruder.accountId }] : [owner];
+    const control = await send(route.method, fill(route.path, absent), body);
+    expect(control.status, `G1 control ${key}`).toBe(404);
+    for (const candidate of forged) {
+      const response = await send(route.method, fill(route.path, candidate), body);
+      expect(response.status, `G1 ${key} as ${candidate.accountId}`).toBe(404);
+      expect([...response.headers], `G1 ${key}`).toEqual([...control.headers]);
+      expect(await response.text(), `G1 ${key}`).toBe(await control.clone().text());
+    }
+  }
+}
+
+it("G1: every scoped operation, with its real method, refuses another Account exactly as it refuses an absent id", async () => {
   const a = await creator();
   const b = await creator();
-  for (const route of ROUTES.filter((route) => route.access === "scope")) {
-    const forbidden = await request(route.path.replace(":accountId", a.accountId), undefined, b.cookie);
-    const missing = await request(route.path.replace(":accountId", ids.uuid()), undefined, b.cookie);
-    expect(forbidden.status).toBe(404);
-    expect(missing.status).toBe(404);
-    expect([...forbidden.headers]).toEqual([...missing.headers]);
-    expect(await forbidden.text()).toBe(await missing.text());
-  }
+  const created = await request(`/api/studios/${a.accountId}/projects`, {}, a.cookie);
+  const project = projectSchema.parse(await created.json()).projectId;
+  const pasted = commitOutcomeSchema.parse(await (await request(`/api/studios/${a.accountId}/projects/${project}/source-material`, { text: "private" }, a.cookie)).json());
+  if (pasted.result !== "Applied") throw new Error("not applied");
+  const owner = { accountId: a.accountId, project, object: pasted.revision.objectId };
+  await assertG1(api, owner, { accountId: b.accountId, cookie: b.cookie });
+  // Nothing of A's changed: no extra project, Revision or side-line entry.
+  const projects = projectListSchema.parse(await (await request(`/api/studios/${a.accountId}/projects`, undefined, a.cookie)).json());
+  expect(projects.projects).toHaveLength(1);
+  const read = sourceMaterialReadSchema.parse(await (await request(`/api/studios/${a.accountId}/projects/${project}/source-material/${owner.object}`, undefined, a.cookie)).json());
+  expect(read).toMatchObject({ sequences: [1], sideLine: [] });
+  expect(read.head.text).toBe("private");
+
+  // Negative control: one operation that stops enforcing isolation makes G1 fail.
+  // Fault injected at the Store port (R19, R20): reads run as Account A whoever asks.
+  const leaky = createApi({ accounts, views: createViews(storeIgnoringScope(store, a.scope)), workflows: createWorkflows({ store, history: createHistory([sourceMaterialKind]), clock, ids }),
+    handleAuth: adapter.handle, origin, clientAddress: () => "203.0.113.1" });
+  await expect(assertG1(leaky, owner, { accountId: b.accountId, cookie: b.cookie })).rejects.toThrow(/G1/);
 });
 
 it("G2: the actual router equals the short inventory; scoped and operator reads require a mapped session", async () => {
@@ -292,6 +361,43 @@ it("D1/D3: the fresh migration chain equals the snapshot, generated rows and voc
   const { rows } = await database.inspect.query<{ definition: string }>("SELECT pg_get_constraintdef(oid) AS definition FROM pg_constraint WHERE conname = 'audit_action'");
   const values = [...(rows[0]?.definition ?? "").matchAll(/'([^']+)'::text/g)].map((match) => match[1]);
   expect(values).toEqual([...AUDIT_ACTIONS]);
+  // History vocabularies: each live CHECK equals its contract set, rejects others and accepts every member.
+  const live = async (constraint: string) => [...((await database.inspect.query<{ definition: string }>("SELECT pg_get_constraintdef(oid) AS definition FROM pg_constraint WHERE conname = $1", [constraint])).rows[0]?.definition ?? "").matchAll(/'([^']+)'::text/g)].map((match) => match[1]);
+  expect(await live("revision_cause")).toEqual([...REVISION_CAUSES]);
+  expect(await live("revision_actor_kind")).toEqual([...ACTOR_KINDS]);
+  expect(await live("attempt_origin")).toEqual([...ATTEMPT_ORIGINS]);
+  expect(await live("idempotency_operation")).toEqual([...IDEMPOTENT_OPERATIONS]);
+  const c = await creator();
+  const project = projectSchema.parse(await (await request(`/api/studios/${c.accountId}/projects`, {}, c.cookie)).json());
+  const owner = await database.inspect.connect();
+  try {
+    const attempt = async (column: "cause" | "actor_kind" | "origin", value: string) => {
+      await owner.query("BEGIN; SET LOCAL ROLE owner");
+      await owner.query("SELECT set_config('aiuteur.account_id', $1, true)", [c.accountId]);
+      const object = uuidv7();
+      await owner.query("INSERT INTO accounts.object VALUES ($1, $2, $3, 'k', now())", [object, c.accountId, project.projectId]);
+      const gen = column === "origin" || value === "generation" ? uuidv7() : null;
+      const result = column === "origin"
+        ? owner.query("INSERT INTO accounts.attempt (attempt_id, object_id, account_id, project_id, based_on, origin, generation_id, body, created_at) VALUES ($1, $2, $3, $4, 0, $5, $6, '{}', now())", [uuidv7(), object, c.accountId, project.projectId, value, gen])
+        : owner.query("INSERT INTO accounts.revision (object_id, sequence, account_id, project_id, parent, cause, actor_kind, action_group, generation_id, schema_version, body, body_hash, fingerprints, created_at) VALUES ($1, 1, $2, $3, 0, $4, $5, $6, $7, 1, '{}', 'h', '{}', now())", [object, c.accountId, project.projectId, column === "cause" ? value : "import", column === "actor_kind" ? value : "creator", uuidv7(), gen]);
+      const outcome = await result.then(() => "ok", (error: { code?: string }) => error.code);
+      await owner.query("ROLLBACK");
+      return outcome;
+    };
+    for (const [column, values] of [["cause", REVISION_CAUSES], ["actor_kind", ACTOR_KINDS], ["origin", ATTEMPT_ORIGINS]] as const) {
+      for (const value of values) expect(await attempt(column, value), `${column}=${value}`).toBe("ok");
+      expect(await attempt(column, "not-a-value"), column).toBe("23514");
+    }
+  } finally { await owner.query("ROLLBACK").catch(() => undefined); owner.release(); }
+  // D3 negative evidence: the generated block differs if a CHECK is missing or allows an extra value.
+  const migration = readFileSync(new URL("../../store/migrations/5-history.sql", import.meta.url), "utf8");
+  for (const broken of [migration.replace(/ALTER TABLE accounts\.attempt ADD CONSTRAINT attempt_origin[^\n]*\n/, ""), migration.replace("'stale-base'", "'stale-base', 'extra'")]) {
+    const dir = mkdtempSync(join(tmpdir(), "d3-"));
+    try {
+      writeFileSync(join(dir, "5-history.sql"), broken);
+      expect(() => execFileSync(process.execPath, [fileURLToPath(new URL("../../store/scripts/vocabulary.ts", import.meta.url)), "--check"], { env: { ...process.env, MIGRATIONS_DIR: dir }, stdio: "pipe" })).toThrow();
+    } finally { rmSync(dir, { recursive: true }); }
+  }
 });
 
 it("D4/G7: catalogue classification, forced policies, composite tenant keys, role grants and definer allowlist", async () => {
@@ -299,7 +405,7 @@ it("D4/G7: catalogue classification, forced policies, composite tenant keys, rol
     SELECT n.nspname || '.' || c.relname AS name, pg_get_userbyid(c.relowner) AS owner,
       c.relrowsecurity AS rls, c.relforcerowsecurity AS force FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
     WHERE c.relkind = 'r' AND n.nspname NOT LIKE 'pg_%' AND n.nspname <> 'information_schema' ORDER BY 1`);
-  expect(tables.map((table) => table.name)).toEqual(["accounts.account", "accounts.settings", "auth.account", "auth.audit_event", "auth.invitation", "auth.rate_limit", "auth.recovery", "auth.session", "auth.subject_map", "auth.twoFactor", "auth.user", "auth.verification", "public.migrations"]);
+  expect(tables.map((table) => table.name)).toEqual(["accounts.account", "accounts.attempt", "accounts.idempotency", "accounts.lock", "accounts.object", "accounts.project", "accounts.revision", "accounts.settings", "auth.account", "auth.audit_event", "auth.invitation", "auth.rate_limit", "auth.recovery", "auth.session", "auth.subject_map", "auth.twoFactor", "auth.user", "auth.verification", "public.migrations"]);
   for (const table of tables) {
     expect(table.owner).toBe("owner");
     if (table.name.startsWith("accounts.")) expect(table).toMatchObject({ rls: true, force: true });
@@ -310,7 +416,7 @@ it("D4/G7: catalogue classification, forced policies, composite tenant keys, rol
     }
   }
   const policies = await database.inspect.query("SELECT tablename, qual = with_check AS checked FROM pg_policies WHERE schemaname = 'accounts' ORDER BY tablename");
-  expect(policies.rows).toEqual([{ tablename: "account", checked: true }, { tablename: "settings", checked: true }]);
+  expect(policies.rows).toEqual(["account", "attempt", "idempotency", "lock", "object", "project", "revision", "settings"].map((tablename) => ({ tablename, checked: true })));
   const constraints = await database.inspect.query<{ definition: string }>("SELECT pg_get_constraintdef(oid) AS definition FROM pg_constraint WHERE conrelid = 'accounts.settings'::regclass ORDER BY conname");
   expect(constraints.rows.map((row) => row.definition)).toContain("PRIMARY KEY (account_id, key)");
   expect(constraints.rows.map((row) => row.definition)).toContain("FOREIGN KEY (account_id) REFERENCES accounts.account(account_id)");
@@ -319,7 +425,7 @@ it("D4/G7: catalogue classification, forced policies, composite tenant keys, rol
   const memberships = await database.inspect.query("SELECT FROM pg_auth_members WHERE member IN (SELECT oid FROM pg_roles WHERE rolname = ANY($1))", [["app", "scheduler", "identity", "operator_read", "backup", "owner"]]);
   expect(memberships.rows).toEqual([]);
   const definers = await database.inspect.query("SELECT p.proname, p.prosecdef, p.proconfig FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname IN ('accounts', 'auth') ORDER BY p.proname");
-  expect(definers.rows).toEqual([{ proname: "create_studio", prosecdef: true, proconfig: ["search_path=pg_catalog"] }, { proname: "map_subject", prosecdef: true, proconfig: ["search_path=pg_catalog"] }]);
+  expect(definers.rows).toEqual([{ proname: "create_studio", prosecdef: true, proconfig: ["search_path=pg_catalog"] }, { proname: "map_subject", prosecdef: true, proconfig: ["search_path=pg_catalog"] }, { proname: "reject_rewrite", prosecdef: false, proconfig: ["search_path=pg_catalog"] }]);
   expect((await database.inspect.query("SELECT FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname IN ('accounts', 'auth') AND c.relkind IN ('v', 'm')")).rows).toEqual([]);
   for (const role of ["app", "scheduler", "identity", "operator_read", "backup"]) {
     expect((await database.inspect.query("SELECT has_function_privilege($1, 'accounts.map_subject(text)', 'EXECUTE') AS map, has_function_privilege($1, 'accounts.create_studio(text,uuid,timestamptz,jsonb)', 'EXECUTE') AS create", [role])).rows).toEqual([{ map: role === "identity", create: role === "identity" }]);

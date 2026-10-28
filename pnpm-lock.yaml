@@ -164,10 +164,19 @@ importers:
       '@aiuteur/views':
         specifier: workspace:*
         version: link:../views
+      '@aiuteur/workflows':
+        specifier: workspace:*
+        version: link:../workflows
       hono:
         specifier: ^4.13.14
         version: 4.13.14
     devDependencies:
+      '@aiuteur/history':
+        specifier: workspace:*
+        version: link:../history
+      '@aiuteur/story':
+        specifier: workspace:*
+        version: link:../story
       '@aiuteur/testing':
         specifier: workspace:*
         version: link:../testing
@@ -186,6 +195,15 @@ importers:
       zod:
         specifier: ^4.3.6
         version: 4.6.7
+
+  packages/history:
+    dependencies:
+      '@aiuteur/contract':
+        specifier: workspace:*
+        version: link:../contract
+      '@aiuteur/store':
+        specifier: workspace:*
+        version: link:../store
 
   packages/mail:
     dependencies:
@@ -222,11 +240,29 @@ importers:
         specifier: ^8.16.0
         version: 8.23.1
 
+  packages/story:
+    dependencies:
+      '@aiuteur/contract':
+        specifier: workspace:*
+        version: link:../contract
+      '@aiuteur/history':
+        specifier: workspace:*
+        version: link:../history
+      '@aiuteur/store':
+        specifier: workspace:*
+        version: link:../store
+      zod:
+        specifier: ^4.3.6
+        version: 4.6.7
+
   packages/testing:
     dependencies:
       '@aiuteur/contract':
         specifier: workspace:*
         version: link:../contract
+      '@aiuteur/history':
+        specifier: workspace:*
+        version: link:../history
       '@aiuteur/mail':
         specifier: workspace:*
         version: link:../mail
@@ -236,6 +272,9 @@ importers:
       '@aiuteur/store':
         specifier: workspace:*
         version: link:../store
+      '@aiuteur/story':
+        specifier: workspace:*
+        version: link:../story
       fast-check:
         specifier: ^4.10.2
         version: 4.10.2
@@ -261,9 +300,30 @@ importers:
       '@aiuteur/contract':
         specifier: workspace:*
         version: link:../contract
+      '@aiuteur/history':
+        specifier: workspace:*
+        version: link:../history
       '@aiuteur/store':
         specifier: workspace:*
         version: link:../store
+      '@aiuteur/story':
+        specifier: workspace:*
+        version: link:../story
+
+  packages/workflows:
+    dependencies:
+      '@aiuteur/contract':
+        specifier: workspace:*
+        version: link:../contract
+      '@aiuteur/history':
+        specifier: workspace:*
+        version: link:../history
+      '@aiuteur/store':
+        specifier: workspace:*
+        version: link:../store
+      '@aiuteur/story':
+        specifier: workspace:*
+        version: link:../story
 
   tools/arch-rules:
     dependencies:

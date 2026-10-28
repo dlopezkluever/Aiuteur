@@ -1,0 +1,115 @@
+SET LOCAL ROLE owner;
+
+-- Classification: tenant tables (account_id, forced RLS, composite tenant keys).
+-- Every table here is append-only (PERSISTENCE §3, D5): no UPDATE/DELETE grant to
+-- any role and a blocking trigger that also stops the owner. Nothing in this file
+-- stores a marker or "outdated" status (D6); the lock table is a decision stream.
+CREATE FUNCTION accounts.reject_rewrite() RETURNS trigger
+LANGUAGE plpgsql SET search_path = pg_catalog
+AS $$ BEGIN RAISE EXCEPTION 'append-only: % on % is not allowed', TG_OP, TG_TABLE_NAME USING ERRCODE = '23000'; END $$;
+
+CREATE TABLE accounts.project (
+  project_id uuid PRIMARY KEY,
+  account_id uuid NOT NULL REFERENCES accounts.account(account_id),
+  created_at timestamptz NOT NULL,
+  UNIQUE (account_id, project_id)
+);
+CREATE TABLE accounts.object (
+  object_id uuid PRIMARY KEY,
+  account_id uuid NOT NULL,
+  project_id uuid NOT NULL,
+  kind text NOT NULL,
+  created_at timestamptz NOT NULL,
+  FOREIGN KEY (account_id, project_id) REFERENCES accounts.project(account_id, project_id),
+  UNIQUE (account_id, project_id, object_id)
+);
+CREATE TABLE accounts.revision (
+  object_id uuid NOT NULL,
+  sequence integer NOT NULL CHECK (sequence >= 1),
+  account_id uuid NOT NULL,
+  project_id uuid NOT NULL,
+  parent integer NOT NULL CHECK (parent = sequence - 1),
+  cause text NOT NULL,
+  actor_kind text NOT NULL,
+  -- Ties the appends of one creator action together (LINEAGE §1 class 1); minted by the caller.
+  action_group uuid NOT NULL,
+  -- The Generation that made the content; opaque until the Generation record exists (#102), so no foreign key.
+  generation_id uuid,
+  schema_version integer NOT NULL,
+  body jsonb NOT NULL,
+  body_hash text NOT NULL,
+  -- Slice name to content fingerprint, computed at write time and never recomputed (ADR 0020).
+  fingerprints jsonb NOT NULL,
+  created_at timestamptz NOT NULL,
+  PRIMARY KEY (object_id, sequence),
+  CHECK ((actor_kind = 'generation') = (generation_id IS NOT NULL)),
+  FOREIGN KEY (account_id, project_id, object_id) REFERENCES accounts.object(account_id, project_id, object_id)
+);
+CREATE TABLE accounts.attempt (
+  attempt_id uuid PRIMARY KEY,
+  position integer GENERATED ALWAYS AS IDENTITY,
+  object_id uuid NOT NULL,
+  account_id uuid NOT NULL,
+  project_id uuid NOT NULL,
+  based_on integer NOT NULL CHECK (based_on >= 0),
+  origin text NOT NULL,
+  generation_id uuid,
+  body jsonb NOT NULL,
+  created_at timestamptz NOT NULL,
+  CHECK (origin <> 'held' OR generation_id IS NOT NULL),
+  FOREIGN KEY (account_id, project_id, object_id) REFERENCES accounts.object(account_id, project_id, object_id)
+);
+-- The lock table exists empty at T0-03: no runtime role can write it yet.
+CREATE TABLE accounts.lock (
+  object_id uuid NOT NULL,
+  sequence integer NOT NULL CHECK (sequence >= 1),
+  account_id uuid NOT NULL,
+  project_id uuid NOT NULL,
+  locked boolean NOT NULL,
+  actor text NOT NULL,
+  created_at timestamptz NOT NULL,
+  PRIMARY KEY (object_id, sequence),
+  FOREIGN KEY (account_id, project_id, object_id) REFERENCES accounts.object(account_id, project_id, object_id)
+);
+
+-- Replay record of one keyed write, committed with the write it protects (STORY-DOCUMENTS §4).
+-- Identity is (Account, operation, key); the fingerprint tells a retry from key reuse with other input.
+CREATE TABLE accounts.idempotency (
+  account_id uuid NOT NULL REFERENCES accounts.account(account_id),
+  operation text NOT NULL,
+  key text NOT NULL CHECK (length(key) BETWEEN 1 AND 128),
+  fingerprint text NOT NULL,
+  result jsonb NOT NULL,
+  created_at timestamptz NOT NULL,
+  PRIMARY KEY (account_id, operation, key)
+);
+
+-- Closed vocabularies are text with a generated CHECK (ADR 0023, D3). This block is
+-- written by scripts/vocabulary.ts from `contract`; `--check` fails if it differs.
+-- BEGIN GENERATED VOCABULARY
+ALTER TABLE accounts.revision ADD CONSTRAINT revision_cause CHECK (cause IN ('creator_edit', 'ai_generation', 'ai_targeted_rewrite', 'sync', 'import', 'restore'));
+ALTER TABLE accounts.revision ADD CONSTRAINT revision_actor_kind CHECK (actor_kind IN ('creator', 'generation', 'import'));
+ALTER TABLE accounts.attempt ADD CONSTRAINT attempt_origin CHECK (origin IN ('stale-base', 'held'));
+ALTER TABLE accounts.idempotency ADD CONSTRAINT idempotency_operation CHECK (operation IN ('source-material.paste', 'source-material.change-role'));
+-- END GENERATED VOCABULARY
+
+DO $$
+DECLARE t text;
+BEGIN
+  FOREACH t IN ARRAY ARRAY['account', 'project', 'object', 'revision', 'attempt', 'lock', 'idempotency'] LOOP
+    IF t <> 'account' THEN
+      EXECUTE format('ALTER TABLE accounts.%I ENABLE ROW LEVEL SECURITY', t);
+      EXECUTE format('ALTER TABLE accounts.%I FORCE ROW LEVEL SECURITY', t);
+      EXECUTE format($p$CREATE POLICY account_scope ON accounts.%I
+        USING (account_id = NULLIF(current_setting('aiuteur.account_id', true), '')::uuid)
+        WITH CHECK (account_id = NULLIF(current_setting('aiuteur.account_id', true), '')::uuid)$p$, t);
+    END IF;
+    EXECUTE format('CREATE TRIGGER append_only_rows BEFORE UPDATE OR DELETE ON accounts.%I FOR EACH ROW EXECUTE FUNCTION accounts.reject_rewrite()', t);
+    EXECUTE format('CREATE TRIGGER append_only_truncate BEFORE TRUNCATE ON accounts.%I FOR EACH STATEMENT EXECUTE FUNCTION accounts.reject_rewrite()', t);
+  END LOOP;
+END $$;
+
+GRANT SELECT ON accounts.project, accounts.object, accounts.revision, accounts.attempt, accounts.lock TO app;
+GRANT SELECT, INSERT ON accounts.idempotency TO app;
+GRANT INSERT ON accounts.project, accounts.object, accounts.revision, accounts.attempt TO app;
+GRANT SELECT ON ALL TABLES IN SCHEMA accounts TO backup;

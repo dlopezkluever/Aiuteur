@@ -3,5 +3,5 @@
   "private": true,
   "type": "module",
   "exports": { ".": "./src/index.ts" },
-  "dependencies": { "@aiuteur/contract": "workspace:*", "@aiuteur/store": "workspace:*" }
+  "dependencies": { "@aiuteur/contract": "workspace:*", "@aiuteur/history": "workspace:*", "@aiuteur/story": "workspace:*", "@aiuteur/store": "workspace:*" }
 }

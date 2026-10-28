@@ -13,10 +13,23 @@ export const DEFAULT_SETTINGS: Settings = { treatmentOptionCount: 3 };
 export const accountSchema = z.strictObject({ accountId: accountIdSchema, createdAt: z.iso.datetime() });
 export type Account = z.infer<typeof accountSchema>;
 export const studioSchema = z.strictObject({ account: accountSchema, settings: settingsSchema });
-// No Project kind or creation operation exists at T0-01.
-export const projectListSchema = z.strictObject({ projects: z.array(z.never()) });
+// Project and history ids are 128-bit and time-ordered (PERSISTENCE-AND-MEDIA §3), minted by `Ids.ordered`.
+export const projectIdSchema = z.uuidv7().brand<"ProjectId">();
+export const objectIdSchema = z.uuidv7().brand<"ObjectId">();
+// An action group ties the appends of one creator action together (LINEAGE §1 class 1); `workflows` mints one per command.
+export const actionGroupIdSchema = z.uuidv7().brand<"ActionGroupId">();
+export type ActionGroupId = z.infer<typeof actionGroupIdSchema>;
+// The id of the Generation that made AI content (VERIFICATION §2.1: the root of the trace). The Generation record is #102's;
+// until it exists the gate keeps this reference opaque and cannot check that the Generation exists.
+export const generationIdSchema = z.uuidv7().brand<"GenerationId">();
+export type GenerationId = z.infer<typeof generationIdSchema>;
+export type ProjectId = z.infer<typeof projectIdSchema>;
+export type ObjectId = z.infer<typeof objectIdSchema>;
+export const projectSchema = z.strictObject({ projectId: projectIdSchema, createdAt: z.iso.datetime() });
+export type Project = z.infer<typeof projectSchema>;
+export const projectListSchema = z.strictObject({ projects: z.array(projectSchema) });
 
-export const ERROR_CODES = ["not-found", "unauthenticated", "forbidden", "invalid-request", "invitation-refused", "recovery-refused", "rate-limited", "internal-error"] as const;
+export const ERROR_CODES = ["not-found", "unauthenticated", "forbidden", "invalid-request", "invitation-refused", "recovery-refused", "idempotency-key-reused", "rate-limited", "internal-error"] as const;
 export const errorSchema = z.strictObject({ code: z.enum(ERROR_CODES) });
 export type ErrorCode = z.infer<typeof errorSchema>["code"];
 export const EVENT_TYPES = ["account.created"] as const;
@@ -60,6 +73,11 @@ export const ROUTES = [
   { method: "POST", path: "/api/operator/invitations", access: "operator" },
   { method: "GET", path: "/api/studios/:accountId", access: "scope" },
   { method: "GET", path: "/api/studios/:accountId/projects", access: "scope" },
+  { method: "POST", path: "/api/studios/:accountId/projects", access: "scope" },
+  { method: "POST", path: "/api/studios/:accountId/projects/:projectId/source-material", access: "scope" },
+  { method: "GET", path: "/api/studios/:accountId/projects/:projectId/source-material/:objectId", access: "scope" },
+  { method: "GET", path: "/api/studios/:accountId/projects/:projectId/source-material/:objectId/revisions/:sequence", access: "scope" },
+  { method: "POST", path: "/api/studios/:accountId/projects/:projectId/source-material/:objectId/role", access: "scope" },
   { method: "POST", path: "/api/auth/sign-in/email", access: "auth" },
   { method: "POST", path: "/api/auth/sign-out", access: "auth" },
   { method: "POST", path: "/api/auth/two-factor/enable", access: "auth" },
