@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { Pool, type PoolClient } from "pg";
 import { accountSchema, objectIdSchema, projectIdSchema, settingsSchema, type AccountId, type ObjectId, type Project, type ProjectId, type Settings } from "@aiuteur/contract";
 import type { AttemptRow, ReadTx, RevisionRow, Scope, Store, WriteTx } from "./index.ts";
@@ -20,7 +21,7 @@ export async function assertRuntimeRole(pool: Pool, expected: "app" | "identity"
 const project = (row: Pick<accounts_project, "project_id" | "created_at">): Project => ({ projectId: projectIdSchema.parse(row.project_id), createdAt: row.created_at.toISOString() });
 const revision = (row: accounts_revision): RevisionRow => ({
   objectId: objectIdSchema.parse(row.object_id), projectId: projectIdSchema.parse(row.project_id), sequence: row.sequence, parent: row.parent,
-  cause: row.cause, actorKind: row.actor_kind, schemaVersion: row.schema_version, body: row.body, bodyHash: row.body_hash, createdAt: row.created_at.toISOString(),
+  cause: row.cause, actorKind: row.actor_kind, schemaVersion: row.schema_version, body: row.body, bodyHash: row.body_hash, fingerprints: z.record(z.string(), z.string()).parse(row.fingerprints), createdAt: row.created_at.toISOString(),
 });
 
 function readTx(client: PoolClient): ReadTx {
@@ -104,9 +105,9 @@ export async function createPostgresStore(connectionString: string): Promise<Sto
     },
     async appendRevision(row) {
       await client.query(
-        `INSERT INTO accounts.revision (object_id, sequence, account_id, project_id, parent, cause, actor_kind, schema_version, body, body_hash, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11)`,
-        [row.objectId, row.sequence, scope.accountId, row.projectId, row.parent, row.cause, row.actorKind, row.schemaVersion, JSON.stringify(row.body), row.bodyHash, row.createdAt]);
+        `INSERT INTO accounts.revision (object_id, sequence, account_id, project_id, parent, cause, actor_kind, schema_version, body, body_hash, fingerprints, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11::jsonb, $12)`,
+        [row.objectId, row.sequence, scope.accountId, row.projectId, row.parent, row.cause, row.actorKind, row.schemaVersion, JSON.stringify(row.body), row.bodyHash, JSON.stringify(row.fingerprints), row.createdAt]);
     },
     async insertAttempt(row) {
       await client.query(

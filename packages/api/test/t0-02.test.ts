@@ -6,7 +6,7 @@ import { createAccounts, createBetterAuth } from "@aiuteur/accounts";
 import { createPostgresStore } from "@aiuteur/store";
 import { createViews } from "@aiuteur/views";
 import { createWorkflows } from "@aiuteur/workflows";
-import { FakeMailer, ManualClock } from "@aiuteur/testing";
+import { FakeMailer, ManualClock, uuidv7 } from "@aiuteur/testing";
 import { createApi } from "@aiuteur/api";
 import { redeemedInvitationSchema, ROUTES } from "@aiuteur/contract";
 import { freshDatabase } from "./database.ts";
@@ -17,7 +17,7 @@ const newPassword = "Copper-heron-meadow-41?";
 const WINDOW = 60_000;
 // Aligned so a fixed window never rolls over mid-test unless a test advances the clock.
 const clock = new ManualClock(Math.ceil(Date.now() / WINDOW) * WINDOW + 1);
-const ids = { uuid: randomUUID, token: () => randomBytes(32).toString("base64url") };
+const ids = { uuid: randomUUID, ordered: uuidv7, token: () => randomBytes(32).toString("base64url") };
 const mailer = new FakeMailer();
 const limits = {
   signIn: { address: { max: 6, windowMs: WINDOW }, email: { max: 3, windowMs: WINDOW } },

@@ -9,7 +9,8 @@ const respond = (c: Context, result: object | null) => result ? c.json(result) :
 /** One of the five write-gate results as an HTTP answer. Anything but Applied changed no Revision. */
 function outcome(c: Context, result: CommitOutcome) {
   if (result.result === "Applied") return c.json(commitOutcomeSchema.parse(result), result.appended ? 201 : 200);
-  if (result.result === "Refused") return c.json(commitOutcomeSchema.parse(result), result.reason === "not-found" ? 404 : 422);
+  // An unknown project or object answers exactly as every other absent id does (G1).
+  if (result.result === "Refused") return result.reason === "not-found" ? c.json(errorSchema.parse({ code: "not-found" }), 404) : c.json(commitOutcomeSchema.parse(result), 422);
   return c.json(commitOutcomeSchema.parse(result), 409);
 }
 

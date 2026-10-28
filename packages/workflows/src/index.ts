@@ -19,23 +19,19 @@ export function createWorkflows(options: { store: Store; clock: Clock; ids: Ids 
   const context = (cause: string) => ({ actor: "creator" as const, cause, at: clock.now(), ids });
   return {
     async createProject(scope: Scope): Promise<Project> {
-      const project: Project = { projectId: projectIdSchema.parse(ids.uuid()), createdAt: new Date(clock.now()).toISOString() };
+      const project: Project = { projectId: projectIdSchema.parse(ids.ordered()), createdAt: new Date(clock.now()).toISOString() };
       await store.write(scope, (tx) => tx.insertProject(project));
       return project;
     },
     /** Pasted text becomes the first Revision of a new Source Material object. */
     async paste(scope: Scope, projectId: ProjectId, text: string): Promise<CommitOutcome> {
-      const objectId = objectIdSchema.parse(ids.uuid());
+      const objectId = objectIdSchema.parse(ids.ordered());
       return toOutcome(await store.write(scope, (tx) => commit(tx, scope, { kind: sourceMaterialKind, projectId, objectId, base: 0, body: { text, role: "primary" } }, context("import"))));
     },
-    /** The role is the only editable part of a supplied original; the text is carried over untouched. */
+    /** The role is the only editable part of a supplied original; the gate carries the text over from the head. */
     async changeRole(scope: Scope, projectId: ProjectId, objectId: ObjectId, base: number, role: SourceMaterialBody["role"]): Promise<CommitOutcome> {
-      return toOutcome(await store.write(scope, async (tx) => {
-        const head = await tx.head(objectId);
-        const body = head ? sourceMaterialKind.parse(head.body) : null;
-        if (!head || !body) return { result: "Refused", reason: "not-found" } as const;
-        return commit(tx, scope, { kind: sourceMaterialKind, projectId, objectId, base, body: { text: body.text, role } }, context("creator_edit"));
-      }));
+      const body = (current: SourceMaterialBody | null) => current && { text: current.text, role };
+      return toOutcome(await store.write(scope, (tx) => commit(tx, scope, { kind: sourceMaterialKind, projectId, objectId, base, body }, context("creator_edit"))));
     },
   };
 }

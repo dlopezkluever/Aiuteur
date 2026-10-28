@@ -1,20 +1,20 @@
 import { randomBytes, randomUUID, createHash } from "node:crypto";
 import fc from "fast-check";
-import { Pool } from "pg";
+import { Pool, type PoolClient } from "pg";
 import { afterAll, beforeAll, expect, it } from "vitest";
 import { createAccounts, createBetterAuth } from "@aiuteur/accounts";
-import { commitOutcomeSchema, projectListSchema, projectSchema, redeemedInvitationSchema, sourceMaterialReadSchema, sourceMaterialRevisionSchema, ROUTES } from "@aiuteur/contract";
+import { commitOutcomeSchema, projectListSchema, projectSchema, redeemedInvitationSchema, sourceMaterialReadSchema, sourceMaterialRevisionSchema } from "@aiuteur/contract";
 import { createPostgresStore } from "@aiuteur/store";
 import { createViews } from "@aiuteur/views";
 import { createWorkflows } from "@aiuteur/workflows";
-import { FakeMailer, ManualClock } from "@aiuteur/testing";
+import { FakeMailer, ManualClock, uuidv7 } from "@aiuteur/testing";
 import { createApi } from "@aiuteur/api";
 import { freshDatabase } from "./database.ts";
 
 const origin = "https://aiuteur.test";
 const password = "Paper-crane-lighthouse-98!";
 const clock = new ManualClock(Date.now());
-const ids = { uuid: randomUUID, token: () => randomBytes(32).toString("base64url") };
+const ids = { uuid: randomUUID, ordered: uuidv7, token: () => randomBytes(32).toString("base64url") };
 let database: Awaited<ReturnType<typeof freshDatabase>>;
 let adapter: Awaited<ReturnType<typeof createBetterAuth>>;
 let store: Awaited<ReturnType<typeof createPostgresStore>>;
@@ -83,50 +83,25 @@ it("demo: paste is kept as Source Material, read back byte-identical; a stale wr
   const after = sourceMaterialReadSchema.parse(await (await call("GET", object, c.cookie)).json());
   expect(after.head).toEqual(second.result === "Applied" ? second.revision : null);
   expect(after.sequences).toEqual([1, 2]);
+  expect(after.head.fingerprints).toEqual(first.revision.fingerprints);
   expect(after.sideLine).toMatchObject([{ attemptId: stale.result === "StaleBase" ? stale.attemptId : "", basedOn: 1, origin: "stale-base", text, role: "primary" }]);
 
-  // Two concurrent writes from the same base: one winner, one StaleBase, none lost.
-  const race = await Promise.all((["primary", "supporting"] as const).map((role) => call("POST", `${object}/role`, c.cookie, { base: 2, role })));
+  // Restore the head to primary, then race four identical real changes from that one base.
+  // Whichever request runs first wins, so the property holds in every ordering.
+  expect(await outcome(await call("POST", `${object}/role`, c.cookie, { base: 2, role: "primary" }))).toMatchObject({ result: "Applied", appended: true, revision: { sequence: 3 } });
+  const race = await Promise.all(Array.from({ length: 4 }, () => call("POST", `${object}/role`, c.cookie, { base: 3, role: "supporting" })));
   const results = await Promise.all(race.map(outcome));
-  expect(results.map((result) => result.result).sort()).toEqual(["Applied", "StaleBase"]);
-  expect(sourceMaterialReadSchema.parse(await (await call("GET", object, c.cookie)).json())).toMatchObject({ sequences: [1, 2, 3], sideLine: [{}, {}] });
+  expect(results.filter((result) => result.result === "Applied" && result.appended)).toHaveLength(1);
+  expect(results.filter((result) => result.result === "StaleBase")).toHaveLength(3);
+  const raced = sourceMaterialReadSchema.parse(await (await call("GET", object, c.cookie)).json());
+  expect(raced).toMatchObject({ head: { sequence: 4, text, role: "supporting" }, sequences: [1, 2, 3, 4] });
+  expect(raced.sideLine).toHaveLength(4);
 
   // Refusals are visible results, not 500s.
   expect((await call("POST", c.material, c.cookie, { text: "bad \u0000 nul" })).status).toBe(422);
   expect((await call("POST", c.material, c.cookie, { text: "" })).status).toBe(400);
+  // The gate, not the route, protects the original: the only edit route carries no text, and a direct commit with other text is refused (history conformance).
   expect((await call("POST", `${object}/role`, c.cookie, { base: 9, role: "primary" })).status).toBe(409);
-});
-
-it("another Account sees the same 404 for a real project or object as for an absent one", async () => {
-  const a = await creator();
-  const b = await creator();
-  const pasted = await outcome(await call("POST", a.material, a.cookie, { text: "private" }));
-  if (pasted.result !== "Applied") throw new Error("not applied");
-  const object = pasted.revision.objectId;
-  const absent = ids.uuid();
-  const probes: Array<["GET" | "POST", (project: string, object: string) => string, unknown?]> = [
-    ["GET", (project, id) => `${a.base}/${project}/source-material/${id}`],
-    ["GET", (project, id) => `${a.base}/${project}/source-material/${id}/revisions/1`],
-    ["POST", (project) => `${a.base}/${project}/source-material`, { text: "intruder" }],
-    ["POST", (project, id) => `${a.base}/${project}/source-material/${id}/role`, { base: 1, role: "supporting" }],
-  ];
-  for (const [method, path, body] of probes) {
-    // Account B on Account A's path, and on its own path with A's ids, against absent ids.
-    for (const target of [(p: string, o: string) => path(p, o), (p: string, o: string) => path(p, o).replace(a.accountId, b.accountId)]) {
-      const real = await call(method, target(a.project.projectId, object), b.cookie, body);
-      const missing = await call(method, target(absent, absent), b.cookie, body);
-      expect(real.status).toBe(404);
-      expect(missing.status).toBe(404);
-      expect([...real.headers]).toEqual([...missing.headers]);
-      expect(await real.text()).toBe(await missing.text());
-    }
-  }
-  // B's own project cannot reach A's object either.
-  const sneaky = await call("GET", `${b.material}/${object}`, b.cookie);
-  expect(sneaky.status).toBe(404);
-  const viaA = sourceMaterialReadSchema.parse(await (await call("GET", `${a.material}/${object}`, a.cookie)).json());
-  expect(viaA.sequences).toEqual([1]);
-  expect(ROUTES.filter((route) => route.path.includes("source-material")).length).toBe(4);
 });
 
 const HISTORY_TABLES = ["attempt", "lock", "object", "project", "revision"] as const;
@@ -147,7 +122,7 @@ it("VC3: any sequence of API reads leaves every persistent row count and all his
   await call("POST", `${path}/role`, c.cookie, { base: 1, role: "primary" });
   const reads = [
     `/api/studios/${c.accountId}`, c.base, path, `${path}/revisions/1`, `${path}/revisions/2`, `${path}/revisions/77`,
-    `${c.material}/${ids.uuid()}`, `${c.base}/${ids.uuid()}/source-material/${ids.uuid()}`,
+    `${c.material}/${ids.ordered()}`, `${c.base}/${ids.ordered()}/source-material/${ids.ordered()}`,
   ];
   const before = await snapshot(database.inspect);
   expect(before.counts["accounts.lock"]).toBe(0);
@@ -157,7 +132,25 @@ it("VC3: any sequence of API reads leaves every persistent row count and all his
   }), { numRuns: 8 });
 });
 
-it("D5: every tenant table except the mutable cells is append-only, by grants and by a trigger that also stops the owner", async () => {
+/**
+ * D5, behaviourally: as the table owner, inside the Account that owns the rows, every
+ * rewrite of every append-only table must be stopped by the blocking trigger (SQLSTATE 23000).
+ * Each statement runs against a real row in a savepoint, so a missing or inert trigger fails it.
+ */
+async function assertRewritesBlocked(client: PoolClient, accountId: string, tables: readonly string[]) {
+  await client.query("SET LOCAL ROLE owner");
+  await client.query("SELECT set_config('aiuteur.account_id', $1, true)", [accountId]);
+  for (const table of tables) {
+    for (const statement of [`UPDATE accounts.${table} SET account_id = account_id`, `DELETE FROM accounts.${table}`, `TRUNCATE accounts.${table} CASCADE`]) {
+      await client.query("SAVEPOINT rewrite");
+      const blocked = await client.query(statement).then(() => false, (error: { code?: string }) => error.code === "23000");
+      await client.query("ROLLBACK TO rewrite");
+      if (!blocked) throw new Error(`D5: ${statement} was not blocked by the trigger`);
+    }
+  }
+}
+
+it("D5: runtime roles cannot rewrite history, and the blocking trigger really stops every rewrite", async () => {
   const c = await creator();
   const pasted = await outcome(await call("POST", c.material, c.cookie, { text: "immutable" }));
   if (pasted.result !== "Applied") throw new Error("not applied");
@@ -169,27 +162,36 @@ it("D5: every tenant table except the mutable cells is append-only, by grants an
   expect(appendOnly).toEqual(["accounts.account", "accounts.attempt", "accounts.lock", "accounts.object", "accounts.project", "accounts.revision"]);
   for (const name of appendOnly) {
     const [schema, table] = name.split(".");
-    const triggers = await database.inspect.query<{ tgname: string }>("SELECT tgname FROM pg_trigger WHERE tgrelid = $1::regclass AND NOT tgisinternal ORDER BY tgname", [name]);
-    expect(triggers.rows.map((row) => row.tgname), name).toEqual(["append_only_rows", "append_only_truncate"]);
     for (const role of ["app", "identity", "scheduler", "operator_read", "backup"]) {
       const grants = await database.inspect.query("SELECT has_table_privilege($1, $2, 'UPDATE,DELETE,TRUNCATE') OR has_any_column_privilege($1, $2, 'UPDATE') AS rewrites", [role, `"${schema}"."${table}"`]);
       expect(grants.rows, `${role} on ${name}`).toEqual([{ rewrites: false }]);
     }
   }
-  // The trigger refuses even the owner, inside the Account that owns the rows.
+  const names = appendOnly.map((name) => name.slice("accounts.".length));
   const client = await database.inspect.connect();
   try {
-    for (const statement of [
-      "UPDATE accounts.revision SET body = '{}'", "DELETE FROM accounts.revision", "TRUNCATE accounts.revision",
-      "UPDATE accounts.attempt SET based_on = 1", "DELETE FROM accounts.object", "DELETE FROM accounts.project",
-    ]) {
+    // The lock table is empty in the product, so the check gives it one row (rolled back below).
+    const arrange = async () => {
       await client.query("BEGIN; SET LOCAL ROLE owner");
       await client.query("SELECT set_config('aiuteur.account_id', $1, true)", [c.accountId]);
-      await expect(client.query(statement), statement).rejects.toMatchObject({ code: "23000" });
+      await client.query("INSERT INTO accounts.lock VALUES ($1, 1, $2, $3, true, 'test', now())", [pasted.revision.objectId, c.accountId, c.project.projectId]);
+    };
+    await arrange();
+    await assertRewritesBlocked(client, c.accountId, names);
+    await client.query("ROLLBACK");
+    // Negative control: with one table's trigger disabled the same check must fail.
+    for (const trigger of ["append_only_rows", "append_only_truncate"]) {
+      await arrange();
+      await client.query(`ALTER TABLE accounts.revision DISABLE TRIGGER ${trigger}`);
+      await expect(assertRewritesBlocked(client, c.accountId, names)).rejects.toThrow("D5:");
       await client.query("ROLLBACK");
     }
-  } finally { client.release(); }
-  // The app role cannot write the lock table at all, and the table is empty.
+    // A trigger that exists but does not block is just as bad.
+    await arrange();
+    await client.query("CREATE OR REPLACE FUNCTION accounts.reject_rewrite() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RETURN NULL; END $$");
+    await expect(assertRewritesBlocked(client, c.accountId, names)).rejects.toThrow("D5:");
+    await client.query("ROLLBACK");
+  } finally { await client.query("ROLLBACK").catch(() => undefined); client.release(); }
   const app = new Pool({ connectionString: database.url("app") });
   try {
     await expect(app.query("INSERT INTO accounts.lock VALUES ($1, 1, $2, $3, true, 'x', now())", [pasted.revision.objectId, c.accountId, c.project.projectId])).rejects.toMatchObject({ code: "42501" });

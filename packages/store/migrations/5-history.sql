@@ -34,6 +34,8 @@ CREATE TABLE accounts.revision (
   schema_version integer NOT NULL,
   body jsonb NOT NULL,
   body_hash text NOT NULL,
+  -- Slice name to content fingerprint, computed at write time and never recomputed (ADR 0020).
+  fingerprints jsonb NOT NULL,
   created_at timestamptz NOT NULL,
   PRIMARY KEY (object_id, sequence),
   FOREIGN KEY (account_id, project_id, object_id) REFERENCES accounts.object(account_id, project_id, object_id)

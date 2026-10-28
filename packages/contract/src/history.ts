@@ -13,10 +13,11 @@ export const sourceMaterialRevisionSchema = z.strictObject({
   text: z.string(),
   role: z.enum(ROLES),
   bodyHash: z.string(),
+  fingerprints: z.record(z.string(), z.string()),
   createdAt: z.iso.datetime(),
 });
 export const sideLineEntrySchema = z.strictObject({
-  attemptId: z.uuidv4(),
+  attemptId: z.uuidv7(),
   basedOn: z.int().min(0),
   origin: z.enum(["stale-base", "held"]),
   text: z.string(),
@@ -32,8 +33,8 @@ export const impactSchema = z.strictObject({ version: z.int().min(0), reached: z
 export const commitOutcomeSchema = z.discriminatedUnion("result", [
   z.strictObject({ result: z.literal("Applied"), appended: z.boolean(), revision: sourceMaterialRevisionSchema }),
   z.strictObject({ result: z.literal("NeedsConfirmation"), impact: impactSchema }),
-  z.strictObject({ result: z.literal("HeldAsOption"), attemptId: z.uuidv4() }),
-  z.strictObject({ result: z.literal("StaleBase"), head: z.int().min(0), attemptId: z.uuidv4() }),
+  z.strictObject({ result: z.literal("HeldAsOption"), attemptId: z.uuidv7() }),
+  z.strictObject({ result: z.literal("StaleBase"), head: z.int().min(0), attemptId: z.uuidv7() }),
   z.strictObject({ result: z.literal("Refused"), reason: z.enum(REFUSAL_REASONS) }),
 ]);
 export type CommitOutcome = z.infer<typeof commitOutcomeSchema>;

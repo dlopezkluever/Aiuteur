@@ -7,18 +7,18 @@ import { Pool } from "pg";
 import { afterAll, beforeAll, expect, it } from "vitest";
 import { TOTP, Secret } from "otpauth";
 import { createAccounts, createBetterAuth } from "@aiuteur/accounts";
-import { accountIdSchema, creatorIdSchema, type ObjectId, studioSchema, projectListSchema, invitationSchema, redeemedInvitationSchema, ROUTES, eventSchema, AUDIT_ACTIONS } from "@aiuteur/contract";
+import { accountIdSchema, commitOutcomeSchema, creatorIdSchema, projectSchema, sourceMaterialReadSchema, type ObjectId, studioSchema, projectListSchema, invitationSchema, redeemedInvitationSchema, ROUTES, eventSchema, AUDIT_ACTIONS } from "@aiuteur/contract";
 import { createPostgresStore, migrateDatabase, schemaCatalogue, type Scope } from "@aiuteur/store";
 import { createViews } from "@aiuteur/views";
 import { createWorkflows } from "@aiuteur/workflows";
-import { describeHistoryConformance, describeStoreConformance, FakeMailer, ManualClock } from "@aiuteur/testing";
+import { describeHistoryConformance, describeStoreConformance, FakeMailer, ManualClock, uuidv7 } from "@aiuteur/testing";
 import { createApi } from "@aiuteur/api";
 import { freshDatabase } from "./database.ts";
 
 const origin = "https://aiuteur.test";
 const password = "Paper-crane-lighthouse-98!";
 const clock = new ManualClock(Date.now());
-const ids = { uuid: randomUUID, token: () => randomBytes(32).toString("base64url") };
+const ids = { uuid: randomUUID, ordered: uuidv7, token: () => randomBytes(32).toString("base64url") };
 let database: Awaited<ReturnType<typeof freshDatabase>>;
 let adapter: Awaited<ReturnType<typeof createBetterAuth>>;
 let store: Awaited<ReturnType<typeof createPostgresStore>>;
@@ -113,17 +113,61 @@ async function postgresSubject() {
 describeStoreConformance("Postgres, migrated database", postgresSubject);
 describeHistoryConformance("Postgres, migrated database", postgresSubject);
 
-it("G1: all scoped routes return the identical not-found response for another Account and an absent id", async () => {
+/**
+ * G1, generated from the route inventory: for every scoped operation, with its real method and a
+ * minimally valid body, Account B on Account A's identifiers must get exactly the answer it gets
+ * for identifiers that do not exist. A route that needs a body and has no entry fails, so a new
+ * operation cannot join the inventory without being exercised.
+ */
+const bodies: Record<string, unknown> = {
+  "POST /api/studios/:accountId/projects/:projectId/source-material": { text: "probe" },
+  "POST /api/studios/:accountId/projects/:projectId/source-material/:objectId/role": { base: 1, role: "supporting" },
+};
+async function assertG1(target: ReturnType<typeof createApi>, owner: { accountId: string; project: string; object: string }, intruder: { accountId: string; cookie: string }) {
+  const send = (method: string, path: string, body: unknown) => target.request(`${origin}${path}`, {
+    method, headers: { origin, "content-type": "application/json", "x-aiuteur-command": "1", cookie: intruder.cookie }, ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  });
+  const fill = (path: string, named: { accountId: string; project: string; object: string }) =>
+    path.replace(":accountId", named.accountId).replace(":projectId", named.project).replace(":objectId", named.object).replace(":sequence", "1");
+  const absent = { accountId: ids.uuid(), project: ids.ordered(), object: ids.ordered() };
+  for (const route of ROUTES.filter((route) => route.access === "scope")) {
+    const key = `${route.method} ${route.path}`;
+    const body = route.method === "POST" ? (route.path.includes(":projectId") ? bodies[key] : {}) : undefined;
+    if (route.method === "POST" && body === undefined) throw new Error(`G1: no minimal valid body for ${key}`);
+    // The intruder's own Account id with the owner's project and object ids only matters where the path names them.
+    const forged = route.path.includes(":projectId") ? [owner, { ...owner, accountId: intruder.accountId }] : [owner];
+    const control = await send(route.method, fill(route.path, absent), body);
+    expect(control.status, `G1 control ${key}`).toBe(404);
+    for (const candidate of forged) {
+      const response = await send(route.method, fill(route.path, candidate), body);
+      expect(response.status, `G1 ${key} as ${candidate.accountId}`).toBe(404);
+      expect([...response.headers], `G1 ${key}`).toEqual([...control.headers]);
+      expect(await response.text(), `G1 ${key}`).toBe(await control.clone().text());
+    }
+  }
+}
+
+it("G1: every scoped operation, with its real method, refuses another Account exactly as it refuses an absent id", async () => {
   const a = await creator();
   const b = await creator();
-  for (const route of ROUTES.filter((route) => route.access === "scope")) {
-    const forbidden = await request(route.path.replace(":accountId", a.accountId), undefined, b.cookie);
-    const missing = await request(route.path.replace(":accountId", ids.uuid()), undefined, b.cookie);
-    expect(forbidden.status).toBe(404);
-    expect(missing.status).toBe(404);
-    expect([...forbidden.headers]).toEqual([...missing.headers]);
-    expect(await forbidden.text()).toBe(await missing.text());
-  }
+  const created = await request(`/api/studios/${a.accountId}/projects`, {}, a.cookie);
+  const project = projectSchema.parse(await created.json()).projectId;
+  const pasted = commitOutcomeSchema.parse(await (await request(`/api/studios/${a.accountId}/projects/${project}/source-material`, { text: "private" }, a.cookie)).json());
+  if (pasted.result !== "Applied") throw new Error("not applied");
+  const owner = { accountId: a.accountId, project, object: pasted.revision.objectId };
+  await assertG1(api, owner, { accountId: b.accountId, cookie: b.cookie });
+  // Nothing of A's changed: no extra project, Revision or side-line entry.
+  const projects = projectListSchema.parse(await (await request(`/api/studios/${a.accountId}/projects`, undefined, a.cookie)).json());
+  expect(projects.projects).toHaveLength(1);
+  const read = sourceMaterialReadSchema.parse(await (await request(`/api/studios/${a.accountId}/projects/${project}/source-material/${owner.object}`, undefined, a.cookie)).json());
+  expect(read).toMatchObject({ sequences: [1], sideLine: [] });
+  expect(read.head.text).toBe("private");
+
+  // Negative control: one operation that stops enforcing isolation makes G1 fail.
+  const views = createViews(store);
+  const leaky = createApi({ accounts, views: { ...views, sourceMaterial: (_scope, projectId, objectId) => views.sourceMaterial(a.scope, projectId, objectId) },
+    workflows: createWorkflows({ store, clock, ids }), handleAuth: adapter.handle, origin, clientAddress: () => "203.0.113.1" });
+  await expect(assertG1(leaky, owner, { accountId: b.accountId, cookie: b.cookie })).rejects.toThrow(/G1/);
 });
 
 it("G2: the actual router equals the short inventory; scoped and operator reads require a mapped session", async () => {

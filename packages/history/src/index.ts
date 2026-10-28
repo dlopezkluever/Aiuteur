@@ -10,10 +10,17 @@ export interface KindDeclaration<Body = unknown> {
   readonly schemaVersion: number;
   /** The body as the kind's schema reads it, or null when it is not valid. */
   parse(body: unknown): Body | null;
-  /** Registered invariants, checked on every commit. */
-  readonly invariants: readonly ((body: Body) => boolean)[];
-  /** The units lineage names; fingerprints and `unit_head` arrive with the first lineage consumer. */
-  readonly slices: readonly string[];
+  /**
+   * Registered invariants, checked on every commit with the new body and the head
+   * body it continues (null for an object's first Revision).
+   */
+  readonly invariants: readonly ((body: Body, previous: Body | null) => boolean)[];
+  /**
+   * The units lineage names: slice name to the part of the body the slice covers.
+   * `history` fingerprints each at write time and stores the result on the Revision
+   * (ADR 0020). Once a capture references a slice its function is frozen.
+   */
+  readonly slices: Readonly<Record<string, (body: Body) => unknown>>;
   readonly narrativeBearing: readonly string[];
   readonly declaredIndexes: readonly string[];
   readonly extractedColumns: readonly string[];
@@ -33,7 +40,8 @@ export interface Change<Body = unknown> {
   readonly objectId: ObjectId;
   /** The sequence of the Revision this write was based on; 0 creates the object. */
   readonly base: number;
-  readonly body: unknown;
+  /** The new body, or a function of the head body, so a caller never reads history itself (R1). Called under the write lock; the head is null for a new object. */
+  readonly body: unknown | ((current: Body | null) => unknown);
 }
 export interface CommitContext {
   readonly actor: ActorKind;
@@ -60,8 +68,13 @@ function canonical(value: unknown): string {
   }
   return JSON.stringify(value);
 }
+const sha256 = (value: unknown) => createHash("sha256").update(canonical(value)).digest("hex");
 /** Over the body exactly as stored, independent of key order. */
-export const bodyHash = (body: unknown) => createHash("sha256").update(canonical(body)).digest("hex");
+export const bodyHash = sha256;
+/** Slice name to content fingerprint, computed once at write time and never recomputed on read. */
+export function fingerprints<Body>(kind: KindDeclaration<Body>, body: Body): Record<string, string> {
+  return Object.fromEntries(Object.entries(kind.slices).map(([slice, project]) => [slice, sha256(project(body))]));
+}
 
 /**
  * The single write gate. Callers pass a `WriteTx`, which the Store hands out only
@@ -77,13 +90,18 @@ export async function commit<Body>(wtx: WriteTx, scope: Scope, change: Change<Bo
   if (object && object.projectId !== change.projectId) return refuse("not-found");
   if (object && object.kind !== change.kind.kind) return refuse("kind-mismatch");
   if (!object && change.base !== 0) return refuse("not-found");
-  const body = change.kind.parse(change.body);
+  const head = await wtx.head(change.objectId);
+  const current = head ? change.kind.parse(head.body) : null;
+  const proposed = typeof change.body === "function" ? (change.body as (current: Body | null) => unknown)(current) : change.body;
+  const body = change.kind.parse(proposed);
   if (body === null) return refuse("invalid-body");
-  if (!change.kind.invariants.every((invariant) => invariant(body))) return refuse("invariant-violated");
+  // A base of 0 continues nothing; any other base continues what the head holds.
+  const previous = change.base === 0 ? null : current;
+  if (!change.kind.invariants.every((invariant) => invariant(body, previous))) return refuse("invariant-violated");
 
   const at = new Date(ctx.at).toISOString();
   const keep = async (origin: AttemptRow["origin"]) => {
-    const attemptId = ctx.ids.uuid();
+    const attemptId = ctx.ids.ordered();
     await wtx.insertAttempt({ attemptId, objectId: change.objectId, projectId: change.projectId, basedOn: change.base, origin, body, createdAt: at });
     return attemptId;
   };
@@ -96,7 +114,6 @@ export async function commit<Body>(wtx: WriteTx, scope: Scope, change: Change<Bo
     return { result: "NeedsConfirmation", impact: { version: lock.version, reached: [] } };
   }
 
-  const head = await wtx.head(change.objectId);
   const headSequence = head?.sequence ?? 0;
   if (change.base !== headSequence) return { result: "StaleBase", head: headSequence, attemptId: await keep("stale-base") };
 
@@ -105,7 +122,7 @@ export async function commit<Body>(wtx: WriteTx, scope: Scope, change: Change<Bo
   if (!object) await wtx.insertObject({ objectId: change.objectId, projectId: change.projectId, kind: change.kind.kind, createdAt: at });
   const revision: RevisionRow = {
     objectId: change.objectId, projectId: change.projectId, sequence: headSequence + 1, parent: headSequence,
-    cause: ctx.cause, actorKind: ctx.actor, schemaVersion: change.kind.schemaVersion, body, bodyHash: hash, createdAt: at,
+    cause: ctx.cause, actorKind: ctx.actor, schemaVersion: change.kind.schemaVersion, body, bodyHash: hash, fingerprints: fingerprints(change.kind, body), createdAt: at,
   };
   await wtx.appendRevision(revision);
   return { result: "Applied", appended: true, revision };

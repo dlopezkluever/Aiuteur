@@ -409,6 +409,12 @@
           "nullable": false
         },
         {
+          "name": "fingerprints",
+          "type": "jsonb",
+          "default": null,
+          "nullable": false
+        },
+        {
           "name": "created_at",
           "type": "timestamp with time zone",
           "default": null,

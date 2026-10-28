@@ -6,8 +6,13 @@ export interface Scope {
   readonly creatorId: CreatorId;
 }
 export interface Clock { now(): number }
-/** UUID v4 and cryptographic invitation tokens; injected at the composition root. */
-export interface Ids { uuid(): string; token(): string }
+/** UUID v4 for Account-level ids, time-ordered ids for history, and cryptographic invitation tokens; injected at the composition root. */
+export interface Ids {
+  uuid(): string;
+  token(): string;
+  /** A 128-bit time-ordered UUID (UUIDv7) for project and history rows (PERSISTENCE §3). */
+  ordered(): string;
+}
 export interface AuthenticatedSubject {
   readonly creatorId: CreatorId;
   readonly email: string;
@@ -28,6 +33,8 @@ export interface RevisionRow {
   readonly schemaVersion: number;
   readonly body: unknown;
   readonly bodyHash: string;
+  /** Slice name to fingerprint, frozen at write time. */
+  readonly fingerprints: Readonly<Record<string, string>>;
   readonly createdAt: string;
 }
 /** A loser kept on a side line: never a Revision, never discarded. */

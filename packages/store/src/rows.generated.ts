@@ -51,6 +51,7 @@ export interface accounts_revision {
   "schema_version": number;
   "body": unknown;
   "body_hash": string;
+  "fingerprints": unknown;
   "created_at": Date;
 }
 
