@@ -152,6 +152,44 @@ export function describeHistoryConformance(name: string, subject: () => Promise<
       expect((await readBack(a, objectId))?.sideLine).toMatchObject([{ origin: "held", generationId: held }]);
     });
 
+    it("LINEAGE §6.3: a no-op save is not a write, even on a locked object; a changed write still meets the lock", async () => {
+      const { write, newObject, lockObject, rowCounts, a } = await setup();
+      const objectId = await newObject("steady");
+      expect(await write(a, objectId, 1, "steady", {}, undefined, "supporting")).toMatchObject({ result: "Applied", appended: true });
+      const unlocked = await rowCounts();
+      expect(await write(a, objectId, 2, "steady", {}, undefined, "supporting")).toMatchObject({ result: "Applied", appended: false, revision: { sequence: 2 } });
+      expect(await rowCounts()).toEqual(unlocked);
+      await lockObject(a, objectId);
+      const locked = await rowCounts();
+      expect(await write(a, objectId, 2, "steady", {}, undefined, "supporting")).toMatchObject({ result: "Applied", appended: false, revision: { sequence: 2 } });
+      expect(await rowCounts()).toEqual(locked);
+      expect(await write(a, objectId, 2, "steady", {}, undefined, "primary")).toMatchObject({ result: "NeedsConfirmation" });
+      // A stale no-op is not waved through: the base is still judged.
+      expect(await write(a, objectId, 1, "steady", {}, undefined, "supporting")).toMatchObject({ result: "NeedsConfirmation" });
+      expect(await rowCounts()).toEqual(locked);
+    });
+
+    it("MODULE §5.1 (4): a sync Revision is AI-made, so it needs a Generation like any other", async () => {
+      const { write, newObject, rowCounts, a } = await setup();
+      const objectId = await newObject("sync target");
+      const before = await rowCounts();
+      expect(await write(a, objectId, 1, "sync target", { cause: "sync" }, undefined, "supporting")).toMatchObject({ result: "Refused", reason: "missing-provenance" });
+      expect(await rowCounts()).toEqual(before);
+      expect(await write(a, objectId, 1, "sync target", { cause: "sync", actor: "generation", generationId: gen() }, undefined, "supporting")).toMatchObject({ result: "Applied", appended: true, revision: { cause: "sync", actorKind: "generation" } });
+    });
+
+    it("STORY-DOCUMENTS §4: a keyed result is recorded with its write, scoped to the Account, and rolled back with it", async () => {
+      const { store, a, b } = await setup();
+      const row = { operation: "source-material.paste" as const, key: "k1", fingerprint: "f", result: { n: 1 }, createdAt: new Date(tick).toISOString() };
+      await expect(store.write(a, async (tx) => { await tx.recordIdempotency(row); throw new Error("abort"); })).rejects.toThrow("abort");
+      expect(await store.write(a, (tx) => tx.idempotency(row.operation, row.key))).toBeNull();
+      await store.write(a, (tx) => tx.recordIdempotency(row));
+      expect(await store.write(a, (tx) => tx.idempotency(row.operation, row.key))).toEqual(row);
+      expect(await store.write(b, (tx) => tx.idempotency(row.operation, row.key))).toBeNull();
+      expect(await store.write(a, (tx) => tx.idempotency("source-material.change-role", row.key))).toBeNull();
+      await expect(store.write(a, (tx) => tx.recordIdempotency({ ...row, result: { n: 2 } }))).rejects.toThrow();
+    });
+
     it("ADR 0020: a Revision stores frozen slice fingerprints that read back exactly and are never recomputed", async () => {
       const { write, newObject, read: readBack, store, a, projectId } = await setup();
       const text = "fingerprint me 🎬";

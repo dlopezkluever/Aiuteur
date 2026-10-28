@@ -1,5 +1,5 @@
 import { readFileSync, writeFileSync } from "node:fs";
-import { ACTOR_KINDS, ATTEMPT_ORIGINS, AUDIT_ACTIONS, REVISION_CAUSES } from "@aiuteur/contract";
+import { ACTOR_KINDS, IDEMPOTENT_OPERATIONS, ATTEMPT_ORIGINS, AUDIT_ACTIONS, REVISION_CAUSES } from "@aiuteur/contract";
 
 const list = (values: readonly string[]) => values.map((value) => `'${value.replaceAll("'", "''")}'`).join(", ");
 const check = process.argv.includes("--check");
@@ -18,6 +18,7 @@ export const HISTORY_VOCABULARY = [
   { table: "revision", constraint: "revision_cause", column: "cause", values: REVISION_CAUSES },
   { table: "revision", constraint: "revision_actor_kind", column: "actor_kind", values: ACTOR_KINDS },
   { table: "attempt", constraint: "attempt_origin", column: "origin", values: ATTEMPT_ORIGINS },
+  { table: "idempotency", constraint: "idempotency_operation", column: "operation", values: IDEMPOTENT_OPERATIONS },
 ] as const;
 const history = migration("5-history.sql");
 const begin = "-- BEGIN GENERATED VOCABULARY\n";

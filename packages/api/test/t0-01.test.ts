@@ -9,7 +9,7 @@ import { Pool } from "pg";
 import { afterAll, beforeAll, expect, it } from "vitest";
 import { TOTP, Secret } from "otpauth";
 import { createAccounts, createBetterAuth } from "@aiuteur/accounts";
-import { ACTOR_KINDS, ATTEMPT_ORIGINS, REVISION_CAUSES, accountIdSchema, commitOutcomeSchema, creatorIdSchema, projectSchema, sourceMaterialReadSchema, type ObjectId, studioSchema, projectListSchema, invitationSchema, redeemedInvitationSchema, ROUTES, eventSchema, AUDIT_ACTIONS } from "@aiuteur/contract";
+import { IDEMPOTENT_OPERATIONS, ACTOR_KINDS, ATTEMPT_ORIGINS, REVISION_CAUSES, accountIdSchema, commitOutcomeSchema, creatorIdSchema, projectSchema, sourceMaterialReadSchema, type ObjectId, studioSchema, projectListSchema, invitationSchema, redeemedInvitationSchema, ROUTES, eventSchema, AUDIT_ACTIONS } from "@aiuteur/contract";
 import { createPostgresStore, migrateDatabase, schemaCatalogue, type Scope } from "@aiuteur/store";
 import { createViews } from "@aiuteur/views";
 import { createHistory } from "@aiuteur/history";
@@ -43,7 +43,7 @@ afterAll(async () => { await store?.close(); await adapter?.close(); await datab
 async function request(path: string, body?: unknown, cookie = "") {
   return api.request(`${origin}${path}`, {
     method: body === undefined ? "GET" : "POST",
-    headers: { origin, "content-type": "application/json", "x-aiuteur-command": "1", cookie },
+    headers: { origin, "content-type": "application/json", "x-aiuteur-command": "1", "idempotency-key": randomUUID(), cookie },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
 }
@@ -109,7 +109,7 @@ async function postgresSubject() {
       } catch (error) { await client.query("ROLLBACK"); throw error; } finally { client.release(); }
     },
     async rowCounts() {
-      const { rows } = await database.inspect.query<Record<string, string>>("SELECT (SELECT count(*) FROM accounts.project) AS project, (SELECT count(*) FROM accounts.object) AS object, (SELECT count(*) FROM accounts.revision) AS revision, (SELECT count(*) FROM accounts.attempt) AS attempt, (SELECT count(*) FROM accounts.lock) AS lock");
+      const { rows } = await database.inspect.query<Record<string, string>>("SELECT (SELECT count(*) FROM accounts.project) AS project, (SELECT count(*) FROM accounts.object) AS object, (SELECT count(*) FROM accounts.revision) AS revision, (SELECT count(*) FROM accounts.attempt) AS attempt, (SELECT count(*) FROM accounts.lock) AS lock, (SELECT count(*) FROM accounts.idempotency) AS idempotency");
       return Object.fromEntries(Object.entries(rows[0] ?? {}).map(([table, count]) => [table, Number(count)]));
     },
   };
@@ -129,7 +129,7 @@ const bodies: Record<string, unknown> = {
 };
 async function assertG1(target: ReturnType<typeof createApi>, owner: { accountId: string; project: string; object: string }, intruder: { accountId: string; cookie: string }) {
   const send = (method: string, path: string, body: unknown) => target.request(`${origin}${path}`, {
-    method, headers: { origin, "content-type": "application/json", "x-aiuteur-command": "1", cookie: intruder.cookie }, ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    method, headers: { origin, "content-type": "application/json", "x-aiuteur-command": "1", "idempotency-key": randomUUID(), cookie: intruder.cookie }, ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
   const fill = (path: string, named: { accountId: string; project: string; object: string }) =>
     path.replace(":accountId", named.accountId).replace(":projectId", named.project).replace(":objectId", named.object).replace(":sequence", "1");
@@ -366,6 +366,7 @@ it("D1/D3: the fresh migration chain equals the snapshot, generated rows and voc
   expect(await live("revision_cause")).toEqual([...REVISION_CAUSES]);
   expect(await live("revision_actor_kind")).toEqual([...ACTOR_KINDS]);
   expect(await live("attempt_origin")).toEqual([...ATTEMPT_ORIGINS]);
+  expect(await live("idempotency_operation")).toEqual([...IDEMPOTENT_OPERATIONS]);
   const c = await creator();
   const project = projectSchema.parse(await (await request(`/api/studios/${c.accountId}/projects`, {}, c.cookie)).json());
   const owner = await database.inspect.connect();
@@ -404,7 +405,7 @@ it("D4/G7: catalogue classification, forced policies, composite tenant keys, rol
     SELECT n.nspname || '.' || c.relname AS name, pg_get_userbyid(c.relowner) AS owner,
       c.relrowsecurity AS rls, c.relforcerowsecurity AS force FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
     WHERE c.relkind = 'r' AND n.nspname NOT LIKE 'pg_%' AND n.nspname <> 'information_schema' ORDER BY 1`);
-  expect(tables.map((table) => table.name)).toEqual(["accounts.account", "accounts.attempt", "accounts.lock", "accounts.object", "accounts.project", "accounts.revision", "accounts.settings", "auth.account", "auth.audit_event", "auth.invitation", "auth.rate_limit", "auth.recovery", "auth.session", "auth.subject_map", "auth.twoFactor", "auth.user", "auth.verification", "public.migrations"]);
+  expect(tables.map((table) => table.name)).toEqual(["accounts.account", "accounts.attempt", "accounts.idempotency", "accounts.lock", "accounts.object", "accounts.project", "accounts.revision", "accounts.settings", "auth.account", "auth.audit_event", "auth.invitation", "auth.rate_limit", "auth.recovery", "auth.session", "auth.subject_map", "auth.twoFactor", "auth.user", "auth.verification", "public.migrations"]);
   for (const table of tables) {
     expect(table.owner).toBe("owner");
     if (table.name.startsWith("accounts.")) expect(table).toMatchObject({ rls: true, force: true });
@@ -415,7 +416,7 @@ it("D4/G7: catalogue classification, forced policies, composite tenant keys, rol
     }
   }
   const policies = await database.inspect.query("SELECT tablename, qual = with_check AS checked FROM pg_policies WHERE schemaname = 'accounts' ORDER BY tablename");
-  expect(policies.rows).toEqual(["account", "attempt", "lock", "object", "project", "revision", "settings"].map((tablename) => ({ tablename, checked: true })));
+  expect(policies.rows).toEqual(["account", "attempt", "idempotency", "lock", "object", "project", "revision", "settings"].map((tablename) => ({ tablename, checked: true })));
   const constraints = await database.inspect.query<{ definition: string }>("SELECT pg_get_constraintdef(oid) AS definition FROM pg_constraint WHERE conrelid = 'accounts.settings'::regclass ORDER BY conname");
   expect(constraints.rows.map((row) => row.definition)).toContain("PRIMARY KEY (account_id, key)");
   expect(constraints.rows.map((row) => row.definition)).toContain("FOREIGN KEY (account_id) REFERENCES accounts.account(account_id)");

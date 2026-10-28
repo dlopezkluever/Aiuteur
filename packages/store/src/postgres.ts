@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { Pool, type PoolClient } from "pg";
-import { ACTOR_KINDS, ATTEMPT_ORIGINS, REVISION_CAUSES, accountSchema, actionGroupIdSchema, generationIdSchema, objectIdSchema, projectIdSchema, settingsSchema, type AccountId, type ObjectId, type Project, type ProjectId, type Settings } from "@aiuteur/contract";
+import { ACTOR_KINDS, IDEMPOTENT_OPERATIONS, ATTEMPT_ORIGINS, REVISION_CAUSES, accountSchema, actionGroupIdSchema, generationIdSchema, objectIdSchema, projectIdSchema, settingsSchema, type AccountId, type ObjectId, type Project, type ProjectId, type Settings } from "@aiuteur/contract";
 import type { AttemptRow, ReadTx, RevisionRow, Scope, Store, WriteTx } from "./index.ts";
-import type { accounts_account, accounts_attempt, accounts_lock, accounts_object, accounts_project, accounts_revision, accounts_settings } from "./rows.generated.ts";
+import type { accounts_account, accounts_idempotency, accounts_attempt, accounts_lock, accounts_object, accounts_project, accounts_revision, accounts_settings } from "./rows.generated.ts";
 
 /** Boot rejects a privileged login or indirect privileged role membership. */
 export async function assertRuntimeRole(pool: Pool, expected: "app" | "identity"): Promise<void> {
@@ -96,6 +96,15 @@ export async function createPostgresStore(connectionString: string): Promise<Sto
     ...readTx(client),
     async putSettings(settings: Settings) {
       await client.query("UPDATE accounts.settings SET payload = $1 WHERE key = 'studio'", [JSON.stringify(settings)]);
+    },
+    async idempotency(operation, key) {
+      const { rows } = await client.query<accounts_idempotency>("SELECT * FROM accounts.idempotency WHERE operation = $1 AND key = $2", [operation, key]);
+      const row = rows[0];
+      return row ? { operation: z.enum(IDEMPOTENT_OPERATIONS).parse(row.operation), key: row.key, fingerprint: row.fingerprint, result: row.result, createdAt: row.created_at.toISOString() } : null;
+    },
+    async recordIdempotency(row) {
+      await client.query("INSERT INTO accounts.idempotency (account_id, operation, key, fingerprint, result, created_at) VALUES ($1, $2, $3, $4, $5::jsonb, $6)",
+        [scope.accountId, row.operation, row.key, row.fingerprint, JSON.stringify(row.result), row.createdAt]);
     },
     async insertProject(value) {
       await client.query("INSERT INTO accounts.project (project_id, account_id, created_at) VALUES ($1, $2, $3)", [value.projectId, scope.accountId, value.createdAt]);

@@ -1,4 +1,4 @@
-import type { Account, AccountId, ActionGroupId, GenerationId, ActorKind, AttemptOrigin, RevisionCause, CreatorId, ObjectId, Project, ProjectId, Settings } from "@aiuteur/contract";
+import type { Account, AccountId, ActionGroupId, IdempotentOperation, GenerationId, ActorKind, AttemptOrigin, RevisionCause, CreatorId, ObjectId, Project, ProjectId, Settings } from "@aiuteur/contract";
 
 /** FC5 Draft: obtained by accounts.resolveScope, never from client input. */
 export interface Scope {
@@ -70,7 +70,18 @@ export interface ReadTx {
  * Appends only. `appendRevision`, `insertObject` and `insertAttempt` exist for
  * `history.commit` (build rule R1); no other module calls them.
  */
+/** The recorded result of one keyed write, committed in the same transaction as the write (STORY-DOCUMENTS §4). */
+export interface IdempotencyRow {
+  readonly operation: IdempotentOperation;
+  readonly key: string;
+  /** Identity of the logical request, so reuse of a key with other input is detectable. */
+  readonly fingerprint: string;
+  readonly result: unknown;
+  readonly createdAt: string;
+}
 export interface WriteTx extends ReadTx {
+  idempotency(operation: IdempotentOperation, key: string): Promise<IdempotencyRow | null>;
+  recordIdempotency(row: IdempotencyRow): Promise<void>;
   putSettings(settings: Settings): Promise<void>;
   insertProject(project: Project): Promise<void>;
   insertObject(row: ObjectRow & { createdAt: string }): Promise<void>;

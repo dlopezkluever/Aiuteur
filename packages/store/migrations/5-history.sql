@@ -72,18 +72,31 @@ CREATE TABLE accounts.lock (
   FOREIGN KEY (account_id, project_id, object_id) REFERENCES accounts.object(account_id, project_id, object_id)
 );
 
+-- Replay record of one keyed write, committed with the write it protects (STORY-DOCUMENTS §4).
+-- Identity is (Account, operation, key); the fingerprint tells a retry from key reuse with other input.
+CREATE TABLE accounts.idempotency (
+  account_id uuid NOT NULL REFERENCES accounts.account(account_id),
+  operation text NOT NULL,
+  key text NOT NULL CHECK (length(key) BETWEEN 1 AND 128),
+  fingerprint text NOT NULL,
+  result jsonb NOT NULL,
+  created_at timestamptz NOT NULL,
+  PRIMARY KEY (account_id, operation, key)
+);
+
 -- Closed vocabularies are text with a generated CHECK (ADR 0023, D3). This block is
 -- written by scripts/vocabulary.ts from `contract`; `--check` fails if it differs.
 -- BEGIN GENERATED VOCABULARY
 ALTER TABLE accounts.revision ADD CONSTRAINT revision_cause CHECK (cause IN ('creator_edit', 'ai_generation', 'ai_targeted_rewrite', 'sync', 'import', 'restore'));
 ALTER TABLE accounts.revision ADD CONSTRAINT revision_actor_kind CHECK (actor_kind IN ('creator', 'generation', 'import'));
 ALTER TABLE accounts.attempt ADD CONSTRAINT attempt_origin CHECK (origin IN ('stale-base', 'held'));
+ALTER TABLE accounts.idempotency ADD CONSTRAINT idempotency_operation CHECK (operation IN ('source-material.paste', 'source-material.change-role'));
 -- END GENERATED VOCABULARY
 
 DO $$
 DECLARE t text;
 BEGIN
-  FOREACH t IN ARRAY ARRAY['account', 'project', 'object', 'revision', 'attempt', 'lock'] LOOP
+  FOREACH t IN ARRAY ARRAY['account', 'project', 'object', 'revision', 'attempt', 'lock', 'idempotency'] LOOP
     IF t <> 'account' THEN
       EXECUTE format('ALTER TABLE accounts.%I ENABLE ROW LEVEL SECURITY', t);
       EXECUTE format('ALTER TABLE accounts.%I FORCE ROW LEVEL SECURITY', t);
@@ -97,5 +110,6 @@ BEGIN
 END $$;
 
 GRANT SELECT ON accounts.project, accounts.object, accounts.revision, accounts.attempt, accounts.lock TO app;
+GRANT SELECT, INSERT ON accounts.idempotency TO app;
 GRANT INSERT ON accounts.project, accounts.object, accounts.revision, accounts.attempt TO app;
 GRANT SELECT ON ALL TABLES IN SCHEMA accounts TO backup;

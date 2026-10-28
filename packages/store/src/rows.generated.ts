@@ -17,6 +17,15 @@ export interface accounts_attempt {
   "created_at": Date;
 }
 
+export interface accounts_idempotency {
+  "account_id": string;
+  "operation": string;
+  "key": string;
+  "fingerprint": string;
+  "result": unknown;
+  "created_at": Date;
+}
+
 export interface accounts_lock {
   "object_id": string;
   "sequence": number;

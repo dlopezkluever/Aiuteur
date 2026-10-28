@@ -114,6 +114,12 @@ async function commit(kinds: ReadonlyMap<string, KindDeclaration>, wtx: WriteTx,
     return attemptId;
   };
 
+  // A save equal to the head, on the current base, is not a write (LINEAGE §6.3): it adds nothing and
+  // meets no lock friction. Scope, kind, invariants, provenance and the base were all judged above, so a
+  // stale or invalid request never reaches this return.
+  const hash = bodyHash(body);
+  if (head && change.base === head.sequence && head.bodyHash === hash) return { result: "Applied", appended: false, revision: head };
+
   const lock = object ? await wtx.lockState(change.objectId) : { locked: false, version: 0 };
   const grant = ctx.editSession;
   const through = grant !== undefined && grant.objectId === change.objectId && grant.creatorId === scope.creatorId && grant.impactVersion === lock.version;
@@ -125,8 +131,6 @@ async function commit(kinds: ReadonlyMap<string, KindDeclaration>, wtx: WriteTx,
   const headSequence = head?.sequence ?? 0;
   if (change.base !== headSequence) return { result: "StaleBase", head: headSequence, attemptId: await keep("stale-base") };
 
-  const hash = bodyHash(body);
-  if (head && head.bodyHash === hash) return { result: "Applied", appended: false, revision: head };
   if (!object) await wtx.insertObject({ objectId: change.objectId, projectId: change.projectId, kind: declaration.kind, createdAt: at });
   const revision: RevisionRow = {
     objectId: change.objectId, projectId: change.projectId, sequence: headSequence + 1, parent: headSequence,

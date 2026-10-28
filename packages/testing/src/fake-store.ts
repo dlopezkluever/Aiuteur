@@ -1,5 +1,5 @@
 import { accountIdSchema, creatorIdSchema, DEFAULT_SETTINGS, type Account, type ObjectId, type Project, type Settings } from "@aiuteur/contract";
-import type { AttemptRow, Clock, ObjectRow, ReadTx, RevisionRow, Scope, Store, WriteTx } from "@aiuteur/store";
+import type { AttemptRow, Clock, IdempotencyRow, ObjectRow, ReadTx, RevisionRow, Scope, Store, WriteTx } from "@aiuteur/store";
 import { ManualClock } from "./fake-transport.ts";
 import type { StoreSubject } from "./conformance/store.ts";
 
@@ -11,6 +11,7 @@ interface AccountState {
   revisions: Map<string, RevisionRow[]>;
   attempts: AttemptRow[];
   locks: Map<string, { locked: boolean; version: number }>;
+  idempotency: Map<string, IdempotencyRow>;
 }
 
 function readView(state: AccountState, scope: Scope): ReadTx {
@@ -37,7 +38,7 @@ export class MemoryStore implements Store {
     for (const scope of scopes) this.#rows.set(scope.accountId, {
       account: { accountId: scope.accountId, createdAt: new Date(clock.now()).toISOString() },
       settings: structuredClone(DEFAULT_SETTINGS),
-      projects: [], objects: new Map(), revisions: new Map(), attempts: [], locks: new Map(),
+      projects: [], objects: new Map(), revisions: new Map(), attempts: [], locks: new Map(), idempotency: new Map(),
     });
   }
 
@@ -59,6 +60,12 @@ export class MemoryStore implements Store {
       const result = await run({
         ...readView(state, scope),
         putSettings: async (settings) => { state.settings = structuredClone(settings); },
+        idempotency: async (operation, key) => structuredClone(state.idempotency.get(`${operation}\0${key}`) ?? null),
+        recordIdempotency: async (row) => {
+          const id = `${row.operation}\0${row.key}`;
+          if (state.idempotency.has(id)) throw new Error("idempotency key already recorded");
+          state.idempotency.set(id, structuredClone(row));
+        },
         insertProject: async (project) => { state.projects.push(structuredClone(project)); },
         insertObject: async ({ createdAt: _createdAt, ...row }) => { state.objects.set(row.objectId, structuredClone(row)); state.revisions.set(row.objectId, []); },
         appendRevision: async (row) => {
@@ -85,12 +92,13 @@ export class MemoryStore implements Store {
 
   /** Persistent row counts across every Account, by table. */
   rowCounts(): Record<string, number> {
-    const counts = { project: 0, object: 0, revision: 0, attempt: 0, lock: 0 };
+    const counts = { project: 0, object: 0, revision: 0, attempt: 0, lock: 0, idempotency: 0 };
     for (const state of this.#rows.values()) {
       counts.project += state.projects.length;
       counts.object += state.objects.size;
       counts.revision += [...state.revisions.values()].reduce((sum, rows) => sum + rows.length, 0);
       counts.attempt += state.attempts.length;
+      counts.idempotency += state.idempotency.size;
       counts.lock += [...state.locks.values()].reduce((sum, lock) => sum + lock.version, 0);
     }
     return counts;

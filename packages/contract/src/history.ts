@@ -14,7 +14,12 @@ export const REVISION_CAUSES = ["creator_edit", "ai_generation", "ai_targeted_re
 export type RevisionCause = (typeof REVISION_CAUSES)[number];
 export const ATTEMPT_ORIGINS = ["stale-base", "held"] as const;
 /** Causes whose content a Generation made (STORY-DOCUMENTS §4); MODULE §5.1 refuses them without a Generation. */
-export const AI_CAUSES: readonly RevisionCause[] = ["ai_generation", "ai_targeted_rewrite"];
+export const AI_CAUSES: readonly RevisionCause[] = ["ai_generation", "ai_targeted_rewrite", "sync"];
+/** Writes that carry a client-supplied idempotency key (STORY-DOCUMENTS §4). */
+export const IDEMPOTENT_OPERATIONS = ["source-material.paste", "source-material.change-role"] as const;
+export type IdempotentOperation = (typeof IDEMPOTENT_OPERATIONS)[number];
+// Opaque to the server: chosen by the client for one intended action, never interpreted.
+export const idempotencyKeySchema = z.string().regex(/^[A-Za-z0-9._~-]{1,128}$/);
 export type AttemptOrigin = (typeof ATTEMPT_ORIGINS)[number];
 export const pasteSchema = z.strictObject({ text: z.string().min(1) });
 export const changeRoleSchema = z.strictObject({ base: z.int().min(1), role: z.enum(ROLES) });

@@ -150,6 +150,84 @@
     },
     {
       "schema": "accounts",
+      "name": "idempotency",
+      "owner": "owner",
+      "rls": true,
+      "force_rls": true,
+      "grants": "{owner=arwdDxt/owner,app=ar/owner,backup=r/owner}",
+      "columns": [
+        {
+          "name": "account_id",
+          "type": "uuid",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "operation",
+          "type": "text",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "key",
+          "type": "text",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "fingerprint",
+          "type": "text",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "result",
+          "type": "jsonb",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": null,
+          "nullable": false
+        }
+      ],
+      "constraints": [
+        {
+          "name": "idempotency_account_id_fkey",
+          "definition": "FOREIGN KEY (account_id) REFERENCES accounts.account(account_id)"
+        },
+        {
+          "name": "idempotency_key_check",
+          "definition": "CHECK (((length(key) >= 1) AND (length(key) <= 128)))"
+        },
+        {
+          "name": "idempotency_operation",
+          "definition": "CHECK ((operation = ANY (ARRAY['source-material.paste'::text, 'source-material.change-role'::text])))"
+        },
+        {
+          "name": "idempotency_pkey",
+          "definition": "PRIMARY KEY (account_id, operation, key)"
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX idempotency_pkey ON accounts.idempotency USING btree (account_id, operation, key)"
+      ],
+      "policies": [
+        {
+          "name": "account_scope",
+          "check": "(account_id = (NULLIF(current_setting('aiuteur.account_id'::text, true), ''::text))::uuid)",
+          "roles": [
+            "public"
+          ],
+          "using": "(account_id = (NULLIF(current_setting('aiuteur.account_id'::text, true), ''::text))::uuid)",
+          "command": "ALL"
+        }
+      ]
+    },
+    {
+      "schema": "accounts",
       "name": "lock",
       "owner": "owner",
       "rls": true,

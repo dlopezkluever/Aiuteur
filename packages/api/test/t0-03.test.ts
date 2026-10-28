@@ -33,8 +33,8 @@ beforeAll(async () => {
 });
 afterAll(async () => { await store?.close(); await adapter?.close(); await database?.close(); });
 
-async function call(method: "GET" | "POST", path: string, cookie: string, body?: unknown) {
-  return api.request(`${origin}${path}`, { method, headers: { origin, "content-type": "application/json", "x-aiuteur-command": "1", cookie }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+async function call(method: "GET" | "POST", path: string, cookie: string, body?: unknown, key: string = ids.uuid()) {
+  return api.request(`${origin}${path}`, { method, headers: { origin, "content-type": "application/json", "x-aiuteur-command": "1", "idempotency-key": key, cookie }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
 }
 async function creator() {
   const email = `${ids.uuid()}@example.test`;
@@ -161,7 +161,7 @@ it("D5: runtime roles cannot rewrite history, and the blocking trigger really st
   const mutableCells = ["accounts.settings"];
   const { rows: tables } = await database.inspect.query<{ name: string }>("SELECT n.nspname || '.' || c.relname AS name FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE c.relkind = 'r' AND n.nspname = 'accounts' ORDER BY 1");
   const appendOnly = tables.map((table) => table.name).filter((name) => !mutableCells.includes(name));
-  expect(appendOnly).toEqual(["accounts.account", "accounts.attempt", "accounts.lock", "accounts.object", "accounts.project", "accounts.revision"]);
+  expect(appendOnly).toEqual(["accounts.account", "accounts.attempt", "accounts.idempotency", "accounts.lock", "accounts.object", "accounts.project", "accounts.revision"]);
   for (const name of appendOnly) {
     const [schema, table] = name.split(".");
     for (const role of ["app", "identity", "scheduler", "operator_read", "backup"]) {
@@ -176,6 +176,7 @@ it("D5: runtime roles cannot rewrite history, and the blocking trigger really st
     const arrange = async () => {
       await client.query("BEGIN; SET LOCAL ROLE owner");
       await client.query("SELECT set_config('aiuteur.account_id', $1, true)", [c.accountId]);
+      await client.query("INSERT INTO accounts.idempotency VALUES ($1, 'source-material.paste', 'k', 'f', '{}', now())", [c.accountId]);
       await client.query("INSERT INTO accounts.lock VALUES ($1, 1, $2, $3, true, 'test', now())", [pasted.revision.objectId, c.accountId, c.project.projectId]);
     };
     await arrange();
@@ -213,4 +214,83 @@ it("D6: no tenant column is named as a marker, staleness or outdated flag", asyn
     WHERE n.nspname = 'accounts' AND c.relkind = 'r' AND a.attnum > 0 AND NOT a.attisdropped ORDER BY 1, 2`);
   expect(rows.length).toBeGreaterThan(30);
   expect(rows.filter((row) => marker.test(row.column) || marker.test(row.type))).toEqual([]);
+});
+
+async function counts(accountId: string) {
+  const { rows } = await database.inspect.query<Record<string, string>>(
+    "SELECT (SELECT count(*) FROM accounts.object WHERE account_id = $1) AS object, (SELECT count(*) FROM accounts.revision WHERE account_id = $1) AS revision, (SELECT count(*) FROM accounts.attempt WHERE account_id = $1) AS attempt, (SELECT count(*) FROM accounts.idempotency WHERE account_id = $1) AS idempotency", [accountId]);
+  return Object.fromEntries(Object.entries(rows[0] ?? {}).map(([table, n]) => [table, Number(n)]));
+}
+
+it("STORY-DOCUMENTS §4: a replayed paste and a replayed edit return the original result and create nothing", async () => {
+  const c = await creator();
+  const first = await call("POST", c.material, c.cookie, { text: "once" }, "paste-1");
+  const original = await first.text();
+  const afterPaste = await counts(c.accountId);
+  const replay = await call("POST", c.material, c.cookie, { text: "once" }, "paste-1");
+  expect(replay.status).toBe(first.status);
+  expect(await replay.text()).toBe(original);
+  expect(await counts(c.accountId)).toEqual(afterPaste);
+  const pasted = commitOutcomeSchema.parse(JSON.parse(original));
+  if (pasted.result !== "Applied") throw new Error("not applied");
+  const object = `${c.material}/${pasted.revision.objectId}`;
+
+  const edit = await call("POST", `${object}/role`, c.cookie, { base: 1, role: "supporting" }, "edit-1");
+  const editText = await edit.text();
+  const afterEdit = await counts(c.accountId);
+  const again = await call("POST", `${object}/role`, c.cookie, { base: 1, role: "supporting" }, "edit-1");
+  expect(again.status).toBe(edit.status);
+  expect(await again.text()).toBe(editText);
+  expect(JSON.parse(editText)).toMatchObject({ result: "Applied", appended: true, revision: { sequence: 2 } });
+  expect(await counts(c.accountId)).toEqual(afterEdit);
+  expect(sourceMaterialReadSchema.parse(await (await call("GET", object, c.cookie)).json())).toMatchObject({ sequences: [1, 2], sideLine: [] });
+
+  // A new action with a different key from the now-obsolete base is an ordinary stale write.
+  const stale = await call("POST", `${object}/role`, c.cookie, { base: 1, role: "supporting" }, "edit-2");
+  expect(stale.status).toBe(409);
+  expect(await outcome(stale)).toMatchObject({ result: "StaleBase", head: 2 });
+  expect((await counts(c.accountId))["attempt"]).toBe(1);
+
+  // The key is scoped by operation: the paste key on an edit is a separate action, not the paste's result.
+  const other = await outcome(await call("POST", `${object}/role`, c.cookie, { base: 2, role: "primary" }, "paste-1"));
+  expect(other).toMatchObject({ result: "Applied", appended: true, revision: { sequence: 3, role: "primary" } });
+});
+
+it("STORY-DOCUMENTS §4: reusing a key with different input is refused and executes nothing", async () => {
+  const c = await creator();
+  const first = await outcome(await call("POST", c.material, c.cookie, { text: "original input" }, "reuse-1"));
+  if (first.result !== "Applied") throw new Error("not applied");
+  const before = await counts(c.accountId);
+  const reused = await call("POST", c.material, c.cookie, { text: "different input" }, "reuse-1");
+  expect(reused.status).toBe(422);
+  expect(await reused.json()).toEqual({ code: "idempotency-key-reused" });
+  expect(await counts(c.accountId)).toEqual(before);
+  const path = `${c.material}/${first.revision.objectId}/role`;
+  await call("POST", path, c.cookie, { base: 1, role: "supporting" }, "reuse-2");
+  const sameEditDifferentRole = await call("POST", path, c.cookie, { base: 1, role: "primary" }, "reuse-2");
+  expect(sameEditDifferentRole.status).toBe(422);
+  expect(await call("POST", c.material, c.cookie, { text: "x" }, "bad key!")).toMatchObject({ status: 400 });
+});
+
+it("STORY-DOCUMENTS §4: overlapping duplicates execute once on real PostgreSQL and agree", async () => {
+  const c = await creator();
+  const before = await counts(c.accountId);
+  const responses = await Promise.all(Array.from({ length: 6 }, () => call("POST", c.material, c.cookie, { text: "racing" }, "dup-1")));
+  const bodies = await Promise.all(responses.map((response) => response.text()));
+  expect(new Set(responses.map((response) => response.status))).toEqual(new Set([201]));
+  expect(new Set(bodies).size).toBe(1);
+  const after = await counts(c.accountId);
+  expect(after).toEqual({ ...before, object: (before["object"] ?? 0) + 1, revision: (before["revision"] ?? 0) + 1, idempotency: (before["idempotency"] ?? 0) + 1 });
+});
+
+it("an idempotency key is private to its Account", async () => {
+  const a = await creator();
+  const b = await creator();
+  const fromA = await outcome(await call("POST", a.material, a.cookie, { text: "A's text" }, "shared-key"));
+  const fromB = await outcome(await call("POST", b.material, b.cookie, { text: "B's text" }, "shared-key"));
+  if (fromA.result !== "Applied" || fromB.result !== "Applied") throw new Error("not applied");
+  expect(fromB.revision.objectId).not.toBe(fromA.revision.objectId);
+  expect(fromB.revision.text).toBe("B's text");
+  expect((await counts(a.accountId))["idempotency"]).toBe(1);
+  expect((await counts(b.accountId))["idempotency"]).toBe(1);
 });

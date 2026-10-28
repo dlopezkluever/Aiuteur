@@ -29,7 +29,7 @@ export const projectSchema = z.strictObject({ projectId: projectIdSchema, create
 export type Project = z.infer<typeof projectSchema>;
 export const projectListSchema = z.strictObject({ projects: z.array(projectSchema) });
 
-export const ERROR_CODES = ["not-found", "unauthenticated", "forbidden", "invalid-request", "invitation-refused", "recovery-refused", "rate-limited", "internal-error"] as const;
+export const ERROR_CODES = ["not-found", "unauthenticated", "forbidden", "invalid-request", "invitation-refused", "recovery-refused", "idempotency-key-reused", "rate-limited", "internal-error"] as const;
 export const errorSchema = z.strictObject({ code: z.enum(ERROR_CODES) });
 export type ErrorCode = z.infer<typeof errorSchema>["code"];
 export const EVENT_TYPES = ["account.created"] as const;
