@@ -5,6 +5,8 @@ import { afterAll, beforeAll, expect, it } from "vitest";
 import { createAccounts, createBetterAuth } from "@aiuteur/accounts";
 import { createPostgresStore } from "@aiuteur/store";
 import { createViews } from "@aiuteur/views";
+import { createHistory } from "@aiuteur/history";
+import { sourceMaterialKind } from "@aiuteur/story";
 import { createWorkflows } from "@aiuteur/workflows";
 import { FakeMailer, ManualClock, uuidv7 } from "@aiuteur/testing";
 import { createApi } from "@aiuteur/api";
@@ -38,7 +40,7 @@ beforeAll(async () => {
   adapter = await createBetterAuth({ connectionString: database.url("identity"), baseURL: origin, secret: "synthetic-test-only-secret-with-more-than-32-characters", clock, ids, idleSessionSeconds: 3600, absoluteSessionSeconds: 86400 });
   store = await createPostgresStore(database.url("app"));
   accounts = createAccounts({ ...adapter, clock, ids, invitationTtlMs: 60_000, operatorEmails: [], mailer, limits, recoveryTtlMs: 600_000, recoveryPage: `${origin}/recover`, onMailFailure: (error) => mailFailures.push(error) });
-  api = createApi({ accounts, views: createViews(store), workflows: createWorkflows({ store, clock, ids }), handleAuth: adapter.handle, origin, clientAddress: (request) => request.headers.get("x-test-address") ?? "203.0.113.250" });
+  api = createApi({ accounts, views: createViews(store), workflows: createWorkflows({ store, history: createHistory([sourceMaterialKind]), clock, ids }), handleAuth: adapter.handle, origin, clientAddress: (request) => request.headers.get("x-test-address") ?? "203.0.113.250" });
 });
 afterAll(async () => { await store?.close(); await adapter?.close(); await database?.close(); });
 

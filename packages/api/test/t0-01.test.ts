@@ -10,8 +10,10 @@ import { createAccounts, createBetterAuth } from "@aiuteur/accounts";
 import { accountIdSchema, commitOutcomeSchema, creatorIdSchema, projectSchema, sourceMaterialReadSchema, type ObjectId, studioSchema, projectListSchema, invitationSchema, redeemedInvitationSchema, ROUTES, eventSchema, AUDIT_ACTIONS } from "@aiuteur/contract";
 import { createPostgresStore, migrateDatabase, schemaCatalogue, type Scope } from "@aiuteur/store";
 import { createViews } from "@aiuteur/views";
+import { createHistory } from "@aiuteur/history";
+import { sourceMaterialKind } from "@aiuteur/story";
 import { createWorkflows } from "@aiuteur/workflows";
-import { describeHistoryConformance, describeStoreConformance, FakeMailer, ManualClock, uuidv7 } from "@aiuteur/testing";
+import { describeHistoryConformance, describeStoreConformance, storeIgnoringScope, FakeMailer, ManualClock, uuidv7 } from "@aiuteur/testing";
 import { createApi } from "@aiuteur/api";
 import { freshDatabase } from "./database.ts";
 
@@ -32,7 +34,7 @@ beforeAll(async () => {
   const generous = { max: 1_000_000, windowMs: 60_000 };
   const limit = { address: generous, email: generous };
   accounts = createAccounts({ ...adapter, clock, ids, invitationTtlMs: 60_000, operatorEmails: ["operator@example.test"], mailer: new FakeMailer(), limits: { signIn: limit, recovery: limit, redemption: limit }, recoveryTtlMs: 600_000, recoveryPage: `${origin}/recover`, onMailFailure: (error) => { throw error; } });
-  api = createApi({ accounts, views: createViews(store), workflows: createWorkflows({ store, clock, ids }), handleAuth: adapter.handle, origin, clientAddress: () => "203.0.113.1" });
+  api = createApi({ accounts, views: createViews(store), workflows: createWorkflows({ store, history: createHistory([sourceMaterialKind]), clock, ids }), handleAuth: adapter.handle, origin, clientAddress: () => "203.0.113.1" });
 });
 afterAll(async () => { await store?.close(); await adapter?.close(); await database?.close(); });
 
@@ -164,9 +166,9 @@ it("G1: every scoped operation, with its real method, refuses another Account ex
   expect(read.head.text).toBe("private");
 
   // Negative control: one operation that stops enforcing isolation makes G1 fail.
-  const views = createViews(store);
-  const leaky = createApi({ accounts, views: { ...views, sourceMaterial: (_scope, projectId, objectId) => views.sourceMaterial(a.scope, projectId, objectId) },
-    workflows: createWorkflows({ store, clock, ids }), handleAuth: adapter.handle, origin, clientAddress: () => "203.0.113.1" });
+  // Fault injected at the Store port (R19, R20): reads run as Account A whoever asks.
+  const leaky = createApi({ accounts, views: createViews(storeIgnoringScope(store, a.scope)), workflows: createWorkflows({ store, history: createHistory([sourceMaterialKind]), clock, ids }),
+    handleAuth: adapter.handle, origin, clientAddress: () => "203.0.113.1" });
   await expect(assertG1(leaky, owner, { accountId: b.accountId, cookie: b.cookie })).rejects.toThrow(/G1/);
 });
 

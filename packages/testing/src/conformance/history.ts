@@ -1,8 +1,8 @@
 import { createHash, randomUUID } from "node:crypto";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { objectIdSchema, projectIdSchema, type ObjectId, type ProjectId } from "@aiuteur/contract";
-import { commit, derive, read, type CommitContext, type CommitResult } from "@aiuteur/history";
+import { actionGroupIdSchema, objectIdSchema, projectIdSchema, type ObjectId, type ProjectId } from "@aiuteur/contract";
+import { createHistory, derive, read, type CommitContext, type CommitResult } from "@aiuteur/history";
 import type { Scope } from "@aiuteur/store";
 import { sourceMaterialKind } from "@aiuteur/story";
 import { uuidv7 } from "../uuidv7.ts";
@@ -10,7 +10,10 @@ import type { StoreSubject } from "./store.ts";
 
 const ids = { uuid: randomUUID, ordered: uuidv7, token: randomUUID };
 let tick = Date.UTC(2026, 0, 1);
-const context = (extra: Partial<CommitContext> = {}): CommitContext => ({ actor: "creator", cause: "import", at: (tick += 1000), ids, ...extra });
+const context = (extra: Partial<CommitContext> = {}): CommitContext => ({ actor: "creator", cause: "import", actionGroup: actionGroupIdSchema.parse(uuidv7()), at: (tick += 1000), ids, ...extra });
+const KIND = sourceMaterialKind.kind;
+/** Composition registers the owning module's declaration, as production does. */
+const { commit } = createHistory([sourceMaterialKind]);
 
 /** Draft FC3 conformance: the write gate must behave identically on every Store. */
 export function describeHistoryConformance(name: string, subject: () => Promise<StoreSubject>): void {
@@ -20,7 +23,7 @@ export function describeHistoryConformance(name: string, subject: () => Promise<
       const projectId = projectIdSchema.parse(uuidv7());
       await s.store.write(s.a, (tx) => tx.insertProject({ projectId, createdAt: new Date(tick).toISOString() }));
       const write = (scope: Scope, objectId: ObjectId, base: number, text: string, extra: Partial<CommitContext> = {}, project: ProjectId = projectId, role: "primary" | "supporting" = "primary") =>
-        s.store.write(scope, (tx) => commit(tx, scope, { kind: sourceMaterialKind, projectId: project, objectId, base, body: { text, role } }, context(extra)));
+        s.store.write(scope, (tx) => commit(tx, scope, { kind: KIND, projectId: project, objectId, base, body: { text, role } }, context(extra)));
       const newObject = async (text = "first") => {
         const objectId = objectIdSchema.parse(uuidv7());
         expect(await write(s.a, objectId, 0, text)).toMatchObject({ result: "Applied", appended: true });
@@ -89,9 +92,41 @@ export function describeHistoryConformance(name: string, subject: () => Promise<
       // The descriptor may change; the text is carried over untouched.
       expect(await write(a, objectId, 1, "the original", {}, undefined, "supporting")).toMatchObject({ result: "Applied", appended: true });
       // A body derived from the head inside the gate keeps the text even when the base is stale.
-      const derived = await store.write(a, (tx) => commit(tx, a, { kind: sourceMaterialKind, projectId, objectId, base: 1, body: (current: { text: string } | null) => current && { text: current.text, role: "primary" } }, context()));
+      const derived = await store.write(a, (tx) => commit(tx, a, { kind: KIND, projectId, objectId, base: 1, body: (current: unknown) => { const head = sourceMaterialKind.parse(current); return head && { text: head.text, role: "primary" }; } }, context()));
       expect(derived).toMatchObject({ result: "StaleBase", head: 2 });
       expect((await readBack(a, objectId))?.sideLine).toMatchObject([{ body: { text: "the original", role: "primary" } }]);
+    });
+
+    it("a caller cannot supply the rules: a kind that is not registered is refused, and the head and content stay unchanged", async () => {
+      const { write, newObject, read: readBack, rowCounts, store, a, projectId } = await setup();
+      const objectId = await newObject("registered rules only");
+      const head = (await readBack(a, objectId))?.head;
+      const before = await rowCounts();
+      const body = { text: "changed by a caller-built kind", role: "primary" };
+      // The original bypass: the old Change carried a whole declaration with its invariants removed.
+      const forged = { ...sourceMaterialKind, invariants: [] };
+      expect(await store.write(a, (tx) => commit(tx, a, { kind: forged as never, projectId, objectId, base: 1, body }, context()))).toMatchObject({ result: "Refused", reason: "unknown-kind" });
+      expect(await store.write(a, (tx) => commit(tx, a, { kind: "not-registered", projectId, objectId, base: 1, body }, context()))).toMatchObject({ result: "Refused", reason: "unknown-kind" });
+      expect(await rowCounts()).toEqual(before);
+      expect((await readBack(a, objectId))?.head).toEqual(head);
+      // The legitimate descriptor change through the registered kind still works.
+      expect(await write(a, objectId, 1, "registered rules only", {}, undefined, "supporting")).toMatchObject({ result: "Applied", appended: true });
+      expect(() => createHistory([sourceMaterialKind, sourceMaterialKind])).toThrow("registered twice");
+    });
+
+    it("LINEAGE §1: every appended Revision carries its action group; a no-op or a stale loser adds none", async () => {
+      const { write, newObject, read: readBack, a } = await setup();
+      const objectId = await newObject("grouped");
+      const group = actionGroupIdSchema.parse(uuidv7());
+      expect(await write(a, objectId, 1, "grouped", { actionGroup: group }, undefined, "supporting")).toMatchObject({ result: "Applied", appended: true, revision: { actionGroup: group } });
+      const found = await readBack(a, objectId);
+      expect(found?.head.actionGroup).toBe(group);
+      expect((await readBack(a, objectId, 1))?.revision?.actionGroup).not.toBe(group);
+      const other = actionGroupIdSchema.parse(uuidv7());
+      // A save equal to the head is a no-op: it returns the existing Revision and its group, not the new one.
+      expect(await write(a, objectId, 2, "grouped", { actionGroup: other }, undefined, "supporting")).toMatchObject({ result: "Applied", appended: false, revision: { sequence: 2, actionGroup: group } });
+      expect(await write(a, objectId, 1, "grouped", { actionGroup: other }, undefined, "primary")).toMatchObject({ result: "StaleBase" });
+      expect((await readBack(a, objectId))?.sequences).toEqual([1, 2]);
     });
 
     it("ADR 0020: a Revision stores frozen slice fingerprints that read back exactly and are never recomputed", async () => {
@@ -108,7 +143,7 @@ export function describeHistoryConformance(name: string, subject: () => Promise<
       expect(second?.bodyHash).not.toBe(first?.bodyHash);
       // A later change to a slice function affects only later Revisions: old ones read back as stored.
       const changed = { ...sourceMaterialKind, slices: { content: () => "a different definition", extra: (body: { role: string }) => body.role } };
-      await store.write(a, (tx) => commit(tx, a, { kind: changed, projectId, objectId, base: 2, body: { text, role: "primary" } }, context()));
+      await store.write(a, (tx) => createHistory([changed]).commit(tx, a, { kind: KIND, projectId, objectId, base: 2, body: { text, role: "primary" } }, context()));
       const found = await readBack(a, objectId);
       expect((await readBack(a, objectId, 1))?.revision?.fingerprints).toEqual({ content: independent });
       expect(found?.head.fingerprints).toEqual({ content: createHash("sha256").update(JSON.stringify("a different definition")).digest("hex"), extra: createHash("sha256").update(JSON.stringify("primary")).digest("hex") });
@@ -125,7 +160,7 @@ export function describeHistoryConformance(name: string, subject: () => Promise<
       expect((await readBack(a, objectId))?.sequences).toEqual([1, 2, 3]);
       const before = await rowCounts();
       await expect(store.write(a, async (tx) => {
-        await commit(tx, a, { kind: sourceMaterialKind, projectId, objectId, base: 3, body: { text: "one", role: "supporting" } }, context());
+        await commit(tx, a, { kind: KIND, projectId, objectId, base: 3, body: { text: "one", role: "supporting" } }, context());
         throw new Error("abort");
       })).rejects.toThrow("abort");
       expect(await rowCounts()).toEqual(before);
@@ -148,8 +183,10 @@ export function describeHistoryConformance(name: string, subject: () => Promise<
       expect(await write(a, objectIdSchema.parse(uuidv7()), 3, "x")).toMatchObject({ result: "Refused", reason: "not-found" });
       expect(await write(a, objectIdSchema.parse(uuidv7()), 0, "bad \u0000 nul")).toMatchObject({ result: "Refused", reason: "invalid-body" });
       expect(await write(a, objectIdSchema.parse(uuidv7()), 0, "")).toMatchObject({ result: "Refused", reason: "invalid-body" });
-      expect(await store.write(a, (tx) => commit(tx, a, { kind: { ...sourceMaterialKind, kind: "other" }, projectId, objectId, base: 1, body: { text: "k", role: "primary" } }, context()))).toMatchObject({ result: "Refused", reason: "kind-mismatch" });
-      expect(await store.write(a, (tx) => commit(tx, a, { kind: { ...sourceMaterialKind, invariants: [() => false] }, projectId, objectId, base: 1, body: { text: "k", role: "primary" } }, context()))).toMatchObject({ result: "Refused", reason: "invariant-violated" });
+      const other = createHistory([sourceMaterialKind, { ...sourceMaterialKind, kind: "other" }]);
+      expect(await store.write(a, (tx) => other.commit(tx, a, { kind: "other", projectId, objectId, base: 1, body: { text: "k", role: "primary" } }, context()))).toMatchObject({ result: "Refused", reason: "kind-mismatch" });
+      const strict = createHistory([{ ...sourceMaterialKind, invariants: [() => false] }]);
+      expect(await store.write(a, (tx) => strict.commit(tx, a, { kind: KIND, projectId, objectId, base: 1, body: { text: "k", role: "primary" } }, context()))).toMatchObject({ result: "Refused", reason: "invariant-violated" });
       // Another Account cannot append to, or even see, this object.
       expect(await write(b, objectId, 1, "intruder")).toMatchObject({ result: "Refused", reason: "not-found" });
       expect(await store.read(b, (tx) => read(tx, b, objectId))).toBeNull();

@@ -1,9 +1,19 @@
 import { z } from "zod";
-import { objectIdSchema } from "./studio.ts";
+import { actionGroupIdSchema, objectIdSchema } from "./studio.ts";
+
+// Closed vocabularies of the write gate. `history`, `store` and the wire schemas derive from these.
 
 // Draft FC3 wire shapes. The five results of the write gate are a closed union.
 export const ROLES = ["primary", "supporting"] as const;
-export const REFUSAL_REASONS = ["not-found", "kind-mismatch", "invalid-body", "invariant-violated"] as const;
+export const REFUSAL_REASONS = ["not-found", "unknown-kind", "kind-mismatch", "invalid-body", "invariant-violated"] as const;
+export type RefusalReason = (typeof REFUSAL_REASONS)[number];
+export const ACTOR_KINDS = ["creator", "generation", "import"] as const;
+export type ActorKind = (typeof ACTOR_KINDS)[number];
+/** STORY-DOCUMENTS §4. */
+export const REVISION_CAUSES = ["creator_edit", "ai_generation", "ai_targeted_rewrite", "sync", "import", "restore"] as const;
+export type RevisionCause = (typeof REVISION_CAUSES)[number];
+export const ATTEMPT_ORIGINS = ["stale-base", "held"] as const;
+export type AttemptOrigin = (typeof ATTEMPT_ORIGINS)[number];
 export const pasteSchema = z.strictObject({ text: z.string().min(1) });
 export const changeRoleSchema = z.strictObject({ base: z.int().min(1), role: z.enum(ROLES) });
 
@@ -12,6 +22,7 @@ export const sourceMaterialRevisionSchema = z.strictObject({
   sequence: z.int().min(1),
   text: z.string(),
   role: z.enum(ROLES),
+  actionGroup: actionGroupIdSchema,
   bodyHash: z.string(),
   fingerprints: z.record(z.string(), z.string()),
   createdAt: z.iso.datetime(),
@@ -19,7 +30,7 @@ export const sourceMaterialRevisionSchema = z.strictObject({
 export const sideLineEntrySchema = z.strictObject({
   attemptId: z.uuidv7(),
   basedOn: z.int().min(0),
-  origin: z.enum(["stale-base", "held"]),
+  origin: z.enum(ATTEMPT_ORIGINS),
   text: z.string(),
   role: z.enum(ROLES),
   createdAt: z.iso.datetime(),

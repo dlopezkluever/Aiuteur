@@ -33,5 +33,5 @@ export const sourceMaterialKind: KindDeclaration<SourceMaterialBody> = {
 export function sourceMaterialRevision(row: RevisionRow) {
   const body = sourceMaterialKind.parse(row.body);
   if (!body) throw new Error("stored Source Material body does not parse");
-  return { objectId: row.objectId, sequence: row.sequence, text: body.text, role: body.role, bodyHash: row.bodyHash, fingerprints: row.fingerprints, createdAt: row.createdAt };
+  return { objectId: row.objectId, sequence: row.sequence, text: body.text, role: body.role, actionGroup: row.actionGroup, bodyHash: row.bodyHash, fingerprints: row.fingerprints, createdAt: row.createdAt };
 }

@@ -48,6 +48,7 @@ export interface accounts_revision {
   "parent": number;
   "cause": string;
   "actor_kind": string;
+  "action_group": string;
   "schema_version": number;
   "body": unknown;
   "body_hash": string;

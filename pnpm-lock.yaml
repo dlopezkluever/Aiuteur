@@ -171,6 +171,12 @@ importers:
         specifier: ^4.13.14
         version: 4.13.14
     devDependencies:
+      '@aiuteur/history':
+        specifier: workspace:*
+        version: link:../history
+      '@aiuteur/story':
+        specifier: workspace:*
+        version: link:../story
       '@aiuteur/testing':
         specifier: workspace:*
         version: link:../testing

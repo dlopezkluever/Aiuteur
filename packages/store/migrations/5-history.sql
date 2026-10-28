@@ -31,6 +31,8 @@ CREATE TABLE accounts.revision (
   parent integer NOT NULL CHECK (parent = sequence - 1),
   cause text NOT NULL,
   actor_kind text NOT NULL,
+  -- Ties the appends of one creator action together (LINEAGE §1 class 1); minted by the caller.
+  action_group uuid NOT NULL,
   schema_version integer NOT NULL,
   body jsonb NOT NULL,
   body_hash text NOT NULL,

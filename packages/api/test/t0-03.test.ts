@@ -6,6 +6,8 @@ import { createAccounts, createBetterAuth } from "@aiuteur/accounts";
 import { commitOutcomeSchema, projectListSchema, projectSchema, redeemedInvitationSchema, sourceMaterialReadSchema, sourceMaterialRevisionSchema } from "@aiuteur/contract";
 import { createPostgresStore } from "@aiuteur/store";
 import { createViews } from "@aiuteur/views";
+import { createHistory } from "@aiuteur/history";
+import { sourceMaterialKind } from "@aiuteur/story";
 import { createWorkflows } from "@aiuteur/workflows";
 import { FakeMailer, ManualClock, uuidv7 } from "@aiuteur/testing";
 import { createApi } from "@aiuteur/api";
@@ -27,7 +29,7 @@ beforeAll(async () => {
   const generous = { max: 1_000_000, windowMs: 60_000 };
   const limit = { address: generous, email: generous };
   const accounts = createAccounts({ ...adapter, clock, ids, invitationTtlMs: 60_000, operatorEmails: [], mailer: new FakeMailer(), limits: { signIn: limit, recovery: limit, redemption: limit }, recoveryTtlMs: 600_000, recoveryPage: `${origin}/recover`, onMailFailure: (error) => { throw error; } });
-  api = createApi({ accounts, views: createViews(store), workflows: createWorkflows({ store, clock, ids }), handleAuth: adapter.handle, origin, clientAddress: () => "203.0.113.3" });
+  api = createApi({ accounts, views: createViews(store), workflows: createWorkflows({ store, history: createHistory([sourceMaterialKind]), clock, ids }), handleAuth: adapter.handle, origin, clientAddress: () => "203.0.113.3" });
 });
 afterAll(async () => { await store?.close(); await adapter?.close(); await database?.close(); });
 

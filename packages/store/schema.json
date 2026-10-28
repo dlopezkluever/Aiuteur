@@ -391,6 +391,12 @@
           "nullable": false
         },
         {
+          "name": "action_group",
+          "type": "uuid",
+          "default": null,
+          "nullable": false
+        },
+        {
           "name": "schema_version",
           "type": "integer",
           "default": null,

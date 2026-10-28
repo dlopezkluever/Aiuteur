@@ -103,3 +103,12 @@ export async function fakeStoreSubject(): Promise<StoreSubject> {
   const store = new MemoryStore([a, b], new ManualClock());
   return { store, a, b, lockObject: async (scope, objectId) => store.lockObject(scope, objectId), rowCounts: async () => store.rowCounts() };
 }
+
+/**
+ * Fault injection at the Store port, for G1's negative control: a Store whose reads and writes
+ * ignore the caller's Scope and run as `victim`, so a route that relies on the Store for
+ * isolation leaks. Never a product adapter.
+ */
+export function storeIgnoringScope(real: Store, victim: Scope): Store {
+  return { read: (_scope, run) => real.read(victim, run), write: (_scope, run) => real.write(victim, run) };
+}

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { ObjectId, ProjectId } from "@aiuteur/contract";
+import type { ActionGroupId, ActorKind, ObjectId, ProjectId, RefusalReason, RevisionCause } from "@aiuteur/contract";
 import type { AttemptRow, Ids, ReadTx, RevisionRow, Scope, WriteTx } from "@aiuteur/store";
 
 // Draft FC3 (the write gate) and FC4 (kind declaration). Neither is frozen at T0-03.
@@ -29,30 +29,31 @@ export interface KindDeclaration<Body = unknown> {
   readonly separability: "project";
 }
 
-export type ActorKind = "creator" | "generation" | "import";
 /** FC3 Draft: server state in the real grant (MODULE §5.2); only its shape exists at T0-03. */
 export interface EditSessionGrant { readonly objectId: ObjectId; readonly creatorId: Scope["creatorId"]; readonly impactVersion: number }
 export type GrantEditSession = (wtx: WriteTx, scope: Scope, request: { objectId: ObjectId; impactVersion: number }) => Promise<EditSessionGrant | NeedsConfirmation>;
 
-export interface Change<Body = unknown> {
-  readonly kind: KindDeclaration<Body>;
+export interface Change {
+  /** The name of a kind registered with `createHistory`; the rules come from that registration, never from the caller. */
+  readonly kind: string;
   readonly projectId: ProjectId;
   readonly objectId: ObjectId;
   /** The sequence of the Revision this write was based on; 0 creates the object. */
   readonly base: number;
   /** The new body, or a function of the head body, so a caller never reads history itself (R1). Called under the write lock; the head is null for a new object. */
-  readonly body: unknown | ((current: Body | null) => unknown);
+  readonly body: unknown | ((current: unknown) => unknown);
 }
 export interface CommitContext {
   readonly actor: ActorKind;
-  readonly cause: string;
+  readonly cause: RevisionCause;
+  /** Ties this commit to the creator action it belongs to; minted by the use case in `workflows` (MODULE §5.1). */
+  readonly actionGroup: ActionGroupId;
   /** From the injected Clock. */
   readonly at: number;
   readonly ids: Ids;
   readonly editSession?: EditSessionGrant;
 }
 export interface Impact { readonly version: number; readonly reached: readonly ObjectId[] }
-export type RefusalReason = "not-found" | "kind-mismatch" | "invalid-body" | "invariant-violated";
 export interface NeedsConfirmation { readonly result: "NeedsConfirmation"; readonly impact: Impact }
 export type CommitResult =
   | { readonly result: "Applied"; readonly appended: boolean; readonly revision: RevisionRow }
@@ -72,7 +73,7 @@ const sha256 = (value: unknown) => createHash("sha256").update(canonical(value))
 /** Over the body exactly as stored, independent of key order. */
 export const bodyHash = sha256;
 /** Slice name to content fingerprint, computed once at write time and never recomputed on read. */
-export function fingerprints<Body>(kind: KindDeclaration<Body>, body: Body): Record<string, string> {
+function fingerprints(kind: KindDeclaration, body: unknown): Record<string, string> {
   return Object.fromEntries(Object.entries(kind.slices).map(([slice, project]) => [slice, sha256(project(body))]));
 }
 
@@ -83,21 +84,23 @@ export function fingerprints<Body>(kind: KindDeclaration<Body>, body: Body): Rec
  * transaction a Revision is appended (`Applied`) or nothing is, except the loser
  * kept on a side line (`StaleBase`, `HeldAsOption`).
  */
-export async function commit<Body>(wtx: WriteTx, scope: Scope, change: Change<Body>, ctx: CommitContext): Promise<CommitResult> {
+async function commit(kinds: ReadonlyMap<string, KindDeclaration>, wtx: WriteTx, scope: Scope, change: Change, ctx: CommitContext): Promise<CommitResult> {
   const refuse = (reason: RefusalReason): CommitResult => ({ result: "Refused", reason });
+  const declaration = typeof change.kind === "string" ? kinds.get(change.kind) : undefined;
+  if (!declaration) return refuse("unknown-kind");
   if (!await wtx.project(change.projectId)) return refuse("not-found");
   const object = await wtx.object(change.objectId);
   if (object && object.projectId !== change.projectId) return refuse("not-found");
-  if (object && object.kind !== change.kind.kind) return refuse("kind-mismatch");
+  if (object && object.kind !== declaration.kind) return refuse("kind-mismatch");
   if (!object && change.base !== 0) return refuse("not-found");
   const head = await wtx.head(change.objectId);
-  const current = head ? change.kind.parse(head.body) : null;
-  const proposed = typeof change.body === "function" ? (change.body as (current: Body | null) => unknown)(current) : change.body;
-  const body = change.kind.parse(proposed);
+  const current = head ? declaration.parse(head.body) : null;
+  const proposed = typeof change.body === "function" ? (change.body as (current: unknown) => unknown)(current) : change.body;
+  const body = declaration.parse(proposed);
   if (body === null) return refuse("invalid-body");
   // A base of 0 continues nothing; any other base continues what the head holds.
   const previous = change.base === 0 ? null : current;
-  if (!change.kind.invariants.every((invariant) => invariant(body, previous))) return refuse("invariant-violated");
+  if (!declaration.invariants.every((invariant) => invariant(body, previous))) return refuse("invariant-violated");
 
   const at = new Date(ctx.at).toISOString();
   const keep = async (origin: AttemptRow["origin"]) => {
@@ -119,10 +122,10 @@ export async function commit<Body>(wtx: WriteTx, scope: Scope, change: Change<Bo
 
   const hash = bodyHash(body);
   if (head && head.bodyHash === hash) return { result: "Applied", appended: false, revision: head };
-  if (!object) await wtx.insertObject({ objectId: change.objectId, projectId: change.projectId, kind: change.kind.kind, createdAt: at });
+  if (!object) await wtx.insertObject({ objectId: change.objectId, projectId: change.projectId, kind: declaration.kind, createdAt: at });
   const revision: RevisionRow = {
     objectId: change.objectId, projectId: change.projectId, sequence: headSequence + 1, parent: headSequence,
-    cause: ctx.cause, actorKind: ctx.actor, schemaVersion: change.kind.schemaVersion, body, bodyHash: hash, fingerprints: fingerprints(change.kind, body), createdAt: at,
+    cause: ctx.cause, actorKind: ctx.actor, actionGroup: ctx.actionGroup, schemaVersion: declaration.schemaVersion, body, bodyHash: hash, fingerprints: fingerprints(declaration, body), createdAt: at,
   };
   await wtx.appendRevision(revision);
   return { result: "Applied", appended: true, revision };
@@ -154,3 +157,22 @@ export async function read(rtx: ReadTx, _scope: Scope, objectId: ObjectId, seque
 export async function derive(rtx: ReadTx, _scope: Scope, objectId: ObjectId): Promise<{ markers: readonly never[]; impact: Impact }> {
   return { markers: [], impact: { version: (await rtx.lockState(objectId)).version, reached: [] } };
 }
+
+/**
+ * Composition registers the owning modules' FC4 declarations once. `commit` resolves a Change's
+ * kind name to the registered declaration, so no caller supplies the parser, invariants, slices or
+ * schema version it is judged by. `history` imports no domain module.
+ */
+export function createHistory(declarations: readonly KindDeclaration<any>[]) {
+  const kinds = new Map<string, KindDeclaration>();
+  for (const declaration of declarations) {
+    if (kinds.has(declaration.kind)) throw new Error(`kind registered twice: ${declaration.kind}`);
+    kinds.set(declaration.kind, declaration);
+  }
+  return {
+    commit: (wtx: WriteTx, scope: Scope, change: Change, ctx: CommitContext) => commit(kinds, wtx, scope, change, ctx),
+    read,
+    derive,
+  };
+}
+export type History = ReturnType<typeof createHistory>;

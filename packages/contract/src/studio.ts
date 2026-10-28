@@ -16,6 +16,9 @@ export const studioSchema = z.strictObject({ account: accountSchema, settings: s
 // Project and history ids are 128-bit and time-ordered (PERSISTENCE-AND-MEDIA §3), minted by `Ids.ordered`.
 export const projectIdSchema = z.uuidv7().brand<"ProjectId">();
 export const objectIdSchema = z.uuidv7().brand<"ObjectId">();
+// An action group ties the appends of one creator action together (LINEAGE §1 class 1); `workflows` mints one per command.
+export const actionGroupIdSchema = z.uuidv7().brand<"ActionGroupId">();
+export type ActionGroupId = z.infer<typeof actionGroupIdSchema>;
 export type ProjectId = z.infer<typeof projectIdSchema>;
 export type ObjectId = z.infer<typeof objectIdSchema>;
 export const projectSchema = z.strictObject({ projectId: projectIdSchema, createdAt: z.iso.datetime() });

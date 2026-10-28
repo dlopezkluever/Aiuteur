@@ -1,4 +1,4 @@
-import type { Account, AccountId, CreatorId, ObjectId, Project, ProjectId, Settings } from "@aiuteur/contract";
+import type { Account, AccountId, ActionGroupId, ActorKind, AttemptOrigin, RevisionCause, CreatorId, ObjectId, Project, ProjectId, Settings } from "@aiuteur/contract";
 
 /** FC5 Draft: obtained by accounts.resolveScope, never from client input. */
 export interface Scope {
@@ -28,8 +28,9 @@ export interface RevisionRow {
   readonly projectId: ProjectId;
   readonly sequence: number;
   readonly parent: number;
-  readonly cause: string;
-  readonly actorKind: string;
+  readonly cause: RevisionCause;
+  readonly actorKind: ActorKind;
+  readonly actionGroup: ActionGroupId;
   readonly schemaVersion: number;
   readonly body: unknown;
   readonly bodyHash: string;
@@ -43,7 +44,7 @@ export interface AttemptRow {
   readonly objectId: ObjectId;
   readonly projectId: ProjectId;
   readonly basedOn: number;
-  readonly origin: "stale-base" | "held";
+  readonly origin: AttemptOrigin;
   readonly body: unknown;
   readonly createdAt: string;
 }
