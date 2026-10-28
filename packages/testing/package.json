@@ -10,9 +10,16 @@
   },
   "dependencies": {
     "@aiuteur/contract": "workspace:*",
+    "@aiuteur/mail": "workspace:*",
     "@aiuteur/providers": "workspace:*",
     "@aiuteur/store": "workspace:*",
     "fast-check": "^4.10.2",
     "vitest": "^5.0.5"
+  },
+  "devDependencies": {
+    "@types/mailparser": "^3.9.0",
+    "@types/smtp-server": "^3.5.13",
+    "mailparser": "^3.12.4",
+    "smtp-server": "^3.21.1"
   }
 }

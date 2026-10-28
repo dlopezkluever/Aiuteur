@@ -10,7 +10,7 @@ import { createAccounts, createBetterAuth } from "@aiuteur/accounts";
 import { accountIdSchema, creatorIdSchema, studioSchema, projectListSchema, invitationSchema, redeemedInvitationSchema, ROUTES, eventSchema, AUDIT_ACTIONS } from "@aiuteur/contract";
 import { createPostgresStore, migrateDatabase, schemaCatalogue } from "@aiuteur/store";
 import { createViews } from "@aiuteur/views";
-import { describeStoreConformance, ManualClock } from "@aiuteur/testing";
+import { describeStoreConformance, FakeMailer, ManualClock } from "@aiuteur/testing";
 import { createApi } from "@aiuteur/api";
 import { freshDatabase } from "./database.ts";
 
@@ -28,8 +28,10 @@ beforeAll(async () => {
   database = await freshDatabase();
   adapter = await createBetterAuth({ connectionString: database.url("identity"), baseURL: origin, secret: "synthetic-test-only-secret-with-more-than-32-characters", clock, ids, idleSessionSeconds: 3600, absoluteSessionSeconds: 86400 });
   store = await createPostgresStore(database.url("app"));
-  accounts = createAccounts({ ...adapter, clock, ids, invitationTtlMs: 60_000, operatorEmails: ["operator@example.test"] });
-  api = createApi({ accounts, views: createViews(store), handleAuth: adapter.handle, origin });
+  const generous = { max: 1_000_000, windowMs: 60_000 };
+  const limit = { address: generous, email: generous };
+  accounts = createAccounts({ ...adapter, clock, ids, invitationTtlMs: 60_000, operatorEmails: ["operator@example.test"], mailer: new FakeMailer(), limits: { signIn: limit, recovery: limit, redemption: limit }, recoveryTtlMs: 600_000, recoveryPage: `${origin}/recover`, onMailFailure: (error) => { throw error; } });
+  api = createApi({ accounts, views: createViews(store), handleAuth: adapter.handle, origin, clientAddress: () => "203.0.113.1" });
 });
 afterAll(async () => { await store?.close(); await adapter?.close(); await database?.close(); });
 
@@ -297,7 +299,7 @@ it("D4/G7: catalogue classification, forced policies, composite tenant keys, rol
     SELECT n.nspname || '.' || c.relname AS name, pg_get_userbyid(c.relowner) AS owner,
       c.relrowsecurity AS rls, c.relforcerowsecurity AS force FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
     WHERE c.relkind = 'r' AND n.nspname NOT LIKE 'pg_%' AND n.nspname <> 'information_schema' ORDER BY 1`);
-  expect(tables.map((table) => table.name)).toEqual(["accounts.account", "accounts.settings", "auth.account", "auth.audit_event", "auth.invitation", "auth.session", "auth.subject_map", "auth.twoFactor", "auth.user", "auth.verification", "public.migrations"]);
+  expect(tables.map((table) => table.name)).toEqual(["accounts.account", "accounts.settings", "auth.account", "auth.audit_event", "auth.invitation", "auth.rate_limit", "auth.recovery", "auth.session", "auth.subject_map", "auth.twoFactor", "auth.user", "auth.verification", "public.migrations"]);
   for (const table of tables) {
     expect(table.owner).toBe("owner");
     if (table.name.startsWith("accounts.")) expect(table).toMatchObject({ rls: true, force: true });

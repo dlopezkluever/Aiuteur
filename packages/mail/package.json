@@ -1,0 +1,8 @@
+{
+  "name": "@aiuteur/mail",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "dependencies": { "nodemailer": "^7.0.0" },
+  "devDependencies": { "@types/nodemailer": "^7.0.0" }
+}

@@ -39,7 +39,8 @@ export async function createBetterAuth(options: BetterAuthOptions): Promise<{
         cookieCache: { enabled: false },
         additionalFields: { secondFactor: { type: "boolean", defaultValue: false, input: false } },
       },
-      advanced: { useSecureCookies: true, database: { generateId: () => options.ids.uuid() }, defaultCookieAttributes: { httpOnly: true, secure: true, sameSite: "lax" } },
+      // The library's live schema check needs a pooled connection; the pooled instance still runs it, and D1 owns the schema.
+      advanced: { useSecureCookies: true, database: { generateId: () => options.ids.uuid(), validateSchema: !inTransaction }, defaultCookieAttributes: { httpOnly: true, secure: true, sameSite: "lax" } },
       plugins: [twoFactor()],
       hooks: { after: createAuthMiddleware(async (ctx) => {
         if (ctx.path === "/two-factor/verify-totp" && ctx.context.newSession) {
@@ -74,6 +75,47 @@ export async function createBetterAuth(options: BetterAuthOptions): Promise<{
             VALUES (${input.auditId}, ${input.issuedBy}, 'invitation.issued', ${new Date(input.at)})`.execute(tx);
         });
       },
+      async attempt(input) {
+        const result = await sql<{ attempts: number }>`INSERT INTO auth.rate_limit (key, window_start, expires_at, attempts)
+          VALUES (${input.key}, ${new Date(input.windowStart)}, ${new Date(input.expiresAt)}, 1)
+          ON CONFLICT (key, window_start) DO UPDATE SET attempts = auth.rate_limit.attempts + 1
+          RETURNING attempts`.execute(db);
+        // Expired windows are dead rows; sweeping them here keeps the table bounded without a worker.
+        await sql`DELETE FROM auth.rate_limit WHERE expires_at < ${new Date(input.at)}`.execute(db);
+        return Number(result.rows[0]?.attempts);
+      },
+      async issueRecovery(input) {
+        return db.transaction().execute(async (tx) => {
+          const user = await sql<{ id: string; email: string }>`SELECT id, email FROM auth."user"
+            WHERE email = ${input.email} AND "emailVerified"`.execute(tx);
+          const row = user.rows[0];
+          if (!row) return null;
+          await sql`DELETE FROM auth.recovery WHERE user_id = ${row.id}`.execute(tx);
+          await sql`INSERT INTO auth.recovery (token_hash, user_id, expires_at, created_at)
+            VALUES (${input.tokenHash}, ${row.id}, ${new Date(input.expiresAt)}, ${new Date(input.at)})`.execute(tx);
+          return row.email;
+        });
+      },
+      async completeRecovery(input) {
+        return db.transaction().execute(async (tx) => {
+          const found = await sql<{ user_id: string; expires_at: Date }>`SELECT user_id, expires_at FROM auth.recovery
+            WHERE token_hash = ${input.tokenHash} FOR UPDATE`.execute(tx);
+          const row = found.rows[0];
+          // Exclusive on the creator: waits for every sign-in holding the shared lock (see `handle`) to
+          // commit, so its session is deleted below, and holds later ones until the new password is committed.
+          if (row) await sql`SELECT id FROM auth."user" WHERE id = ${row.user_id} FOR UPDATE`.execute(tx);
+          // Sampled after the row lock, so expiry while waiting for it is honoured.
+          if (!row || row.expires_at.getTime() <= options.clock.now()) return false;
+          const context = await library(tx, true).$context;
+          const password = await context.password.hash(input.password);
+          await context.internalAdapter.updatePassword(row.user_id, password);
+          await sql`DELETE FROM auth.session WHERE "userId" = ${row.user_id}`.execute(tx);
+          // Pending second-factor challenges (and trusted-device records) were minted from the old credential.
+          await sql`DELETE FROM auth.verification WHERE value = ${row.user_id}`.execute(tx);
+          await sql`DELETE FROM auth.recovery WHERE user_id = ${row.user_id}`.execute(tx);
+          return true;
+        });
+      },
       async redeem(input) {
         try {
           return await db.transaction().execute(async (tx) => {
@@ -99,7 +141,26 @@ export async function createBetterAuth(options: BetterAuthOptions): Promise<{
         }
       },
     },
-    handle: (request) => authentication.handler(request),
+    // Sign-in and second-factor completion are the only routes that turn a credential into a session.
+    // Each runs wholly on one transaction-bound library instance holding a shared lock on the creator, so
+    // verification, session creation and the pending challenge are ordered against recovery (RT2: the lock
+    // is transaction-scoped and no second pooled client is needed).
+    async handle(request) {
+      const path = new URL(request.url).pathname;
+      if (request.method !== "POST" || !(path.endsWith("/sign-in/email") || path.endsWith("/two-factor/verify-totp"))) return authentication.handler(request);
+      return db.transaction().execute(async (tx) => {
+        if (path.endsWith("/sign-in/email")) {
+          const body: unknown = await request.clone().json().catch(() => null);
+          const email = body && typeof body === "object" && "email" in body && typeof body.email === "string" ? body.email.toLowerCase() : null;
+          if (email !== null) await sql`SELECT id FROM auth."user" WHERE email = ${email} FOR SHARE`.execute(tx);
+        } else {
+          // A pending challenge is named by the 2fa-… identifier in its cookie; the library verifies its signature.
+          const pending = /2fa-[A-Za-z0-9]+/.exec(decodeURIComponent(request.headers.get("cookie") ?? ""))?.[0];
+          if (pending) await sql`SELECT u.id FROM auth."user" u JOIN auth.verification v ON v.value = u.id WHERE v.identifier = ${pending} FOR SHARE OF u`.execute(tx);
+        }
+        return library(tx, true).handler(request);
+      });
+    },
     close: () => db.destroy(),
   };
 }

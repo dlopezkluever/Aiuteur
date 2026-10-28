@@ -339,6 +339,104 @@
     },
     {
       "schema": "auth",
+      "name": "rate_limit",
+      "owner": "owner",
+      "rls": false,
+      "force_rls": false,
+      "grants": "{owner=arwdDxt/owner,identity=arwd/owner,backup=r/owner}",
+      "columns": [
+        {
+          "name": "key",
+          "type": "text",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "window_start",
+          "type": "timestamp with time zone",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "attempts",
+          "type": "integer",
+          "default": null,
+          "nullable": false
+        }
+      ],
+      "constraints": [
+        {
+          "name": "rate_limit_attempts_check",
+          "definition": "CHECK ((attempts > 0))"
+        },
+        {
+          "name": "rate_limit_pkey",
+          "definition": "PRIMARY KEY (key, window_start)"
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX rate_limit_expires_at_idx ON auth.rate_limit USING btree (expires_at)",
+        "CREATE UNIQUE INDEX rate_limit_pkey ON auth.rate_limit USING btree (key, window_start)"
+      ],
+      "policies": []
+    },
+    {
+      "schema": "auth",
+      "name": "recovery",
+      "owner": "owner",
+      "rls": false,
+      "force_rls": false,
+      "grants": "{owner=arwdDxt/owner,identity=arwd/owner,backup=r/owner}",
+      "columns": [
+        {
+          "name": "token_hash",
+          "type": "text",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "user_id",
+          "type": "text",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": null,
+          "nullable": false
+        }
+      ],
+      "constraints": [
+        {
+          "name": "recovery_pkey",
+          "definition": "PRIMARY KEY (token_hash)"
+        },
+        {
+          "name": "recovery_user_id_fkey",
+          "definition": "FOREIGN KEY (user_id) REFERENCES auth.\"user\"(id) ON DELETE CASCADE"
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX recovery_pkey ON auth.recovery USING btree (token_hash)",
+        "CREATE INDEX recovery_user_id_idx ON auth.recovery USING btree (user_id)"
+      ],
+      "policies": []
+    },
+    {
+      "schema": "auth",
       "name": "session",
       "owner": "owner",
       "rls": false,

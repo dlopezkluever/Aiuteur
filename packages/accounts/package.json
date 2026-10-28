@@ -7,6 +7,7 @@
   },
   "dependencies": {
     "@aiuteur/contract": "workspace:*",
+    "@aiuteur/mail": "workspace:*",
     "@aiuteur/store": "workspace:*",
     "@zxcvbn-ts/language-common": "^4.1.3",
     "better-auth": "1.7.14",
