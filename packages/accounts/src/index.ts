@@ -28,8 +28,6 @@ export interface Identity {
   mapSubject(subject: CreatorId): Promise<AccountId | null>;
   issue(input: { tokenHash: string; email: string; issuedBy: CreatorId | null; at: number; expiresAt: number; auditId: string }): Promise<void>;
   redeem(input: RedeemInvitation & { tokenHash: string; accountId: AccountId }): Promise<CreatorId | null>;
-  /** Runs a sign-in while holding the creator's sign-in lock, which recovery also takes before it ends sessions. */
-  serializeSignIn<T>(email: string, run: () => Promise<T>): Promise<T>;
   /** Counts one attempt in its fixed window, atomically, and returns the count including this attempt. */
   attempt(input: { key: string; at: number; windowStart: number; expiresAt: number }): Promise<number>;
   /** Stores a recovery token for the creator with this email and returns the stored address, or null when none exists. */
@@ -69,7 +67,6 @@ export function createAccounts(options: AccountsOptions) {
   }
   return {
     authenticate: (headers: Headers) => auth.authenticate(headers),
-    serializeSignIn: <T>(email: string, run: () => Promise<T>) => identity.serializeSignIn(email, run),
     /** Resolves when every recovery mail started so far has been handed to the Mailer or has failed. */
     mailSettled: async () => { await Promise.all(pending); },
     /**

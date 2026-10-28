@@ -29,7 +29,6 @@ export function createApi(options: { accounts: Accounts; views: Views; handleAut
         const email = body && typeof body === "object" && "email" in body && typeof body.email === "string" ? body.email : null;
         if (email === null) return c.json(errorSchema.parse({ code: "invalid-request" }), 400);
         await options.accounts.attempt("signIn", address, email);
-        return options.accounts.serializeSignIn(email, () => options.handleAuth(c.req.raw));
       }
       return options.handleAuth(c.req.raw);
     }

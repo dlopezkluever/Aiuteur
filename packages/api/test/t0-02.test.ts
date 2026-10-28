@@ -1,5 +1,6 @@
 import { randomBytes, randomUUID, createHash } from "node:crypto";
 import { setTimeout } from "node:timers/promises";
+import { TOTP, Secret } from "otpauth";
 import { afterAll, beforeAll, expect, it } from "vitest";
 import { createAccounts, createBetterAuth } from "@aiuteur/accounts";
 import { createPostgresStore } from "@aiuteur/store";
@@ -235,6 +236,45 @@ it("a sign-in with the old password that overlaps recovery cannot leave a sessio
   clock.advance(WINDOW);
   expect((await signIn(a.email, password)).status).toBe(401);
   expect((await signIn(a.email, newPassword)).status).toBe(200);
+});
+
+it("a pending second-factor challenge from before recovery cannot produce a session; without recovery it can", async () => {
+  clock.advance(WINDOW);
+  const a = await creator();
+  const enrolled = await session(a.email);
+  const enable = await request("/api/auth/two-factor/enable", { password }, enrolled);
+  const enrollment: unknown = await enable.json();
+  if (!enrollment || typeof enrollment !== "object" || !("totpURI" in enrollment) || typeof enrollment.totpURI !== "string") throw new Error("missing TOTP URI");
+  const totp = new TOTP({ secret: Secret.fromBase32(new URL(enrollment.totpURI).searchParams.get("secret") ?? ""), algorithm: "SHA1", digits: 6, period: 30 });
+  expect((await request("/api/auth/two-factor/verify-totp", { code: totp.generate() }, enrolled)).status).toBe(200);
+  const challenge = async () => {
+    const response = await signIn(a.email, password);
+    expect(await response.json()).toMatchObject({ twoFactorRedirect: true });
+    return cookies(response);
+  };
+  const control = await challenge();
+  const stale = await challenge();
+  const completed = await request("/api/auth/two-factor/verify-totp", { code: totp.generate() }, control);
+  expect(completed.status).toBe(200);
+  expect(await studioStatus(cookies(completed), a.accountId)).toBe(200);
+
+  clock.advance(WINDOW);
+  await requestLink(a.email);
+  expect((await request("/api/recovery/complete", { token: linkToken(a.email), password: newPassword })).status).toBe(200);
+  const late = await request("/api/auth/two-factor/verify-totp", { code: totp.generate() }, stale);
+  expect(late.status).toBe(401);
+  expect(late.headers.getSetCookie().some((value) => value.includes("session_token=") && !value.includes("Max-Age=0"))).toBe(false);
+  expect((await database.inspect.query('SELECT count(*) FROM auth.session s JOIN auth."user" u ON u.id = s."userId" WHERE u.email = $1', [a.email])).rows).toEqual([{ count: "0" }]);
+  clock.advance(WINDOW);
+  expect((await signIn(a.email, password)).status).toBe(401);
+  expect(await (await signIn(a.email, newPassword)).json()).toMatchObject({ twoFactorRedirect: true });
+});
+
+it("simultaneous sign-ins beyond the connection pool size all complete", async () => {
+  clock.advance(WINDOW);
+  const people = await Promise.all(Array.from({ length: 12 }, () => creator()));
+  const responses = await Promise.all(people.map((person) => signIn(person.email, password)));
+  expect(responses.map((response) => response.status)).toEqual(people.map(() => 200));
 });
 
 it("concurrent use of one recovery link succeeds exactly once", async () => {
