@@ -15,6 +15,7 @@
   },
   "devDependencies": {
     "@aiuteur/history": "workspace:*",
+    "@aiuteur/providers": "workspace:*",
     "@aiuteur/story": "workspace:*",
     "@aiuteur/testing": "workspace:*",
     "@types/pg": "^8.16.0",

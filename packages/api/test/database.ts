@@ -24,3 +24,13 @@ export async function freshDatabase() {
     async close() { await inspect.end(); await admin.query(`DROP DATABASE ${name}`); await admin.end(); },
   };
 }
+
+const HISTORY_TABLES = ["attempt", "lock", "object", "project", "revision"] as const;
+/** Row counts of every persistent table and content hashes of every history table: the #100 read-purity seam (VC3), reused by P11. */
+export async function snapshot(pool: Pool) {
+  const tables = (await pool.query<{ name: string }>("SELECT n.nspname || '.' || c.relname AS name FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE c.relkind = 'r' AND n.nspname IN ('accounts', 'auth') ORDER BY 1")).rows;
+  const counts: Record<string, number> = {};
+  for (const { name } of tables) counts[name] = Number((await pool.query(`SELECT count(*) AS n FROM ${name.replace(/\.(.*)/, '."$1"')}`)).rows[0].n);
+  const content = (await pool.query(HISTORY_TABLES.map((table) => `SELECT md5(coalesce(string_agg(t::text, '|' ORDER BY t::text), '')) AS ${table} FROM accounts.${table} t`).join(" UNION ALL ") .replace(/UNION ALL/g, "UNION ALL"))).rows;
+  return { counts, content };
+}

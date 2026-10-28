@@ -12,7 +12,7 @@ const takeRequest: RenderedRequest = {
     { layerKey: "scaffold:operation", text: "Generate the shot.", layerDigest: "sha256:scaffold" },
     { layerKey: "action", text: "Mara crosses the rain-soaked platform — «vite».", layerDigest: "sha256:action" },
   ],
-  mediaParts: [{ mediaId: "media-frame-1", contentHash: "sha256:frame", role: "first-frame", position: 0 }],
+  mediaParts: [{ mediaId: "media-frame-1", contentHash: "sha256:frame", role: "frame.first", position: 0 }],
   parameters: { durationSeconds: 7, aspect: "16:9", audio: true },
   rewrites: [],
 };
@@ -21,7 +21,7 @@ const frameRequest: RenderedRequest = {
   textParts: [{ layerKey: "identity:mara", text: "Mara, 30s, red coat.", layerDigest: "sha256:identity" }],
   mediaParts: [
     { mediaId: "media-ref-1", contentHash: "sha256:ref1", role: "identity", position: 0 },
-    { mediaId: "media-ref-2", contentHash: "sha256:ref2", role: "place", position: 1 },
+    { mediaId: "media-ref-2", contentHash: "sha256:ref2", role: "environment", position: 1 },
   ],
   parameters: { count: 2, aspect: "16:9" },
   rewrites: ["prompt-may-be-expanded"],

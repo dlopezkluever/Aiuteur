@@ -1,0 +1,114 @@
+{
+  "case": "GP-S: pasted paragraph → Draft Treatment preview",
+  "versions": {
+    "compiler": 1,
+    "scaffold": {
+      "operation": "treatment.draft",
+      "version": 1
+    },
+    "dialect": {
+      "id": "neutral-text",
+      "version": 1
+    },
+    "profileSnapshotId": "sha256:ca314c42c80b004ec18c1dda8f62231a2c234004ec6a54bff82c36cfe8f867b7"
+  },
+  "digest": "sha256:9b573f58660bdefb2c56a504bb43d5241f05861fab4f89d22c61822a86a6e9b6",
+  "package": {
+    "operation": "treatment.draft",
+    "layers": [
+      {
+        "key": "scaffold:operation",
+        "owner": "compiler scaffold",
+        "tier": 0,
+        "parts": [
+          {
+            "provenance": "scaffold",
+            "text": "Draft one Treatment from the Source Material section below. A Treatment is a short prose account of the whole story, in present tense, that a reader can follow from beginning to end. Use the Source Material as the creator supplied it; keep any line of dialogue it contains exactly as written. Return only the Treatment text.",
+            "source": null
+          }
+        ],
+        "sources": []
+      },
+      {
+        "key": "source-material",
+        "owner": "Source Material",
+        "tier": 0,
+        "parts": [
+          {
+            "provenance": "verbatim",
+            "text": "Mara runs the night ferry between two islands that no longer speak to each other. One winter a passenger boards with no ticket and a letter addressed to both mayors. “Deliver it,” he says, “or nobody crosses again.”\n",
+            "source": "019a2b3c-4d5e-7f60-8a1b-2c3d4e5f6a7b@1"
+          }
+        ],
+        "sources": [
+          {
+            "unit": "content",
+            "objectId": "019a2b3c-4d5e-7f60-8a1b-2c3d4e5f6a7b",
+            "sequence": 1,
+            "fingerprint": "sha256:436829f403628cdfc6c96280b52355325400ce15162165e37e2dec43c9a5afbb"
+          }
+        ]
+      }
+    ],
+    "references": [],
+    "parameters": {}
+  },
+  "fit": {
+    "layers": [
+      {
+        "key": "scaffold:operation",
+        "tier": 0,
+        "outcome": "carried",
+        "reason": null
+      },
+      {
+        "key": "source-material",
+        "tier": 0,
+        "outcome": "carried",
+        "reason": null
+      }
+    ],
+    "parameters": [
+      {
+        "name": "maxOutputTokens",
+        "outcome": "param-honored",
+        "requested": 2048,
+        "sent": 2048,
+        "reason": "model-maximum"
+      }
+    ],
+    "promptLimit": {
+      "state": "declared",
+      "unit": "tokens",
+      "counter": "utf8-bytes",
+      "counted": 638,
+      "limit": 7936
+    },
+    "blocked": null
+  },
+  "renderedRequest": {
+    "textParts": [
+      {
+        "layerKey": "scaffold:operation",
+        "text": "[[scaffold:operation]]\nDraft one Treatment from the Source Material section below. A Treatment is a short prose account of the whole story, in present tense, that a reader can follow from beginning to end. Use the Source Material as the creator supplied it; keep any line of dialogue it contains exactly as written. Return only the Treatment text.\n[[/scaffold:operation]]\n",
+        "layerDigest": "sha256:e2366993dcdc0179fcc6c89a916bbfe842ba4e439891fac06827d11ae9aec185"
+      },
+      {
+        "layerKey": "source-material",
+        "text": "[[source-material]]\nMara runs the night ferry between two islands that no longer speak to each other. One winter a passenger boards with no ticket and a letter addressed to both mayors. “Deliver it,” he says, “or nobody crosses again.”\n\n[[/source-material]]\n",
+        "layerDigest": "sha256:ee8801125cd2bf4c9dc40759bb67bd786a7349f895f7440431874e64b1e63896"
+      }
+    ],
+    "mediaParts": [],
+    "parameters": {
+      "maxOutputTokens": 2048
+    },
+    "rewrites": []
+  },
+  "history": [
+    {
+      "versions": "compiler@1 scaffold:treatment.draft@1 dialect:neutral-text@1 profile:sha256:ca314c42c80b004ec18c1dda8f62231a2c234004ec6a54bff82c36cfe8f867b7",
+      "digest": "sha256:9b573f58660bdefb2c56a504bb43d5241f05861fab4f89d22c61822a86a6e9b6"
+    }
+  ]
+}

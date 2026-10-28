@@ -9,9 +9,9 @@ import { createViews } from "@aiuteur/views";
 import { createHistory } from "@aiuteur/history";
 import { sourceMaterialKind } from "@aiuteur/story";
 import { createWorkflows } from "@aiuteur/workflows";
-import { FakeMailer, ManualClock, uuidv7 } from "@aiuteur/testing";
+import { FakeMailer, ManualClock, uuidv7, syntheticCatalogue, TEST_PRICE_POLICY } from "@aiuteur/testing";
 import { createApi } from "@aiuteur/api";
-import { freshDatabase } from "./database.ts";
+import { freshDatabase, snapshot } from "./database.ts";
 
 const origin = "https://aiuteur.test";
 const password = "Paper-crane-lighthouse-98!";
@@ -29,7 +29,7 @@ beforeAll(async () => {
   const generous = { max: 1_000_000, windowMs: 60_000 };
   const limit = { address: generous, email: generous };
   const accounts = createAccounts({ ...adapter, clock, ids, invitationTtlMs: 60_000, operatorEmails: [], mailer: new FakeMailer(), limits: { signIn: limit, recovery: limit, redemption: limit }, recoveryTtlMs: 600_000, recoveryPage: `${origin}/recover`, onMailFailure: (error) => { throw error; } });
-  api = createApi({ accounts, views: createViews(store), workflows: createWorkflows({ store, history: createHistory([sourceMaterialKind]), clock, ids }), handleAuth: adapter.handle, origin, clientAddress: () => "203.0.113.3" });
+  api = createApi({ accounts, views: createViews(store), workflows: createWorkflows({ store, history: createHistory([sourceMaterialKind]), clock, ids, catalogue: syntheticCatalogue(), pricePolicy: TEST_PRICE_POLICY }), handleAuth: adapter.handle, origin, clientAddress: () => "203.0.113.3" });
 });
 afterAll(async () => { await store?.close(); await adapter?.close(); await database?.close(); });
 
@@ -105,15 +105,6 @@ it("demo: paste is kept as Source Material, read back byte-identical; a stale wr
   // The gate, not the route, protects the original: the only edit route carries no text, and a direct commit with other text is refused (history conformance).
   expect((await call("POST", `${object}/role`, c.cookie, { base: 9, role: "primary" })).status).toBe(409);
 });
-
-const HISTORY_TABLES = ["attempt", "lock", "object", "project", "revision"] as const;
-async function snapshot(pool: Pool) {
-  const tables = (await pool.query<{ name: string }>("SELECT n.nspname || '.' || c.relname AS name FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE c.relkind = 'r' AND n.nspname IN ('accounts', 'auth') ORDER BY 1")).rows;
-  const counts: Record<string, number> = {};
-  for (const { name } of tables) counts[name] = Number((await pool.query(`SELECT count(*) AS n FROM ${name.replace(/\.(.*)/, '."$1"')}`)).rows[0].n);
-  const content = (await pool.query(HISTORY_TABLES.map((table) => `SELECT md5(coalesce(string_agg(t::text, '|' ORDER BY t::text), '')) AS ${table} FROM accounts.${table} t`).join(" UNION ALL ") .replace(/UNION ALL/g, "UNION ALL"))).rows;
-  return { counts, content };
-}
 
 it("VC3: any sequence of API reads leaves every persistent row count and all history content unchanged", async () => {
   const c = await creator();

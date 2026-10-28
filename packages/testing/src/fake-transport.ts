@@ -7,7 +7,7 @@ import {
   declaredValue,
   type Declared,
   type BilledQuantity,
-  type BilledQuantityRule,
+  type MediaBilledQuantityRule,
   type CancelResult,
   type CredentialHandle,
   type FetchResult,
@@ -109,7 +109,7 @@ export class FakeTransport implements ProviderTransport<"fake"> {
   readonly #secret: string;
   readonly #scripts: ReadonlyMap<JobId, readonly ScriptedBehaviour[]>;
   readonly #outputKind: FakeOutputKind;
-  readonly #rule: BilledQuantityRule;
+  readonly #rule: MediaBilledQuantityRule;
   readonly #rb: {
     readonly idempotentSubmission: Resolved<"idempotentSubmission">;
     readonly completionSignal: Resolved<"completionSignal">;
@@ -132,6 +132,8 @@ export class FakeTransport implements ProviderTransport<"fake"> {
     this.#outputKind = outputKindOf(profile.operationClasses);
     const rule = profile.cost.billedQuantity;
     if (rule.state !== "declared") throw new Error("a FakeTransport needs a declared billed-quantity rule");
+    // Token-priced text bills two quantities; the single-quantity adapter face serves media until #102's text fake.
+    if (rule.value.rule === "text-tokens") throw new Error("a FakeTransport serves media billed-quantity rules only");
     this.#rule = rule.value;
     const rb = profile.runBehaviour;
     this.#rb = {
