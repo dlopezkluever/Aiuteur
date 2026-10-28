@@ -10,3 +10,4 @@ export * from "./conformance/store.ts";
 export * from "./fake-store.ts";
 export * from "./conformance/mailer.ts";
 export * from "./fake-mailer.ts";
+export * from "./conformance/history.ts";

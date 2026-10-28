@@ -44,6 +44,412 @@
     },
     {
       "schema": "accounts",
+      "name": "attempt",
+      "owner": "owner",
+      "rls": true,
+      "force_rls": true,
+      "grants": "{owner=arwdDxt/owner,app=ar/owner,backup=r/owner}",
+      "columns": [
+        {
+          "name": "attempt_id",
+          "type": "uuid",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "position",
+          "type": "integer",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "object_id",
+          "type": "uuid",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "account_id",
+          "type": "uuid",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "project_id",
+          "type": "uuid",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "based_on",
+          "type": "integer",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "origin",
+          "type": "text",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "body",
+          "type": "jsonb",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": null,
+          "nullable": false
+        }
+      ],
+      "constraints": [
+        {
+          "name": "attempt_account_id_project_id_object_id_fkey",
+          "definition": "FOREIGN KEY (account_id, project_id, object_id) REFERENCES accounts.object(account_id, project_id, object_id)"
+        },
+        {
+          "name": "attempt_based_on_check",
+          "definition": "CHECK ((based_on >= 0))"
+        },
+        {
+          "name": "attempt_pkey",
+          "definition": "PRIMARY KEY (attempt_id)"
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX attempt_pkey ON accounts.attempt USING btree (attempt_id)"
+      ],
+      "policies": [
+        {
+          "name": "account_scope",
+          "check": "(account_id = (NULLIF(current_setting('aiuteur.account_id'::text, true), ''::text))::uuid)",
+          "roles": [
+            "public"
+          ],
+          "using": "(account_id = (NULLIF(current_setting('aiuteur.account_id'::text, true), ''::text))::uuid)",
+          "command": "ALL"
+        }
+      ]
+    },
+    {
+      "schema": "accounts",
+      "name": "lock",
+      "owner": "owner",
+      "rls": true,
+      "force_rls": true,
+      "grants": "{owner=arwdDxt/owner,app=r/owner,backup=r/owner}",
+      "columns": [
+        {
+          "name": "object_id",
+          "type": "uuid",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "sequence",
+          "type": "integer",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "account_id",
+          "type": "uuid",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "project_id",
+          "type": "uuid",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "locked",
+          "type": "boolean",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "actor",
+          "type": "text",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": null,
+          "nullable": false
+        }
+      ],
+      "constraints": [
+        {
+          "name": "lock_account_id_project_id_object_id_fkey",
+          "definition": "FOREIGN KEY (account_id, project_id, object_id) REFERENCES accounts.object(account_id, project_id, object_id)"
+        },
+        {
+          "name": "lock_pkey",
+          "definition": "PRIMARY KEY (object_id, sequence)"
+        },
+        {
+          "name": "lock_sequence_check",
+          "definition": "CHECK ((sequence >= 1))"
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX lock_pkey ON accounts.lock USING btree (object_id, sequence)"
+      ],
+      "policies": [
+        {
+          "name": "account_scope",
+          "check": "(account_id = (NULLIF(current_setting('aiuteur.account_id'::text, true), ''::text))::uuid)",
+          "roles": [
+            "public"
+          ],
+          "using": "(account_id = (NULLIF(current_setting('aiuteur.account_id'::text, true), ''::text))::uuid)",
+          "command": "ALL"
+        }
+      ]
+    },
+    {
+      "schema": "accounts",
+      "name": "object",
+      "owner": "owner",
+      "rls": true,
+      "force_rls": true,
+      "grants": "{owner=arwdDxt/owner,app=ar/owner,backup=r/owner}",
+      "columns": [
+        {
+          "name": "object_id",
+          "type": "uuid",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "account_id",
+          "type": "uuid",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "project_id",
+          "type": "uuid",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "kind",
+          "type": "text",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": null,
+          "nullable": false
+        }
+      ],
+      "constraints": [
+        {
+          "name": "object_account_id_project_id_fkey",
+          "definition": "FOREIGN KEY (account_id, project_id) REFERENCES accounts.project(account_id, project_id)"
+        },
+        {
+          "name": "object_account_id_project_id_object_id_key",
+          "definition": "UNIQUE (account_id, project_id, object_id)"
+        },
+        {
+          "name": "object_pkey",
+          "definition": "PRIMARY KEY (object_id)"
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX object_account_id_project_id_object_id_key ON accounts.object USING btree (account_id, project_id, object_id)",
+        "CREATE UNIQUE INDEX object_pkey ON accounts.object USING btree (object_id)"
+      ],
+      "policies": [
+        {
+          "name": "account_scope",
+          "check": "(account_id = (NULLIF(current_setting('aiuteur.account_id'::text, true), ''::text))::uuid)",
+          "roles": [
+            "public"
+          ],
+          "using": "(account_id = (NULLIF(current_setting('aiuteur.account_id'::text, true), ''::text))::uuid)",
+          "command": "ALL"
+        }
+      ]
+    },
+    {
+      "schema": "accounts",
+      "name": "project",
+      "owner": "owner",
+      "rls": true,
+      "force_rls": true,
+      "grants": "{owner=arwdDxt/owner,app=ar/owner,backup=r/owner}",
+      "columns": [
+        {
+          "name": "project_id",
+          "type": "uuid",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "account_id",
+          "type": "uuid",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": null,
+          "nullable": false
+        }
+      ],
+      "constraints": [
+        {
+          "name": "project_account_id_fkey",
+          "definition": "FOREIGN KEY (account_id) REFERENCES accounts.account(account_id)"
+        },
+        {
+          "name": "project_account_id_project_id_key",
+          "definition": "UNIQUE (account_id, project_id)"
+        },
+        {
+          "name": "project_pkey",
+          "definition": "PRIMARY KEY (project_id)"
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX project_account_id_project_id_key ON accounts.project USING btree (account_id, project_id)",
+        "CREATE UNIQUE INDEX project_pkey ON accounts.project USING btree (project_id)"
+      ],
+      "policies": [
+        {
+          "name": "account_scope",
+          "check": "(account_id = (NULLIF(current_setting('aiuteur.account_id'::text, true), ''::text))::uuid)",
+          "roles": [
+            "public"
+          ],
+          "using": "(account_id = (NULLIF(current_setting('aiuteur.account_id'::text, true), ''::text))::uuid)",
+          "command": "ALL"
+        }
+      ]
+    },
+    {
+      "schema": "accounts",
+      "name": "revision",
+      "owner": "owner",
+      "rls": true,
+      "force_rls": true,
+      "grants": "{owner=arwdDxt/owner,app=ar/owner,backup=r/owner}",
+      "columns": [
+        {
+          "name": "object_id",
+          "type": "uuid",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "sequence",
+          "type": "integer",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "account_id",
+          "type": "uuid",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "project_id",
+          "type": "uuid",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "parent",
+          "type": "integer",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "cause",
+          "type": "text",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "actor_kind",
+          "type": "text",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "schema_version",
+          "type": "integer",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "body",
+          "type": "jsonb",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "body_hash",
+          "type": "text",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": null,
+          "nullable": false
+        }
+      ],
+      "constraints": [
+        {
+          "name": "revision_account_id_project_id_object_id_fkey",
+          "definition": "FOREIGN KEY (account_id, project_id, object_id) REFERENCES accounts.object(account_id, project_id, object_id)"
+        },
+        {
+          "name": "revision_check",
+          "definition": "CHECK ((parent = (sequence - 1)))"
+        },
+        {
+          "name": "revision_pkey",
+          "definition": "PRIMARY KEY (object_id, sequence)"
+        },
+        {
+          "name": "revision_sequence_check",
+          "definition": "CHECK ((sequence >= 1))"
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX revision_pkey ON accounts.revision USING btree (object_id, sequence)"
+      ],
+      "policies": [
+        {
+          "name": "account_scope",
+          "check": "(account_id = (NULLIF(current_setting('aiuteur.account_id'::text, true), ''::text))::uuid)",
+          "roles": [
+            "public"
+          ],
+          "using": "(account_id = (NULLIF(current_setting('aiuteur.account_id'::text, true), ''::text))::uuid)",
+          "command": "ALL"
+        }
+      ]
+    },
+    {
+      "schema": "accounts",
       "name": "settings",
       "owner": "owner",
       "rls": true,
@@ -829,6 +1235,13 @@
       "definition": "CREATE OR REPLACE FUNCTION accounts.map_subject(subject_id text)\n RETURNS uuid\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'pg_catalog'\nAS $function$\n  SELECT m.account_id FROM auth.subject_map m\n  JOIN auth.\"user\" u ON u.id = m.subject\n  WHERE m.subject = subject_id AND u.\"emailVerified\"\n$function$\n",
       "owner": "owner",
       "grants": "{owner=X/owner,identity=X/owner}"
+    },
+    {
+      "schema": "accounts",
+      "name": "reject_rewrite",
+      "definition": "CREATE OR REPLACE FUNCTION accounts.reject_rewrite()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO 'pg_catalog'\nAS $function$ BEGIN RAISE EXCEPTION 'append-only: % on % is not allowed', TG_OP, TG_TABLE_NAME USING ERRCODE = '23000'; END $function$\n",
+      "owner": "owner",
+      "grants": "{owner=X/owner}"
     }
   ],
   "schemas": [

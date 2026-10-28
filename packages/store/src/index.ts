@@ -1,4 +1,4 @@
-import type { Account, AccountId, CreatorId, Settings } from "@aiuteur/contract";
+import type { Account, AccountId, CreatorId, ObjectId, Project, ProjectId, Settings } from "@aiuteur/contract";
 
 /** FC5 Draft: obtained by accounts.resolveScope, never from client input. */
 export interface Scope {
@@ -16,12 +16,55 @@ export interface AuthenticatedSubject {
 export interface Auth {
   authenticate(headers: Headers): Promise<AuthenticatedSubject | null>;
 }
+export interface ObjectRow { readonly objectId: ObjectId; readonly projectId: ProjectId; readonly kind: string }
+/** One immutable Revision (PERSISTENCE §4.2). `body` is the owning kind's validated payload. */
+export interface RevisionRow {
+  readonly objectId: ObjectId;
+  readonly projectId: ProjectId;
+  readonly sequence: number;
+  readonly parent: number;
+  readonly cause: string;
+  readonly actorKind: string;
+  readonly schemaVersion: number;
+  readonly body: unknown;
+  readonly bodyHash: string;
+  readonly createdAt: string;
+}
+/** A loser kept on a side line: never a Revision, never discarded. */
+export interface AttemptRow {
+  readonly attemptId: string;
+  readonly objectId: ObjectId;
+  readonly projectId: ProjectId;
+  readonly basedOn: number;
+  readonly origin: "stale-base" | "held";
+  readonly body: unknown;
+  readonly createdAt: string;
+}
+/** Latest lock Decision of an object; `version` counts its lock Decisions. */
+export interface LockState { readonly locked: boolean; readonly version: number }
 export interface ReadTx {
   account(id: AccountId): Promise<Account | null>;
   settings(): Promise<Settings>;
+  projects(): Promise<Project[]>;
+  project(id: ProjectId): Promise<Project | null>;
+  object(id: ObjectId): Promise<ObjectRow | null>;
+  /** The latest Revision, or null when the object has none. */
+  head(id: ObjectId): Promise<RevisionRow | null>;
+  revision(id: ObjectId, sequence: number): Promise<RevisionRow | null>;
+  sequences(id: ObjectId): Promise<number[]>;
+  attempts(id: ObjectId): Promise<AttemptRow[]>;
+  lockState(id: ObjectId): Promise<LockState>;
 }
+/**
+ * Appends only. `appendRevision`, `insertObject` and `insertAttempt` exist for
+ * `history.commit` (build rule R1); no other module calls them.
+ */
 export interface WriteTx extends ReadTx {
   putSettings(settings: Settings): Promise<void>;
+  insertProject(project: Project): Promise<void>;
+  insertObject(row: ObjectRow & { createdAt: string }): Promise<void>;
+  appendRevision(row: RevisionRow): Promise<void>;
+  insertAttempt(row: AttemptRow): Promise<void>;
 }
 /** Writes serialize per Account; thrown callbacks roll back; reads never write. */
 export interface Store {

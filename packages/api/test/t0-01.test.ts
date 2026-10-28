@@ -7,10 +7,11 @@ import { Pool } from "pg";
 import { afterAll, beforeAll, expect, it } from "vitest";
 import { TOTP, Secret } from "otpauth";
 import { createAccounts, createBetterAuth } from "@aiuteur/accounts";
-import { accountIdSchema, creatorIdSchema, studioSchema, projectListSchema, invitationSchema, redeemedInvitationSchema, ROUTES, eventSchema, AUDIT_ACTIONS } from "@aiuteur/contract";
-import { createPostgresStore, migrateDatabase, schemaCatalogue } from "@aiuteur/store";
+import { accountIdSchema, creatorIdSchema, type ObjectId, studioSchema, projectListSchema, invitationSchema, redeemedInvitationSchema, ROUTES, eventSchema, AUDIT_ACTIONS } from "@aiuteur/contract";
+import { createPostgresStore, migrateDatabase, schemaCatalogue, type Scope } from "@aiuteur/store";
 import { createViews } from "@aiuteur/views";
-import { describeStoreConformance, FakeMailer, ManualClock } from "@aiuteur/testing";
+import { createWorkflows } from "@aiuteur/workflows";
+import { describeHistoryConformance, describeStoreConformance, FakeMailer, ManualClock } from "@aiuteur/testing";
 import { createApi } from "@aiuteur/api";
 import { freshDatabase } from "./database.ts";
 
@@ -31,7 +32,7 @@ beforeAll(async () => {
   const generous = { max: 1_000_000, windowMs: 60_000 };
   const limit = { address: generous, email: generous };
   accounts = createAccounts({ ...adapter, clock, ids, invitationTtlMs: 60_000, operatorEmails: ["operator@example.test"], mailer: new FakeMailer(), limits: { signIn: limit, recovery: limit, redemption: limit }, recoveryTtlMs: 600_000, recoveryPage: `${origin}/recover`, onMailFailure: (error) => { throw error; } });
-  api = createApi({ accounts, views: createViews(store), handleAuth: adapter.handle, origin, clientAddress: () => "203.0.113.1" });
+  api = createApi({ accounts, views: createViews(store), workflows: createWorkflows({ store, clock, ids }), handleAuth: adapter.handle, origin, clientAddress: () => "203.0.113.1" });
 });
 afterAll(async () => { await store?.close(); await adapter?.close(); await database?.close(); });
 
@@ -86,11 +87,31 @@ it("two invited creators sign in and read only their own studio and empty projec
   }
 });
 
-describeStoreConformance("Postgres, migrated database", async () => {
+async function postgresSubject() {
   const a = await creator();
   const b = await creator();
-  return { store, a: a.scope, b: b.scope };
-});
+  return {
+    store, a: a.scope, b: b.scope,
+    // Seams run as the owner: no runtime role can write the lock table yet.
+    async lockObject(scope: Scope, objectId: ObjectId) {
+      const client = await database.inspect.connect();
+      try {
+        await client.query("BEGIN; SET LOCAL ROLE owner");
+        await client.query("SELECT set_config('aiuteur.account_id', $1, true)", [scope.accountId]);
+        await client.query(`INSERT INTO accounts.lock (object_id, sequence, account_id, project_id, locked, actor, created_at)
+          SELECT o.object_id, (SELECT coalesce(max(sequence), 0) + 1 FROM accounts.lock WHERE object_id = o.object_id), o.account_id, o.project_id, true, 'test', now()
+          FROM accounts.object o WHERE o.object_id = $1`, [objectId]);
+        await client.query("COMMIT");
+      } catch (error) { await client.query("ROLLBACK"); throw error; } finally { client.release(); }
+    },
+    async rowCounts() {
+      const { rows } = await database.inspect.query<Record<string, string>>("SELECT (SELECT count(*) FROM accounts.project) AS project, (SELECT count(*) FROM accounts.object) AS object, (SELECT count(*) FROM accounts.revision) AS revision, (SELECT count(*) FROM accounts.attempt) AS attempt, (SELECT count(*) FROM accounts.lock) AS lock");
+      return Object.fromEntries(Object.entries(rows[0] ?? {}).map(([table, count]) => [table, Number(count)]));
+    },
+  };
+}
+describeStoreConformance("Postgres, migrated database", postgresSubject);
+describeHistoryConformance("Postgres, migrated database", postgresSubject);
 
 it("G1: all scoped routes return the identical not-found response for another Account and an absent id", async () => {
   const a = await creator();
@@ -299,7 +320,7 @@ it("D4/G7: catalogue classification, forced policies, composite tenant keys, rol
     SELECT n.nspname || '.' || c.relname AS name, pg_get_userbyid(c.relowner) AS owner,
       c.relrowsecurity AS rls, c.relforcerowsecurity AS force FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
     WHERE c.relkind = 'r' AND n.nspname NOT LIKE 'pg_%' AND n.nspname <> 'information_schema' ORDER BY 1`);
-  expect(tables.map((table) => table.name)).toEqual(["accounts.account", "accounts.settings", "auth.account", "auth.audit_event", "auth.invitation", "auth.rate_limit", "auth.recovery", "auth.session", "auth.subject_map", "auth.twoFactor", "auth.user", "auth.verification", "public.migrations"]);
+  expect(tables.map((table) => table.name)).toEqual(["accounts.account", "accounts.attempt", "accounts.lock", "accounts.object", "accounts.project", "accounts.revision", "accounts.settings", "auth.account", "auth.audit_event", "auth.invitation", "auth.rate_limit", "auth.recovery", "auth.session", "auth.subject_map", "auth.twoFactor", "auth.user", "auth.verification", "public.migrations"]);
   for (const table of tables) {
     expect(table.owner).toBe("owner");
     if (table.name.startsWith("accounts.")) expect(table).toMatchObject({ rls: true, force: true });
@@ -310,7 +331,7 @@ it("D4/G7: catalogue classification, forced policies, composite tenant keys, rol
     }
   }
   const policies = await database.inspect.query("SELECT tablename, qual = with_check AS checked FROM pg_policies WHERE schemaname = 'accounts' ORDER BY tablename");
-  expect(policies.rows).toEqual([{ tablename: "account", checked: true }, { tablename: "settings", checked: true }]);
+  expect(policies.rows).toEqual(["account", "attempt", "lock", "object", "project", "revision", "settings"].map((tablename) => ({ tablename, checked: true })));
   const constraints = await database.inspect.query<{ definition: string }>("SELECT pg_get_constraintdef(oid) AS definition FROM pg_constraint WHERE conrelid = 'accounts.settings'::regclass ORDER BY conname");
   expect(constraints.rows.map((row) => row.definition)).toContain("PRIMARY KEY (account_id, key)");
   expect(constraints.rows.map((row) => row.definition)).toContain("FOREIGN KEY (account_id) REFERENCES accounts.account(account_id)");
@@ -319,7 +340,7 @@ it("D4/G7: catalogue classification, forced policies, composite tenant keys, rol
   const memberships = await database.inspect.query("SELECT FROM pg_auth_members WHERE member IN (SELECT oid FROM pg_roles WHERE rolname = ANY($1))", [["app", "scheduler", "identity", "operator_read", "backup", "owner"]]);
   expect(memberships.rows).toEqual([]);
   const definers = await database.inspect.query("SELECT p.proname, p.prosecdef, p.proconfig FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname IN ('accounts', 'auth') ORDER BY p.proname");
-  expect(definers.rows).toEqual([{ proname: "create_studio", prosecdef: true, proconfig: ["search_path=pg_catalog"] }, { proname: "map_subject", prosecdef: true, proconfig: ["search_path=pg_catalog"] }]);
+  expect(definers.rows).toEqual([{ proname: "create_studio", prosecdef: true, proconfig: ["search_path=pg_catalog"] }, { proname: "map_subject", prosecdef: true, proconfig: ["search_path=pg_catalog"] }, { proname: "reject_rewrite", prosecdef: false, proconfig: ["search_path=pg_catalog"] }]);
   expect((await database.inspect.query("SELECT FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname IN ('accounts', 'auth') AND c.relkind IN ('v', 'm')")).rows).toEqual([]);
   for (const role of ["app", "scheduler", "identity", "operator_read", "backup"]) {
     expect((await database.inspect.query("SELECT has_function_privilege($1, 'accounts.map_subject(text)', 'EXECUTE') AS map, has_function_privilege($1, 'accounts.create_studio(text,uuid,timestamptz,jsonb)', 'EXECUTE') AS create", [role])).rows).toEqual([{ map: role === "identity", create: role === "identity" }]);

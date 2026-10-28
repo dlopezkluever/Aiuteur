@@ -1,5 +1,6 @@
 // Draft FC1/FC2. Contracts freeze at T0 exit, not at this ticket.
 export * from "./studio.ts";
+export * from "./history.ts";
 
 declare const brand: unique symbol;
 type Brand<T, B extends string> = T & { readonly [brand]: B };

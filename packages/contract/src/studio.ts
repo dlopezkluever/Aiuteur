@@ -13,8 +13,13 @@ export const DEFAULT_SETTINGS: Settings = { treatmentOptionCount: 3 };
 export const accountSchema = z.strictObject({ accountId: accountIdSchema, createdAt: z.iso.datetime() });
 export type Account = z.infer<typeof accountSchema>;
 export const studioSchema = z.strictObject({ account: accountSchema, settings: settingsSchema });
-// No Project kind or creation operation exists at T0-01.
-export const projectListSchema = z.strictObject({ projects: z.array(z.never()) });
+export const projectIdSchema = z.uuidv4().brand<"ProjectId">();
+export const objectIdSchema = z.uuidv4().brand<"ObjectId">();
+export type ProjectId = z.infer<typeof projectIdSchema>;
+export type ObjectId = z.infer<typeof objectIdSchema>;
+export const projectSchema = z.strictObject({ projectId: projectIdSchema, createdAt: z.iso.datetime() });
+export type Project = z.infer<typeof projectSchema>;
+export const projectListSchema = z.strictObject({ projects: z.array(projectSchema) });
 
 export const ERROR_CODES = ["not-found", "unauthenticated", "forbidden", "invalid-request", "invitation-refused", "recovery-refused", "rate-limited", "internal-error"] as const;
 export const errorSchema = z.strictObject({ code: z.enum(ERROR_CODES) });
@@ -60,6 +65,11 @@ export const ROUTES = [
   { method: "POST", path: "/api/operator/invitations", access: "operator" },
   { method: "GET", path: "/api/studios/:accountId", access: "scope" },
   { method: "GET", path: "/api/studios/:accountId/projects", access: "scope" },
+  { method: "POST", path: "/api/studios/:accountId/projects", access: "scope" },
+  { method: "POST", path: "/api/studios/:accountId/projects/:projectId/source-material", access: "scope" },
+  { method: "GET", path: "/api/studios/:accountId/projects/:projectId/source-material/:objectId", access: "scope" },
+  { method: "GET", path: "/api/studios/:accountId/projects/:projectId/source-material/:objectId/revisions/:sequence", access: "scope" },
+  { method: "POST", path: "/api/studios/:accountId/projects/:projectId/source-material/:objectId/role", access: "scope" },
   { method: "POST", path: "/api/auth/sign-in/email", access: "auth" },
   { method: "POST", path: "/api/auth/sign-out", access: "auth" },
   { method: "POST", path: "/api/auth/two-factor/enable", access: "auth" },

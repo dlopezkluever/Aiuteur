@@ -10,9 +10,11 @@
   },
   "dependencies": {
     "@aiuteur/contract": "workspace:*",
+    "@aiuteur/history": "workspace:*",
     "@aiuteur/mail": "workspace:*",
     "@aiuteur/providers": "workspace:*",
     "@aiuteur/store": "workspace:*",
+    "@aiuteur/story": "workspace:*",
     "fast-check": "^4.10.2",
     "vitest": "^5.0.5"
   },

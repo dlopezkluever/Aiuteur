@@ -1,9 +1,19 @@
 import { Hono } from "hono";
 import { AccountRefusal, type Accounts } from "@aiuteur/accounts";
-import { accountIdSchema, errorSchema, issueInvitationSchema, recoveryCompleteSchema, recoveryCompletedSchema, recoveryRequestSchema, recoveryRequestedSchema, redeemInvitationSchema, redeemedInvitationSchema, ROUTES } from "@aiuteur/contract";
+import { accountIdSchema, changeRoleSchema, commitOutcomeSchema, errorSchema, objectIdSchema, pasteSchema, projectIdSchema, projectSchema, type CommitOutcome, issueInvitationSchema, recoveryCompleteSchema, recoveryCompletedSchema, recoveryRequestSchema, recoveryRequestedSchema, redeemInvitationSchema, redeemedInvitationSchema, ROUTES } from "@aiuteur/contract";
 import type { Views } from "@aiuteur/views";
+import type { Workflows } from "@aiuteur/workflows";
 
-export function createApi(options: { accounts: Accounts; views: Views; handleAuth(request: Request): Promise<Response>; origin: string;
+type Context = import("hono").Context;
+const respond = (c: Context, result: object | null) => result ? c.json(result) : c.json(errorSchema.parse({ code: "not-found" }), 404);
+/** One of the five write-gate results as an HTTP answer. Anything but Applied changed no Revision. */
+function outcome(c: Context, result: CommitOutcome) {
+  if (result.result === "Applied") return c.json(commitOutcomeSchema.parse(result), result.appended ? 201 : 200);
+  if (result.result === "Refused") return c.json(commitOutcomeSchema.parse(result), result.reason === "not-found" ? 404 : 422);
+  return c.json(commitOutcomeSchema.parse(result), 409);
+}
+
+export function createApi(options: { accounts: Accounts; views: Views; workflows: Workflows; handleAuth(request: Request): Promise<Response>; origin: string;
   /** The caller's network address as the deployment's trusted edge reports it; never read from client-controlled headers here. */
   clientAddress(request: Request): string }) {
   const api = new Hono();
@@ -63,14 +73,31 @@ export function createApi(options: { accounts: Accounts; views: Views; handleAut
       if (!parsed.success) return c.json(errorSchema.parse({ code: "invalid-request" }), 400);
       return c.json(await options.accounts.issueInvitation(subject, parsed.data.email), 201);
     }
+    // Every scoped path answers the same 404 for another Account's ids and for absent ones.
+    const notFound = () => c.json(errorSchema.parse({ code: "not-found" }), 404);
     const id = accountIdSchema.safeParse(c.req.param("accountId"));
-    if (!id.success) return c.json(errorSchema.parse({ code: "not-found" }), 404);
-    const read = {
-      "/api/studios/:accountId": options.views.studio,
-      "/api/studios/:accountId/projects": options.views.projects,
-    }[route.path];
-    const result = await read(scope, id.data);
-    return result ? c.json(result) : c.json(errorSchema.parse({ code: "not-found" }), 404);
+    if (!id.success || id.data !== scope.accountId) return notFound();
+    const project = projectIdSchema.safeParse(c.req.param("projectId") ?? "");
+    const object = objectIdSchema.safeParse(c.req.param("objectId") ?? "");
+    const sequence = Number(c.req.param("sequence"));
+    const key = `${route.method} ${route.path}`;
+    if (key === "GET /api/studios/:accountId") return respond(c, await options.views.studio(scope, id.data));
+    if (key === "GET /api/studios/:accountId/projects") return respond(c, await options.views.projects(scope, id.data));
+    if (key === "POST /api/studios/:accountId/projects") return c.json(projectSchema.parse(await options.workflows.createProject(scope)), 201);
+    if (!project.success) return notFound();
+    if (key === "POST /api/studios/:accountId/projects/:projectId/source-material") {
+      const parsed = pasteSchema.safeParse(body);
+      if (!parsed.success) return c.json(errorSchema.parse({ code: "invalid-request" }), 400);
+      return outcome(c, await options.workflows.paste(scope, project.data, parsed.data.text));
+    }
+    if (!object.success) return notFound();
+    if (key === "GET /api/studios/:accountId/projects/:projectId/source-material/:objectId") return respond(c, await options.views.sourceMaterial(scope, project.data, object.data));
+    if (key === "GET /api/studios/:accountId/projects/:projectId/source-material/:objectId/revisions/:sequence") {
+      return Number.isInteger(sequence) && sequence >= 1 ? respond(c, await options.views.sourceMaterialRevision(scope, project.data, object.data, sequence)) : notFound();
+    }
+    const parsed = changeRoleSchema.safeParse(body);
+    if (!parsed.success) return c.json(errorSchema.parse({ code: "invalid-request" }), 400);
+    return outcome(c, await options.workflows.changeRole(scope, project.data, object.data, parsed.data.base, parsed.data.role));
   });
   return api;
 }

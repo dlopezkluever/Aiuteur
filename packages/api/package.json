@@ -10,6 +10,7 @@
     "@aiuteur/contract": "workspace:*",
     "@aiuteur/store": "workspace:*",
     "@aiuteur/views": "workspace:*",
+    "@aiuteur/workflows": "workspace:*",
     "hono": "^4.13.14"
   },
   "devDependencies": {

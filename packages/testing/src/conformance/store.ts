@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { accountIdSchema, type Settings } from "@aiuteur/contract";
+import { accountIdSchema, type ObjectId, type Settings } from "@aiuteur/contract";
 import type { Scope, Store } from "@aiuteur/store";
 
 export interface StoreSubject {
   readonly store: Store;
   readonly a: Scope;
   readonly b: Scope;
+  /** Test seam: appends a lock Decision for an object. No product path writes locks yet. */
+  lockObject(scope: Scope, objectId: ObjectId): Promise<void>;
+  /** Persistent row counts of the history tables across all Accounts. */
+  rowCounts(): Promise<Record<string, number>>;
 }
 
 /** D9. Shared observable contract, not adapter calls or implementation details. */
