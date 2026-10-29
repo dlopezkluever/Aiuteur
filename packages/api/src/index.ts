@@ -26,7 +26,9 @@ export function createApi(options: { accounts: Accounts; views: Views; workflows
   /** Request ids and the request time, for the Initiation (the first link of the trace). */
   requestId(): string; now(): number;
   /** The caller's network address as the deployment's trusted edge reports it; never read from client-controlled headers here. */
-  clientAddress(request: Request): string }) {
+  clientAddress(request: Request): string;
+  /** An exception that is not one of our own refusals, for the ErrorSink. The caller still gets a neutral 500. */
+  onUnexpectedError?(error: unknown): void }) {
   const api = new Hono();
   api.notFound((c) => c.json(errorSchema.parse({ code: "not-found" }), 404));
   api.onError((error, c) => {
@@ -35,6 +37,7 @@ export function createApi(options: { accounts: Accounts; views: Views; workflows
       if (error.code === "rate-limited") return c.json(errorSchema.parse({ code: error.code }), 429, { "retry-after": String(error.retryAfterSeconds ?? 1) });
       return c.json(errorSchema.parse({ code: error.code }), error.code === "unauthenticated" ? 401 : 403);
     }
+    options.onUnexpectedError?.(error);
     return c.json(errorSchema.parse({ code: "internal-error" }), 500);
   });
   for (const route of ROUTES) api.on(route.method, route.path, async (c) => {

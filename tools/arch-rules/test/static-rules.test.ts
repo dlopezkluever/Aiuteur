@@ -27,6 +27,8 @@ const TEXTS: Record<string, string> = {
   "packages/generation/src/reads-env.ts": `export const url = process.env["DATABASE_URL"];\nexport const meta = import.meta.env;\n`,
   "packages/generation/src/branches-on-flag.ts": `export const test = process.env.NODE_ENV === "test";\nconst { VITEST } = process.env;\nexport const v = VITEST;\n`,
   "packages/generation/test/flag-in-test.test.ts": `export const ci = process.env["CI"];\n`,
+  "packages/observability/src/adapters/tracker.ts": `export const vendor = "Sentry";\n`,
+  "packages/observability/src/logger.ts": `export const vendor = "Sentry";\n`,
   "apps/server/src/composition/ci.ts": `export const env = process.env["AIUTEUR_ENV"];\nexport const flag = process.env.NODE_ENV;\n`,
 };
 const EXPECTED: Record<string, readonly [Violation["rule"], number][]> = {
@@ -48,6 +50,8 @@ const EXPECTED: Record<string, readonly [Violation["rule"], number][]> = {
   "packages/generation/src/reads-env.ts": [["R24", 1], ["R24", 2]],
   "packages/generation/src/branches-on-flag.ts": [["R24", 1], ["R24", 2]],
   "packages/generation/test/flag-in-test.test.ts": [["R24", 1]],
+  "packages/observability/src/adapters/tracker.ts": [],
+  "packages/observability/src/logger.ts": [["R9", 1]],
   "apps/server/src/composition/ci.ts": [],
 };
 

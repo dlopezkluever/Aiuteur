@@ -1,0 +1,66 @@
+# The staging VPS: web, worker, Postgres and the TLS edge (RUNTIME-PLATFORM §0). Both process roles run the same image,
+# named by digest in IMAGE_REF (`<repository>@sha256:<64 hex>`); deploy.sh sets it and never a tag.
+# Host secrets live in ENV_FILE (/etc/aiuteur/staging.env, root-owned, mode 0600) and never in this repository.
+services:
+  postgres:
+    image: postgres:15
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_DB: aiuteur
+      # The runtime roles have no passwords (migration 1-roles.sql), so this server must stay unreachable from outside the
+      # compose network: no ports are published for it.
+      POSTGRES_HOST_AUTH_METHOD: trust
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres", "-d", "aiuteur"]
+      interval: 3s
+      timeout: 5s
+      retries: 20
+
+  web:
+    image: ${IMAGE_REF:?set by deploy.sh}
+    command: ["node", "packages/platform/scripts/web.ts"]
+    restart: unless-stopped
+    env_file: ${ENV_FILE:?set by deploy.sh}
+    environment:
+      AIUTEUR_ENVIRONMENT: staging
+      RELEASE_DIGEST: ${RELEASE_DIGEST:?set by deploy.sh}
+      PORT: "8080"
+      CLIENT_ADDRESS_HEADER: x-forwarded-for
+    depends_on:
+      postgres: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/healthz').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  worker:
+    image: ${IMAGE_REF:?set by deploy.sh}
+    command: ["node", "packages/platform/scripts/worker.ts"]
+    restart: unless-stopped
+    stop_grace_period: 120s
+    env_file: ${ENV_FILE:?set by deploy.sh}
+    environment:
+      AIUTEUR_ENVIRONMENT: staging
+      RELEASE_DIGEST: ${RELEASE_DIGEST:?set by deploy.sh}
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  edge:
+    image: caddy:2
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    environment:
+      PUBLIC_HOST: ${PUBLIC_HOST:?set in the host env file (read by compose through --env-file)}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+    depends_on:
+      web: { condition: service_healthy }
+
+volumes:
+  pgdata:
+  caddy-data:

@@ -270,6 +270,61 @@ importers:
         specifier: ^8.0.2
         version: 8.0.2
 
+  packages/observability:
+    dependencies:
+      '@aiuteur/contract':
+        specifier: workspace:*
+        version: link:../contract
+
+  packages/platform:
+    dependencies:
+      '@aiuteur/accounts':
+        specifier: workspace:*
+        version: link:../accounts
+      '@aiuteur/api':
+        specifier: workspace:*
+        version: link:../api
+      '@aiuteur/contract':
+        specifier: workspace:*
+        version: link:../contract
+      '@aiuteur/history':
+        specifier: workspace:*
+        version: link:../history
+      '@aiuteur/mail':
+        specifier: workspace:*
+        version: link:../mail
+      '@aiuteur/observability':
+        specifier: workspace:*
+        version: link:../observability
+      '@aiuteur/providers':
+        specifier: workspace:*
+        version: link:../providers
+      '@aiuteur/store':
+        specifier: workspace:*
+        version: link:../store
+      '@aiuteur/story':
+        specifier: workspace:*
+        version: link:../story
+      '@aiuteur/testing':
+        specifier: workspace:*
+        version: link:../testing
+      '@aiuteur/views':
+        specifier: workspace:*
+        version: link:../views
+      '@aiuteur/workflows':
+        specifier: workspace:*
+        version: link:../workflows
+      hono:
+        specifier: ^4.13.14
+        version: 4.13.14
+      pg:
+        specifier: ^8.16.3
+        version: 8.23.1
+    devDependencies:
+      '@types/pg':
+        specifier: ^8.16.0
+        version: 8.23.1
+
   packages/providers:
     dependencies:
       '@aiuteur/contract':
@@ -337,6 +392,9 @@ importers:
       '@aiuteur/mail':
         specifier: workspace:*
         version: link:../mail
+      '@aiuteur/observability':
+        specifier: workspace:*
+        version: link:../observability
       '@aiuteur/providers':
         specifier: workspace:*
         version: link:../providers

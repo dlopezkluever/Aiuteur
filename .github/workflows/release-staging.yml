@@ -1,0 +1,85 @@
+name: release-staging
+
+# T0-10 (issue #107): promote one image digest to staging (OPERATIONAL-BASELINE §4.2).
+# It runs only after the required `pipeline` workflow (check `verify`) has succeeded on a push to main, for that same commit.
+# The image is built once; every later step, and every rollback, names it by digest. Production promotion is a later ticket.
+on:
+  workflow_run:
+    workflows: [pipeline]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: staging-deploy
+  cancel-in-progress: false
+
+env:
+  IMAGE_REPOSITORY: ghcr.io/${{ github.repository }}
+
+jobs:
+  build:
+    name: build one image
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          # The tag only helps a human find the image; nothing deploys by it.
+          tags: ${{ env.IMAGE_REPOSITORY }}:sha-${{ github.event.workflow_run.head_sha }}
+      - name: Record the digest
+        run: |
+          [[ "${{ steps.build.outputs.digest }}" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "build produced no digest" >&2; exit 1; }
+          echo "Built image digest: \`${{ steps.build.outputs.digest }}\`" >> "$GITHUB_STEP_SUMMARY"
+
+  deploy:
+    name: deploy digest to staging
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+      - name: Install the SSH identity of the staging host
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/staging
+          chmod 600 ~/.ssh/staging
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+        env:
+          SSH_KEY: ${{ secrets.STAGING_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.STAGING_SSH_KNOWN_HOSTS }}
+      - name: Ship the deploy files of this commit
+        run: |
+          scp -i ~/.ssh/staging deploy/deploy.sh deploy/compose.staging.yml deploy/Caddyfile "$SSH_TARGET:/srv/aiuteur/release/"
+        env:
+          SSH_TARGET: ${{ secrets.STAGING_SSH_USER }}@${{ secrets.STAGING_SSH_HOST }}
+      - name: Deploy by digest (migrations, previous-image compatibility smoke, swap, smoke)
+        run: |
+          ssh -i ~/.ssh/staging "$SSH_TARGET" "IMAGE_REPOSITORY=$IMAGE_REPOSITORY /srv/aiuteur/release/deploy.sh deploy $DIGEST" | tee deploy.log
+          grep '^EVIDENCE ' deploy.log | sed 's/^EVIDENCE //' | sed 's/^/    /' >> "$GITHUB_STEP_SUMMARY"
+        env:
+          SSH_TARGET: ${{ secrets.STAGING_SSH_USER }}@${{ secrets.STAGING_SSH_HOST }}
+          DIGEST: ${{ needs.build.outputs.digest }}

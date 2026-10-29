@@ -17,3 +17,5 @@ export * from "./conformance/history.ts";
 export * from "./conformance/scheduler.ts";
 export * from "./uuidv7.ts";
 export * from "./mock-server.ts";
+export * from "./conformance/error-sink.ts";
+export * from "./fake-error-sink.ts";
