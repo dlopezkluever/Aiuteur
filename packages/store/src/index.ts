@@ -73,7 +73,7 @@ export interface GenerationRow {
   readonly requestDigest: string;
   readonly expectedDigest: string | null;
   /** The duplicate guard's key (JOB-LIFECYCLE §4): hash of the operation, target and Rendered request digest. */
-  readonly inputFingerprint: string;
+  readonly inputFingerprint: string | null;
   readonly estimate: unknown;
   readonly target: unknown;
   readonly createdAt: string;
@@ -84,6 +84,8 @@ export interface SpendFact {
   readonly createdAt: string;
   readonly estimate: unknown;
   readonly actual: unknown | null;
+  /** Runs of this Generation that may have been billed (`maybe`): each counts its estimate until reconciled (BUSINESS §5.3). */
+  readonly maybeRuns: number;
 }
 /** The one mutable state machine (JOB-LIFECYCLE §2–§3). Times are ISO instants from the injected Clock. */
 export interface JobRow {
@@ -190,7 +192,7 @@ export interface ReadTx {
   decisions(id: ObjectId): Promise<DecisionRow[]>;
   /** The most recent Decision of this type on any object of this kind in the project, or null. */
   latestDecision(project: ProjectId, type: DecisionType, kind: string): Promise<DecisionRow | null>;
-  /** Every Generation of the scoped Account created at or after an instant, with its settled actual cost (null while unsettled). */
+  /** Every Generation of the scoped Account created at or after an instant, with its settled actual cost (null while unsettled) and its maybe-billed runs. */
   spendFacts(since: string): Promise<SpendFact[]>;
   /** A Generation of this Account with this input fingerprint that has not settled, or null (JOB-LIFECYCLE §4). */
   inProgress(inputFingerprint: string): Promise<GenerationId | null>;

@@ -63,19 +63,28 @@ export function estimate(input: EstimateInput): Estimate {
 }
 
 /**
- * The actual cost of one run, set once at settlement (JOB-LIFECYCLE §4): the provider's reported quantities priced by the
- * Offering's entries. Nothing reported, or a unit with no entry, is `unknown` with what is known about billing.
+ * The actual cost, set once at settlement (JOB-LIFECYCLE §4; BUSINESS §4.4): what the provider reported, priced by the Offering's
+ * entries; else, when the run is known to have been billed, COMPUTED from the nominal billed quantities and the same entries;
+ * else unknown with what is known about billing.
  */
-export function actual(reported: readonly { readonly unit: BilledQuantity["unit"]; readonly amount: number }[] | null, entries: readonly PriceEntry[], billed: Billed): ActualCost {
-  if (reported === null) return { form: "unknown", billed };
-  let amountMicros = 0;
-  for (const quantity of reported) {
-    const entry = entries.find((e) => e.unit === quantity.unit);
-    if (!entry) return { form: "unknown", billed };
-    amountMicros += Math.ceil((quantity.amount * entry.priceMicros) / entry.per);
+export function actual(reported: readonly Quantity[] | null, entries: readonly PriceEntry[], billed: Billed, nominal: readonly Quantity[] | null = null): ActualCost {
+  const price = (quantities: readonly Quantity[]) => {
+    let amountMicros = 0;
+    for (const quantity of quantities) {
+      const entry = entries.find((e) => e.unit === quantity.unit);
+      if (!entry) return null;
+      amountMicros += Math.ceil((quantity.amount * entry.priceMicros) / entry.per);
+    }
+    return { amountMicros, quantities: quantities.map((q) => ({ unit: q.unit, amount: q.amount })) };
+  };
+  if (reported !== null) {
+    const priced = price(reported);
+    return priced ? { form: "reported", currency: "USD", ...priced } : { form: "unknown", billed };
   }
-  return { form: "reported", currency: "USD", amountMicros, quantities: reported.map((q) => ({ unit: q.unit, amount: q.amount })) };
+  const computed = billed === "yes" && nominal !== null && nominal.length > 0 ? price(nominal) : null;
+  return computed ? { form: "computed", currency: "USD", ...computed } : { form: "unknown", billed };
 }
+type Quantity = { readonly unit: BilledQuantity["unit"]; readonly amount: number };
 
 /** Creator caps and the hidden operator ceiling, in micro-units per account calendar period. Configuration with no default (BUSINESS §9); null means no limit. */
 export interface Caps {
@@ -85,26 +94,30 @@ export interface Caps {
 }
 
 /** What the committed-spend rule reads of one Generation. */
-export interface SpendFact { readonly createdAt: string; readonly estimate: unknown; readonly actual: unknown | null }
+export interface SpendFact { readonly createdAt: string; readonly estimate: unknown; readonly actual: unknown | null; readonly maybeRuns: number }
 
 const upperBound = (estimate: Estimate): number | null => (estimate.form === "point" ? estimate.amountMicros : estimate.form === "range" ? estimate.maxMicros : null);
 
 /**
- * What one Generation counts toward committed spend (BUSINESS §5.3, §6.3): its approved estimate while unsettled, then its
- * actual cost; a settled run known not to be billed counts nothing, and one that may have been billed counts its estimate.
+ * What one Generation counts toward committed spend (BUSINESS §5.3, §6.3): its approved estimate while unsettled; once settled,
+ * its actual cost (reported or computed), its estimate when it was billed but no actual is available, and one estimate per run
+ * that may have been billed, until reconciled. A run known not to be billed counts nothing.
  */
 function committed(fact: SpendFact): number {
   const upper = upperBound(estimateSchema.parse(fact.estimate)) ?? 0;
   if (fact.actual === null) return upper;
   const actual = actualCostSchema.parse(fact.actual);
-  if (actual.form === "reported") return actual.amountMicros;
-  return actual.billed === "no" ? 0 : upper;
+  const settled = actual.form === "unknown" ? (actual.billed === "yes" ? upper : 0) : actual.amountMicros;
+  return settled + fact.maybeRuns * upper;
 }
 
-/** The start of the UTC calendar day and month containing `now`. Accounts carry no timezone yet, so periods are UTC (spec-level). */
-export function periodStarts(now: number): { readonly day: string; readonly month: string } {
-  const d = new Date(now);
-  return { day: new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())).toISOString(), month: new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)).toISOString() };
+/** How far back the facts must reach for any Account's current calendar month to be covered, whatever its timezone. */
+export const admissionLookback = (now: number): string => new Date(now - 33 * 86_400_000).toISOString();
+
+/** The Account-local calendar day and month (`yyyy-mm-dd`, `yyyy-mm`) of an instant. */
+function localPeriod(ms: number, timeZone: string): { readonly day: string; readonly month: string } {
+  const day = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(ms));
+  return { day, month: day.slice(0, 7) };
 }
 
 export type Admission =
@@ -120,16 +133,23 @@ export type Admission =
  * FC10 `spend.admit` (BUSINESS §6.3). Allowed when committed spend for the period plus this action's upper-bound estimate stays
  * within the creator's cap and the operator ceiling. The caller runs it in the transaction that creates the Generation, under
  * the Account's write lock, with every Generation of the Account since the month began (`facts`), so concurrent creations
- * cannot jointly exceed a limit. The ceiling is tested first: raising a creator cap cannot clear it.
+ * cannot jointly exceed a limit. Periods are the Account's local calendar day and month. The ceiling is tested first: raising a creator cap cannot clear it.
  */
-export function admit(input: { readonly estimate: Estimate; readonly facts: readonly SpendFact[]; readonly now: number; readonly caps: Caps }): Admission {
+export function admit(input: {
+  readonly estimate: Estimate; readonly facts: readonly SpendFact[]; readonly now: number; readonly caps: Caps;
+  /** The Account's IANA timezone: its calendar day and month are the periods (BUSINESS §6.1). Null only while no limit is configured. */
+  readonly timeZone: string | null;
+}): Admission {
   const upper = upperBound(input.estimate);
   if (upper === null) return { result: "refused", reason: "price-unknown" };
-  const since = periodStarts(input.now);
-  const spent = (from: string) => input.facts.filter((f) => f.createdAt >= from).reduce((sum, f) => sum + committed(f), 0);
-  const day = spent(since.day);
-  const month = spent(since.month);
   const { ceiling, creator } = input.caps;
+  const limited = [creator.dailyMicros, creator.monthlyMicros, creator.perActionMicros, ceiling.dailyMicros, ceiling.monthlyMicros].some((limit) => limit !== null);
+  if (limited && input.timeZone === null) throw new Error("the Account's time zone is not configured; its caps have no period");
+  const zone = input.timeZone ?? "UTC";
+  const here = localPeriod(input.now, zone);
+  const facts = input.facts.map((f) => ({ f, at: localPeriod(Date.parse(f.createdAt), zone) }));
+  const day = facts.filter(({ at }) => at.day === here.day).reduce((sum, { f }) => sum + committed(f), 0);
+  const month = facts.filter(({ at }) => at.month === here.month).reduce((sum, { f }) => sum + committed(f), 0);
   if ((ceiling.dailyMicros !== null && day + upper > ceiling.dailyMicros) || (ceiling.monthlyMicros !== null && month + upper > ceiling.monthlyMicros)) return { result: "refused", reason: "studio-limit" };
   if (creator.perActionMicros !== null && upper > creator.perActionMicros) return { result: "refused", reason: "creator-cap", cap: "action", remainingMicros: creator.perActionMicros };
   if (creator.dailyMicros !== null && day + upper > creator.dailyMicros) return { result: "refused", reason: "creator-cap", cap: "daily", remainingMicros: Math.max(0, creator.dailyMicros - day) };

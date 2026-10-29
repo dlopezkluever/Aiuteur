@@ -3,7 +3,7 @@ import { compile, type CapturedInput, type ResolvedInputs } from "@aiuteur/compi
 import type { History } from "@aiuteur/history";
 import type { Jobs } from "@aiuteur/jobs";
 import type { EffectiveModel, PriceEntry, ProfileSnapshot } from "@aiuteur/providers";
-import { admit, estimate, periodStarts, type Admission, type Caps, type PricePolicy } from "@aiuteur/spend";
+import { admissionLookback, admit, estimate, type Admission, type Caps, type PricePolicy } from "@aiuteur/spend";
 import { canonicalJson, sha256 } from "@aiuteur/providers";
 import type { Clock, Ids, ReadTx, Scope, WriteTx } from "@aiuteur/store";
 
@@ -55,7 +55,7 @@ export function createRecord(options: { history: History; jobs: Jobs; clock: Clo
       const running = await wtx.inProgress(inputFingerprint);
       if (running !== null) return { result: "already-generating", generationId: running };
       const approved = estimate({ request: compiled.renderedRequest, digest: compiled.digest, rule: plan.profile.cost.billedQuantity, entries: plan.prices, today, policy: pricePolicy });
-      const admission = admit({ estimate: approved, facts: await wtx.spendFacts(periodStarts(at).month), now: at, caps: plan.caps });
+      const admission = admit({ estimate: approved, facts: await wtx.spendFacts(admissionLookback(at)), now: at, caps: plan.caps, timeZone: (await wtx.settings()).timeZone ?? null });
       if (admission.result === "refused") return { result: "refused", admission };
       const captured: CapturedInput[] = [...new Map(compiled.package.layers.flatMap((l) => l.sources).map((c) => [`${c.objectId}|${c.unit}`, c])).values()];
       await wtx.insertGeneration({

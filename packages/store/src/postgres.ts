@@ -93,9 +93,9 @@ function readTx(client: PoolClient): ReadTx {
       return rows[0] ? decisionRow(rows[0]) : null;
     },
     async spendFacts(since: string) {
-      const { rows } = await client.query<{ generation_id: string; created_at: Date; estimate: unknown; actual: unknown }>(
-        "SELECT g.generation_id, g.created_at, g.estimate, s.actual FROM accounts.generation g LEFT JOIN accounts.generation_settlement s ON s.generation_id = g.generation_id WHERE g.created_at >= $1 ORDER BY g.created_at, g.generation_id", [since]);
-      return rows.map((row) => ({ generationId: generationIdSchema.parse(row.generation_id), createdAt: row.created_at.toISOString(), estimate: row.estimate, actual: row.actual ?? null }));
+      const { rows } = await client.query<{ generation_id: string; created_at: Date; estimate: unknown; actual: unknown; maybe_runs: string }>(
+        "SELECT g.generation_id, g.created_at, g.estimate, s.actual, (SELECT count(*) FROM accounts.generation_run r WHERE r.generation_id = g.generation_id AND r.billed = 'maybe') AS maybe_runs FROM accounts.generation g LEFT JOIN accounts.generation_settlement s ON s.generation_id = g.generation_id WHERE g.created_at >= $1 ORDER BY g.created_at, g.generation_id", [since]);
+      return rows.map((row) => ({ generationId: generationIdSchema.parse(row.generation_id), createdAt: row.created_at.toISOString(), estimate: row.estimate, actual: row.actual ?? null, maybeRuns: Number(row.maybe_runs) }));
     },
     async inProgress(inputFingerprint: string) {
       const { rows } = await client.query<{ generation_id: string }>(

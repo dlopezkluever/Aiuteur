@@ -112,6 +112,9 @@ export function createWorkflows(options: { store: Store; history: History; clock
     async chooseTreatmentOption(scope: Scope, projectId: ProjectId, objectId: ObjectId, key: string): Promise<ChooseOutcome> {
       return once<ChooseOutcome>(scope, "treatment-option.choose", key, { projectId, objectId }, async (tx) => {
         const head = await tx.head(objectId);
+        // A HELD Option that also failed a guard has no "use anyway" (AI-map §5): it is retained, never chosen.
+        const generationId = head?.generationId;
+        if (generationId && (await tx.settlement(generationId))?.reason?.startsWith("held:") && (await tx.calls(generationId)).some((c) => (c.verdict as { pass?: unknown } | null)?.pass === false)) return { result: "Refused", reason: "invariant-violated" };
         const result = await history.decide(tx, scope, { projectId, objectId, kind: treatmentOptionKind.kind, type: "choose", payload: { sequence: head?.sequence ?? 0 } }, context("creator_edit"));
         switch (result.result) {
           case "Applied": return { result: "Applied", decision: { subject: result.decision.objectId, sequence: result.decision.sequence, type: result.decision.type, actionGroup: result.decision.actionGroup, createdAt: result.decision.createdAt } };

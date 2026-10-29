@@ -28,7 +28,7 @@ export const GP_S_PROPOSALS: readonly RecordedProposal[] = Object.freeze([
     operation: "treatment.draft", step: 1,
     response: "Mara ferries a stranger who carries one letter for two mayors who have not spoken in years.\n\n" +
       "Halfway across, the storm turns them back, and Mara must choose which island hears the letter first.\n\n" +
-      "She reads it aloud to both shores at once, from the middle of the strait.",
+      "She reads it aloud to both shores at once, from the middle of the strait: \u201cDeliver it,\u201d and then \u201cor nobody crosses again.\u201d",
     source: { kind: "synthetic", note: "Authored for GP-S before any staging capture exists (no real adapter until T0-11)" },
   },
 ]);

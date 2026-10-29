@@ -11,21 +11,45 @@ const hold = (guard: Failure["guard"], reason: string): Verdict => ({ pass: "hel
 /** One passage per blank-line-separated block of the response; surrounding whitespace is not content. */
 export const passages = (response: string) => response.split(/\r?\n[ \t]*(?:\r?\n[ \t]*)+/).map((p) => p.trim()).filter((p) => p.length > 0);
 
-/** Dialogue is the text inside a pair of double quotation marks, curly or straight, in the order it occurs. Exact; no fuzzy matching. */
-export function dialogueOf(text: string): string[] {
-  const found: { index: number; line: string }[] = [];
-  for (const pattern of [/\u201c([^\u201d]*)\u201d/g, /"([^"]*)"/g]) for (const m of text.matchAll(pattern)) found.push({ index: m.index, line: m[1]! });
-  return found.sort((a, b) => a.index - b.index).map((f) => f.line);
+const OPEN: ReadonlyMap<string, string> = new Map([["\u201c", "\u201d"], ["\"", "\""], ["\u00ab", "\u00bb"], ["\u300c", "\u300d"], ["\u2018", "\u2019"], ["'", "'"]]);
+const SINGLE = new Set(["\u2018", "\u2019", "'"]);
+const wordChar = /[\p{L}\p{N}]/u;
+
+/**
+ * The verbatim-constrained segments of the creator's source: each quoted span, delimiters included, in source order. The
+ * source is the creator's own text, so it is scanned; the model's output never is. A single quote inside a word is an
+ * apostrophe, not a delimiter.
+ */
+export function dialogueSegments(source: string): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < source.length;) {
+    const close = OPEN.get(source[i]!);
+    if (close === undefined || (SINGLE.has(source[i]!) && wordChar.test(source[i - 1] ?? ""))) { i++; continue; }
+    let end = -1;
+    for (let j = i + 1; j < source.length; j++) {
+      if (source[j] === close && !(SINGLE.has(close) && wordChar.test(source[j + 1] ?? ""))) { end = j; break; }
+    }
+    if (end === -1) { i++; continue; }
+    out.push(source.slice(i, end + 1));
+    i = end + 1;
+  }
+  return out;
 }
 
-export interface Checked { readonly verdict: Verdict; readonly passages: string[] | null }
+export interface Checked {
+  readonly verdict: Verdict;
+  /** The proposal, only when every guard passed. */
+  readonly passages: string[] | null;
+  /** What G1 could parse, even when a later guard refused it: kept for a HELD result, never committed as clean. */
+  readonly retained: string[] | null;
+}
 
 /** G1 Schema: the response is well-formed text with at least one passage. (A cut-off response is a failure of the transport, never accepted.) */
 export function g1Schema(response: string): Checked {
-  if (response.includes("\u0000") || !response.isWellFormed()) return { verdict: reject("G1", "not-well-formed-text"), passages: null };
+  if (response.includes("\u0000") || !response.isWellFormed()) return { verdict: reject("G1", "not-well-formed-text"), passages: null, retained: null };
   const found = passages(response);
-  if (found.length === 0) return { verdict: reject("G1", "empty"), passages: null };
-  return { verdict: { pass: true, guards: ["G1"] }, passages: found };
+  if (found.length === 0) return { verdict: reject("G1", "empty"), passages: null, retained: null };
+  return { verdict: { pass: true, guards: ["G1"] }, passages: found, retained: found };
 }
 
 /** G2 Reference integrity: the Treatment compiles no handles, so a handle-like token in the response cannot resolve in the input snapshot. */
@@ -33,17 +57,24 @@ export function g2References(found: readonly string[]): Verdict {
   return found.some((p) => /\[D\d+\]/.test(p)) ? reject("G2", "unresolved-handle") : { pass: true, guards: ["G2"] };
 }
 
+const occurrences = (text: string, part: string) => text.split(part).length - 1;
+
 /**
- * G3 Verbatim: every line of dialogue the response quotes is byte-equal to a whole dialogue line of the source, and the
- * quoted lines keep the source order. A Treatment may leave dialogue out; it may not alter, cut or reorder it.
+ * G3 Verbatim: each verbatim-constrained segment of the source (a quoted line, delimiters included) appears byte-equal in the
+ * result, in the same order and the same count (AI-map §3). The result is never scanned for quotation marks, so changing the
+ * quotation style, altering a line or dropping it all fail the same way: the source segment is not there.
  */
 export function g3Verbatim(found: readonly string[], source: string): Verdict {
-  const lines = dialogueOf(source);
+  const result = found.join("\n\n");
+  const segments = dialogueSegments(source);
   let from = 0;
-  for (const line of found.flatMap(dialogueOf)) {
-    const at = lines.indexOf(line, from);
-    if (at === -1) return reject("G3", lines.includes(line) ? "dialogue-out-of-order" : "dialogue-altered");
-    from = at;
+  for (const segment of segments) {
+    const at = result.indexOf(segment, from);
+    if (at === -1) return reject("G3", result.includes(segment) ? "dialogue-out-of-order" : "dialogue-not-verbatim");
+    from = at + segment.length;
+  }
+  for (const segment of new Set(segments)) {
+    if (occurrences(result, segment) !== occurrences(source, segment)) return reject("G3", "dialogue-count");
   }
   return { pass: true, guards: ["G3"] };
 }
@@ -52,8 +83,8 @@ export function g3Verbatim(found: readonly string[], source: string): Verdict {
 export function checkTreatment(response: string, source: string): Checked {
   const schema = g1Schema(response);
   if (schema.passages === null) return schema;
-  for (const verdict of [g2References(schema.passages), g3Verbatim(schema.passages, source)]) if (!verdict.pass) return { verdict, passages: null };
-  return { verdict: { pass: true, guards: ["G1", "G2", "G3"] }, passages: schema.passages };
+  for (const verdict of [g2References(schema.passages), g3Verbatim(schema.passages, source)]) if (!verdict.pass) return { verdict, passages: null, retained: schema.passages };
+  return { verdict: { pass: true, guards: ["G1", "G2", "G3"] }, passages: schema.passages, retained: schema.passages };
 }
 
 /** What a base unit was when the Generation read it, and what it is when the result arrives. */

@@ -256,6 +256,8 @@ const quantitySchema = z.strictObject({ unit: z.enum(BILLED_UNITS), amount: z.nu
 /** The actual cost, set once at settlement (JOB-LIFECYCLE §4): the provider's reported quantities, priced; unknown when nothing was reported. */
 export const actualCostSchema = z.discriminatedUnion("form", [
   z.strictObject({ form: z.literal("reported"), currency: z.literal("USD"), amountMicros: z.int().min(0), quantities: z.array(quantitySchema) }),
+  /** Computed from the billed quantity and the price entry when the provider reported no cost (BUSINESS §4.4). */
+  z.strictObject({ form: z.literal("computed"), currency: z.literal("USD"), amountMicros: z.int().min(0), quantities: z.array(quantitySchema) }),
   z.strictObject({ form: z.literal("unknown"), billed: z.enum(BILLED) }),
 ]);
 export type ActualCost = z.infer<typeof actualCostSchema>;
@@ -294,8 +296,8 @@ export const generationReadSchema = z.strictObject({
   renderedRequest: renderedRequestSchema,
   digest: z.string(),
   expectedDigest: z.string().nullable(),
-  /** The duplicate guard's key: hash(operation, project, target, Rendered request digest) (JOB-LIFECYCLE §4). */
-  inputFingerprint: z.string().min(1),
+  /** The duplicate guard's key: hash(operation, project, target, Rendered request digest) (JOB-LIFECYCLE §4). Null on a Generation written before migration 7 or by the previous image. */
+  inputFingerprint: z.string().min(1).nullable(),
   estimate: estimateSchema,
   target: z.strictObject({ output: z.literal("option"), kind: z.string().min(1) }),
   /** Run history: one entry per Job, kept when Jobs are pruned (JOB-LIFECYCLE §2.1). */

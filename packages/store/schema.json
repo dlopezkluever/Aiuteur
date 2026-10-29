@@ -583,7 +583,7 @@
           "name": "input_fingerprint",
           "type": "text",
           "default": null,
-          "nullable": false
+          "nullable": true
         }
       ],
       "constraints": [

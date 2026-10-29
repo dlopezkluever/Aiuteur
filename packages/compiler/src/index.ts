@@ -188,9 +188,19 @@ export function compile(inputs: ResolvedInputs, profile: ProfileSnapshot): Compi
 
 /**
  * The Rendered request of the single repair call (AI-map §5): the Generation's own request plus one `repair` part naming the
- * refusing guard and carrying the refused response. Prompt text exists only as compiler output (build rule R-prompt).
+ * refusing guard and carrying the refused response, and its own Fit report (the added part counts against the prompt limit).
+ * Pure and deterministic from the stored draft call, so a restart rebuilds the identical request. Prompt text exists only as
+ * compiler output.
  */
-export function repairRequest(request: RenderedRequest, profile: ProfileSnapshot, previous: string, failure: { readonly guard: string; readonly reason: string }): RenderedRequest {
+export function repairRequest(request: RenderedRequest, profile: ProfileSnapshot, previous: string, failure: { readonly guard: string; readonly reason: string }, baseFit: FitReport): { readonly request: RenderedRequest; readonly fit: FitReport } {
   const text = REPAIR_SCAFFOLD.text(failure, previous);
-  return { ...request, textParts: [...request.textParts, { layerKey: "repair", text: wrap(dialectOf(profile), "repair", text), layerDigest: sha256(text) }] };
+  const repaired: RenderedRequest = { ...request, textParts: [...request.textParts, { layerKey: "repair", text: wrap(dialectOf(profile), "repair", text), layerDigest: sha256(text) }] };
+  const limit = profile.limits.prompt;
+  if (limit.state !== "declared") return { request: repaired, fit: baseFit };
+  const { counter, max, margin, unit } = limit.value;
+  const needed = repaired.textParts.reduce((n, part) => n + count(part.text, counter), 0);
+  const room = max - margin;
+  const promptLimit = { state: "declared" as const, unit, counter, counted: needed, limit: room };
+  if (needed <= room) return { request: repaired, fit: { ...baseFit, promptLimit } };
+  return { request: repaired, fit: { ...baseFit, promptLimit, blocked: { reason: "over-limit", needed, limit: room, unit, exits: [{ exit: "another-model", layerKey: null }] } } };
 }

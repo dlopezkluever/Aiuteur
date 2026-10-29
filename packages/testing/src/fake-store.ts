@@ -50,7 +50,7 @@ function readView(state: AccountState, scope: Scope): ReadTx {
       .sort((a, b) => (a.createdAt === b.createdAt ? (a.actionGroup < b.actionGroup ? 1 : -1) : a.createdAt < b.createdAt ? 1 : -1))[0] ?? null),
     spendFacts: async (since) => copy([...state.generations.values()].filter((row) => row.createdAt >= since)
       .sort((a, b) => (a.createdAt === b.createdAt ? (a.generationId < b.generationId ? -1 : 1) : a.createdAt < b.createdAt ? -1 : 1))
-      .map((row) => ({ generationId: row.generationId, createdAt: row.createdAt, estimate: row.estimate, actual: state.settlements.get(row.generationId)?.actual ?? null }))),
+      .map((row) => ({ generationId: row.generationId, createdAt: row.createdAt, estimate: row.estimate, actual: state.settlements.get(row.generationId)?.actual ?? null, maybeRuns: state.runs.filter((run) => run.generationId === row.generationId && run.billed === "maybe").length }))),
     inProgress: async (fingerprint) => [...state.generations.values()].filter((row) => row.inputFingerprint === fingerprint && !state.settlements.has(row.generationId))
       .sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1))[0]?.generationId ?? null,
     events: async (after) => copy(state.events.filter((event) => event.sequence > after)),

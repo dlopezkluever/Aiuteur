@@ -8,7 +8,9 @@ export const creatorIdSchema = z.uuidv4().brand<"CreatorId">();
 export type AccountId = z.infer<typeof accountIdSchema>;
 export type CreatorId = z.infer<typeof creatorIdSchema>;
 export const emailSchema = z.email().transform((value) => value.toLowerCase());
-export const settingsSchema = z.strictObject({ treatmentOptionCount: z.int().min(1).max(10) });
+const validTimeZone = (zone: string) => { try { new Intl.DateTimeFormat("en-CA", { timeZone: zone }); return true; } catch { return false; } };
+/** `timeZone` (IANA) fixes the Account's calendar day and month for creator caps (BUSINESS §6.1, §9). It has no default: an Account without one cannot be admitted against a cap. */
+export const settingsSchema = z.strictObject({ treatmentOptionCount: z.int().min(1).max(10), timeZone: z.string().refine(validTimeZone).optional() });
 export type Settings = z.infer<typeof settingsSchema>;
 export const DEFAULT_SETTINGS: Settings = { treatmentOptionCount: 3 };
 export const accountSchema = z.strictObject({ accountId: accountIdSchema, createdAt: z.iso.datetime() });

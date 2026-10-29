@@ -27,7 +27,7 @@ export const treatmentDraft: OperationRecord<Command, { objectId: ObjectId }, st
   },
   validate(response, inputs) {
     const checked = checkTreatment(response, inputs.sourceMaterial.text);
-    return { verdict: checked.verdict, proposal: checked.passages };
+    return { verdict: checked.verdict, proposal: checked.passages, retained: checked.retained };
   },
   current: (tx, scope, projectId, inputs) => treatmentDraft.resolve(tx, scope, projectId, { objectId: inputs.sourceMaterial.captured.objectId as ObjectId }),
   base: (inputs, current) => g4Splice(inputs.sourceMaterial.captured, current && current.sourceMaterial.captured),

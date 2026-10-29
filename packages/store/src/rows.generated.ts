@@ -73,7 +73,7 @@ export interface accounts_generation {
   "estimate": unknown;
   "target": unknown;
   "created_at": Date;
-  "input_fingerprint": string;
+  "input_fingerprint": string | null;
 }
 
 export interface accounts_generation_call {
