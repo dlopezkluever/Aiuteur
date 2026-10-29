@@ -1,0 +1,14 @@
+{
+  "name": "@aiuteur/generation",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@aiuteur/compiler": "workspace:*",
+    "@aiuteur/contract": "workspace:*",
+    "@aiuteur/providers": "workspace:*",
+    "@aiuteur/spend": "workspace:*"
+  }
+}

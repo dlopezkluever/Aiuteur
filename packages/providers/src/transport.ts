@@ -1,5 +1,7 @@
-import type { Billed, CancelBilling, FailureClass, JobId } from "@aiuteur/contract";
-import type { BilledQuantity, BilledUnit, ProfileSnapshot } from "./profile.ts";
+import type { Billed, BilledUnit, CancelBilling, FailureClass, JobId, RenderedRequest } from "@aiuteur/contract";
+import type { BilledQuantity, ProfileSnapshot } from "./profile.ts";
+
+export type { RenderedRequest } from "@aiuteur/contract";
 
 // Draft FC10: the adapter face `ProviderTransport` (PROVIDERS-AND-MODELS §7.2, §7.3).
 // An adapter transports one recorded Rendered request and reports what happened in a
@@ -7,7 +9,8 @@ import type { BilledQuantity, BilledUnit, ProfileSnapshot } from "./profile.ts";
 // between calls, or reads a key or the environment.
 
 /** `real` for a provider adapter, `fake` for a test provider (VERIFICATION-AND-OBSERVABILITY §3.2 line 1). */
-export type TransportKind = "real" | "fake";
+export const TRANSPORT_KINDS = ["real", "fake"] as const;
+export type TransportKind = (typeof TRANSPORT_KINDS)[number];
 
 declare const credentialBrand: unique symbol;
 /**
@@ -21,26 +24,6 @@ export interface CredentialHandle {
 declare const operationBrand: unique symbol;
 /** The provider's reference to an accepted run (JOB-LIFECYCLE §7). */
 export type OperationReference = string & { readonly [operationBrand]: "OperationReference" };
-
-/**
- * What an adapter is given to send (GENERATION-PACKAGE §2 step 4). Draft placeholder:
- * `compiler` owns this shape (FC8) and takes it over when it lands.
- */
-export interface RenderedRequest {
-  readonly textParts: readonly {
-    readonly layerKey: string;
-    readonly text: string;
-    readonly layerDigest: string;
-  }[];
-  readonly mediaParts: readonly {
-    readonly mediaId: string;
-    readonly contentHash: string;
-    readonly role: string;
-    readonly position: number;
-  }[];
-  readonly parameters: Readonly<Record<string, string | number | boolean>>;
-  readonly rewrites: readonly string[];
-}
 
 /** A Rendered request as recorded on the Generation, identified by its stored digest (Package P1). */
 export interface RecordedRenderedRequest {

@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { AccountRefusal, type Accounts } from "@aiuteur/accounts";
-import { accountIdSchema, changeRoleSchema, commitOutcomeSchema, idempotencyKeySchema, errorSchema, objectIdSchema, pasteSchema, projectIdSchema, projectSchema, type CommitOutcome, issueInvitationSchema, recoveryCompleteSchema, recoveryCompletedSchema, recoveryRequestSchema, recoveryRequestedSchema, redeemInvitationSchema, redeemedInvitationSchema, ROUTES } from "@aiuteur/contract";
+import { accountIdSchema, changeRoleSchema, commitOutcomeSchema, idempotencyKeySchema, errorSchema, objectIdSchema, pasteSchema, projectIdSchema, projectSchema, type CommitOutcome, issueInvitationSchema, recoveryCompleteSchema, recoveryCompletedSchema, recoveryRequestSchema, recoveryRequestedSchema, redeemInvitationSchema, redeemedInvitationSchema, ROUTES, treatmentPreviewSchema } from "@aiuteur/contract";
 import type { Views } from "@aiuteur/views";
 import { IdempotencyKeyReused, type Workflows } from "@aiuteur/workflows";
 
@@ -97,6 +97,10 @@ export function createApi(options: { accounts: Accounts; views: Views; workflows
     if (key === "GET /api/studios/:accountId/projects/:projectId/source-material/:objectId") return respond(c, await options.views.sourceMaterial(scope, project.data, object.data));
     if (key === "GET /api/studios/:accountId/projects/:projectId/source-material/:objectId/revisions/:sequence") {
       return Number.isInteger(sequence) && sequence >= 1 ? respond(c, await options.views.sourceMaterialRevision(scope, project.data, object.data, sequence)) : notFound();
+    }
+    if (key === "GET /api/studios/:accountId/projects/:projectId/source-material/:objectId/treatment-preview") {
+      const found = await options.workflows.previewTreatment(scope, project.data, object.data);
+      return respond(c, found && treatmentPreviewSchema.parse(found));
     }
     const parsed = changeRoleSchema.safeParse(body);
     const idem = idempotencyKeySchema.safeParse(c.req.header("idempotency-key"));

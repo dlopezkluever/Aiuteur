@@ -1,0 +1,15 @@
+{
+  "name": "@aiuteur/compiler",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@aiuteur/contract": "workspace:*",
+    "@aiuteur/providers": "workspace:*"
+  },
+  "devDependencies": {
+    "@aiuteur/testing": "workspace:*"
+  }
+}

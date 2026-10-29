@@ -15,7 +15,7 @@ import { createViews } from "@aiuteur/views";
 import { createHistory } from "@aiuteur/history";
 import { sourceMaterialKind } from "@aiuteur/story";
 import { createWorkflows } from "@aiuteur/workflows";
-import { describeHistoryConformance, describeStoreConformance, storeIgnoringScope, FakeMailer, ManualClock, uuidv7 } from "@aiuteur/testing";
+import { describeHistoryConformance, describeStoreConformance, storeIgnoringScope, FakeMailer, ManualClock, uuidv7, syntheticCatalogue, TEST_PRICE_POLICY } from "@aiuteur/testing";
 import { createApi } from "@aiuteur/api";
 import { freshDatabase } from "./database.ts";
 
@@ -36,7 +36,7 @@ beforeAll(async () => {
   const generous = { max: 1_000_000, windowMs: 60_000 };
   const limit = { address: generous, email: generous };
   accounts = createAccounts({ ...adapter, clock, ids, invitationTtlMs: 60_000, operatorEmails: ["operator@example.test"], mailer: new FakeMailer(), limits: { signIn: limit, recovery: limit, redemption: limit }, recoveryTtlMs: 600_000, recoveryPage: `${origin}/recover`, onMailFailure: (error) => { throw error; } });
-  api = createApi({ accounts, views: createViews(store), workflows: createWorkflows({ store, history: createHistory([sourceMaterialKind]), clock, ids }), handleAuth: adapter.handle, origin, clientAddress: () => "203.0.113.1" });
+  api = createApi({ accounts, views: createViews(store), workflows: createWorkflows({ store, history: createHistory([sourceMaterialKind]), clock, ids, catalogue: syntheticCatalogue(), pricePolicy: TEST_PRICE_POLICY }), handleAuth: adapter.handle, origin, clientAddress: () => "203.0.113.1" });
 });
 afterAll(async () => { await store?.close(); await adapter?.close(); await database?.close(); });
 
@@ -169,9 +169,16 @@ it("G1: every scoped operation, with its real method, refuses another Account ex
 
   // Negative control: one operation that stops enforcing isolation makes G1 fail.
   // Fault injected at the Store port (R19, R20): reads run as Account A whoever asks.
-  const leaky = createApi({ accounts, views: createViews(storeIgnoringScope(store, a.scope)), workflows: createWorkflows({ store, history: createHistory([sourceMaterialKind]), clock, ids }),
+  const leaky = createApi({ accounts, views: createViews(storeIgnoringScope(store, a.scope)), workflows: createWorkflows({ store, history: createHistory([sourceMaterialKind]), clock, ids, catalogue: syntheticCatalogue(), pricePolicy: TEST_PRICE_POLICY }),
     handleAuth: adapter.handle, origin, clientAddress: () => "203.0.113.1" });
   await expect(assertG1(leaky, owner, { accountId: b.accountId, cookie: b.cookie })).rejects.toThrow(/G1/);
+
+  // Negative control for the Draft Treatment preview (#101): only the preview's read ignores the Scope,
+  // so every other operation stays isolated and G1 must fail on the preview route itself.
+  const leakyRead: typeof store = { ...store, read: storeIgnoringScope(store, a.scope).read };
+  const leakyPreview = createApi({ accounts, views: createViews(store), workflows: createWorkflows({ store: leakyRead, history: createHistory([sourceMaterialKind]), clock, ids, catalogue: syntheticCatalogue(), pricePolicy: TEST_PRICE_POLICY }),
+    handleAuth: adapter.handle, origin, clientAddress: () => "203.0.113.1" });
+  await expect(assertG1(leakyPreview, owner, { accountId: b.accountId, cookie: b.cookie })).rejects.toThrow(/G1 GET \/api\/studios\/:accountId\/projects\/:projectId\/source-material\/:objectId\/treatment-preview/);
 });
 
 it("G2: the actual router equals the short inventory; scoped and operator reads require a mapped session", async () => {

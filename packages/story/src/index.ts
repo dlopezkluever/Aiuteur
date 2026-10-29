@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { ROLES } from "@aiuteur/contract";
-import type { KindDeclaration } from "@aiuteur/history";
-import type { RevisionRow } from "@aiuteur/store";
+import type { ObjectId, ProjectId } from "@aiuteur/contract";
+import { read, type KindDeclaration } from "@aiuteur/history";
+import type { ReadTx, RevisionRow, Scope } from "@aiuteur/store";
 
 /** Source Material: an unaltered original plus its role. JSON cannot carry NUL or lone surrogates, so they are refused, never altered. */
 export const sourceMaterialBodySchema = z.strictObject({
@@ -34,4 +35,18 @@ export function sourceMaterialRevision(row: RevisionRow) {
   const body = sourceMaterialKind.parse(row.body);
   if (!body) throw new Error("stored Source Material body does not parse");
   return { objectId: row.objectId, sequence: row.sequence, text: body.text, role: body.role, actionGroup: row.actionGroup, generationId: row.generationId, bodyHash: row.bodyHash, fingerprints: row.fingerprints, createdAt: row.createdAt };
+}
+
+/**
+ * Resolve for Source Material (GENERATION-PACKAGE §3 step 1; MODULE §2.1: Resolve lives in the owner).
+ * Reads the head through `history.read` on a `ReadTx` and returns the text with the unit read, its
+ * Revision and its frozen fingerprint. Writes nothing; null when the Scope has no such object.
+ */
+export async function resolveSourceMaterial(tx: ReadTx, scope: Scope, projectId: ProjectId, objectId: ObjectId) {
+  const found = await read(tx, scope, objectId);
+  if (!found || found.projectId !== projectId || found.kind !== sourceMaterialKind.kind) return null;
+  const body = sourceMaterialKind.parse(found.head.body);
+  const fingerprint = found.head.fingerprints["content"];
+  if (!body || fingerprint === undefined) throw new Error("stored Source Material does not parse");
+  return { text: body.text, captured: { unit: "content", objectId, sequence: found.head.sequence, fingerprint } };
 }

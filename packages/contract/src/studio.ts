@@ -78,6 +78,7 @@ export const ROUTES = [
   { method: "GET", path: "/api/studios/:accountId/projects/:projectId/source-material/:objectId", access: "scope" },
   { method: "GET", path: "/api/studios/:accountId/projects/:projectId/source-material/:objectId/revisions/:sequence", access: "scope" },
   { method: "POST", path: "/api/studios/:accountId/projects/:projectId/source-material/:objectId/role", access: "scope" },
+  { method: "GET", path: "/api/studios/:accountId/projects/:projectId/source-material/:objectId/treatment-preview", access: "scope" },
   { method: "POST", path: "/api/auth/sign-in/email", access: "auth" },
   { method: "POST", path: "/api/auth/sign-out", access: "auth" },
   { method: "POST", path: "/api/auth/two-factor/enable", access: "auth" },

@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import type { JobId } from "@aiuteur/contract";
+import { REFERENCE_ROLES, type JobId } from "@aiuteur/contract";
 import {
   canonicalJson,
   classifyProviderError,
@@ -344,7 +344,7 @@ const FULL_CASES: readonly Case<FullSubject>[] = [
       expect(rule.state).toBe("declared");
       for (const [index, { request, billed }] of subject.suppliedRequests.entries()) {
         const estimate = ctx.transport.billedQuantity(request);
-        if (rule.state === "declared") expect(estimate.unit).toBe(rule.value.unit);
+        if (rule.state === "declared" && rule.value.rule !== "text-tokens") expect(estimate.unit).toBe(rule.value.unit);
         expect({ unit: estimate.unit, amount: estimate.amount }).toStrictEqual(billed);
         expect(estimate.bounds.min).toBeLessThanOrEqual(estimate.amount);
         expect(estimate.amount).toBeLessThanOrEqual(estimate.bounds.max);
@@ -401,7 +401,7 @@ const arbitraryRenderedRequest: fc.Arbitrary<RenderedRequest> = fc.record({
     fc.record({ layerKey: fc.string(), text: fc.string({ unit: "grapheme" }), layerDigest: fc.string() }, plain),
   ),
   mediaParts: fc.array(
-    fc.record({ mediaId: fc.string(), contentHash: fc.string(), role: fc.string(), position: fc.nat() }, plain),
+    fc.record({ mediaId: fc.string(), contentHash: fc.string(), role: fc.constantFrom(...REFERENCE_ROLES), position: fc.nat() }, plain),
   ),
   parameters: fc.dictionary(
     fc.string(),

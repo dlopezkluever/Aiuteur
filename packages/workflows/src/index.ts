@@ -1,6 +1,9 @@
-import { actionGroupIdSchema, commitOutcomeSchema, type IdempotentOperation, objectIdSchema, projectIdSchema, type CommitOutcome, type ObjectId, type Project, type ProjectId } from "@aiuteur/contract";
+import { actionGroupIdSchema, commitOutcomeSchema, type IdempotentOperation, objectIdSchema, projectIdSchema, type CommitOutcome, type ObjectId, type Project, type ProjectId, type TreatmentPreview } from "@aiuteur/contract";
 import { bodyHash, type CommitContext, type CommitResult, type History } from "@aiuteur/history";
-import { sourceMaterialKind, sourceMaterialRevision, type SourceMaterialBody } from "@aiuteur/story";
+import { resolveSourceMaterial, sourceMaterialKind, sourceMaterialRevision, type SourceMaterialBody } from "@aiuteur/story";
+import { preview } from "@aiuteur/generation";
+import { priceEntries, select, type Catalogue } from "@aiuteur/providers";
+import type { PricePolicy } from "@aiuteur/spend";
 import type { Clock, Ids, Scope, Store, WriteTx } from "@aiuteur/store";
 
 export function toOutcome(result: CommitResult): CommitOutcome {
@@ -19,8 +22,8 @@ export class IdempotencyKeyReused extends Error {
 }
 
 /** Use cases. Every creative write goes through `history.commit`; the project row is not creative history. */
-export function createWorkflows(options: { store: Store; history: History; clock: Clock; ids: Ids }) {
-  const { store, history, clock, ids } = options;
+export function createWorkflows(options: { store: Store; history: History; clock: Clock; ids: Ids; catalogue: Catalogue; pricePolicy: PricePolicy }) {
+  const { store, history, clock, ids, catalogue, pricePolicy } = options;
   // Each command is one creator action, so it gets one action group (MODULE §5.1; LINEAGE §1).
   const context = (cause: CommitContext["cause"]): CommitContext => ({ actor: "creator", cause, actionGroup: actionGroupIdSchema.parse(ids.ordered()), at: clock.now(), ids });
   /**
@@ -53,6 +56,25 @@ export function createWorkflows(options: { store: Store; history: History; clock
       return once(scope, "source-material.paste", key, { projectId, text }, async (tx) => {
         const objectId = objectIdSchema.parse(ids.ordered());
         return toOutcome(await history.commit(tx, scope, { kind: sourceMaterialKind.kind, projectId, objectId, base: 0, body: { text, role: "primary" } }, context("import")));
+      });
+    },
+    /**
+     * Draft Treatment, previewed (#101): Resolve on a read transaction, select, then compile and
+     * estimate in `generation.preview`. One Treatment-option request, no divergence axis (#132).
+     * Nothing is written: no Generation, Job, Revision, Attempt, Decision or spend record.
+     */
+    async previewTreatment(scope: Scope, projectId: ProjectId, objectId: ObjectId): Promise<TreatmentPreview | null> {
+      const sourceMaterial = await store.read(scope, (tx) => resolveSourceMaterial(tx, scope, projectId, objectId));
+      if (!sourceMaterial) return null;
+      const selection = select(catalogue, "text.create");
+      if (selection.result === "unavailable") return { result: "unavailable", operationClass: selection.operationClass, reasons: [...selection.reasons] };
+      return preview({
+        inputs: { operation: "treatment.draft", sourceMaterial, writingStyle: null },
+        effective: selection.effective,
+        profile: selection.profile,
+        prices: priceEntries(catalogue, selection.effective.offeringId, "text.create"),
+        today: new Date(clock.now()).toISOString().slice(0, 10),
+        pricePolicy,
       });
     },
     /** The role is the only editable part of a supplied original; the gate carries the text over from the head. */

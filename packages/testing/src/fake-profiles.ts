@@ -1,5 +1,5 @@
 import type { JobId } from "@aiuteur/contract";
-import { snapshotProfile, type CredentialHandle, type Evidence, type ProfileSnapshot } from "@aiuteur/providers";
+import { snapshotProfile, type CredentialHandle, type Evidence, type ProfileContent, type ProfileSnapshot } from "@aiuteur/providers";
 
 // Profile snapshots for the T0 test providers. Their run behaviour models the ranges
 // the platform research recorded (JOB-LIFECYCLE §9): webhooks with retries and
@@ -17,16 +17,54 @@ const fakeProfile: Evidence = {
   reason: "Synthetic test-provider value; a fake has no vendor documentation",
 };
 
+const unknown = { state: "unknown" } as const;
+const none = { state: "declared-none", evidence: fakeProfile } as const;
+
+/**
+ * The sections a synthetic profile leaves unpopulated: identity extras, input modes,
+ * references, extension, audio (EI3: reserved, no audio Offering exists), text, controls
+ * and limits. A test provider states only what it was made to model; the rest is
+ * `unknown`, read conservatively (F1), or `declared-none` where a fake plainly has none.
+ */
+export function syntheticSections(family: ProfileContent["family"]): Omit<ProfileContent, "offeringId" | "modelId" | "family" | "operationClasses" | "cost" | "runBehaviour" | "duration" | "output" | "limits"> {
+  return {
+    adapterId: "fake",
+    dialect: { id: "neutral-text", version: 1 },
+    kind: "fake",
+    tier: "test",
+    stability: { state: "declared", value: "stable", evidence: fakeProfile },
+    shutdownOn: none,
+    successorModelId: none,
+    operations: { state: "declared", value: ["generate"], evidence: fakeProfile },
+    inputModes: unknown,
+    referenceConstraints: unknown,
+    referenceBinding: unknown,
+    extension: none,
+    audio: {
+      native: family === "video" ? { state: "declared", value: "optional", evidence: fakeProfile } : none,
+      dialogueFromText: unknown, lipSyncDocumented: unknown, languages: unknown, drivingAudio: none, voiceReferences: none, speech: none,
+      voiceSources: none, voiceSourceRequirement: none, voiceDesign: none, deleteVoice: none, lipSyncSubjects: none, timingOutput: none,
+    },
+    text: { structuredOutput: family === "text" ? { state: "declared", value: "none", evidence: fakeProfile } : none, imageInput: none },
+    controls: { seed: none, negativePrompt: none, tunables: none, rewrites: none, echoesPrompt: { state: "declared", value: false, evidence: fakeProfile } },
+    knownLimitations: none,
+  };
+}
+const mediaLimits = { prompt: unknown, output: none, requestBytes: unknown, policyNotes: none } as const;
+
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
 
 /** A long-running video provider: idempotency key, signed webhooks, best-effort cancel. */
 export const FAKE_VIDEO_PROFILE: ProfileSnapshot = snapshotProfile({
+  ...syntheticSections("video"),
   offeringId: "fake-video",
   modelId: "fake-video-model",
-  adapterId: "fake",
-  kind: "fake",
+  family: "video",
   operationClasses: ["video.take"],
+  duration: { state: "declared", value: { kind: "set", members: [4, 6, 8], default: 4, auto: false, billed: "set-ceiling" }, evidence: fakeProfile },
+  output: { state: "declared", value: { aspects: ["16:9", "9:16"], resolutions: [720], frameRates: [24], containers: ["mp4"], codecs: ["h264"] }, evidence: fakeProfile },
+  limits: mediaLimits,
   cost: {
     billedQuantity: {
       state: "declared",
@@ -66,11 +104,14 @@ export const FAKE_VIDEO_PROFILE: ProfileSnapshot = snapshotProfile({
 
 /** A poll-only image provider: lookup by correlation id, no cancel, no reported cost. */
 export const FAKE_IMAGE_PROFILE: ProfileSnapshot = snapshotProfile({
+  ...syntheticSections("image"),
   offeringId: "fake-image",
   modelId: "fake-image-model",
-  adapterId: "fake",
-  kind: "fake",
+  family: "image",
   operationClasses: ["image.frame", "image.entity"],
+  duration: none,
+  output: { state: "declared", value: { aspects: ["16:9", "9:16"], resolutions: [1080], frameRates: [], containers: ["png"], codecs: [] }, evidence: fakeProfile },
+  limits: mediaLimits,
   cost: {
     billedQuantity: {
       state: "declared",

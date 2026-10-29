@@ -1,6 +1,7 @@
 // Draft FC1/FC2. Contracts freeze at T0 exit, not at this ticket.
 export * from "./studio.ts";
 export * from "./history.ts";
+export * from "./generation.ts";
 
 declare const brand: unique symbol;
 type Brand<T, B extends string> = T & { readonly [brand]: B };
@@ -28,20 +29,3 @@ export type Billed = (typeof BILLED)[number];
 /** What a cancelled run is known to have cost (JOB-LIFECYCLE §2, §6). */
 export const CANCEL_BILLING = ["none", "maybe", "yes"] as const;
 export type CancelBilling = (typeof CANCEL_BILLING)[number];
-
-/** The closed operation-class vocabulary (PROVIDERS-AND-MODELS §3). */
-export const OPERATION_CLASSES = [
-  "video.take",
-  "image.frame",
-  "image.entity",
-  "text.create",
-  "text.check",
-  "audio.speech",
-  "audio.transform",
-  "audio.lipsync",
-  "audio.voice",
-  "audio.transcribe",
-  "audio.music-sfx",
-  "world.generate",
-] as const;
-export type OperationClass = (typeof OPERATION_CLASSES)[number];
