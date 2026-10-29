@@ -1,10 +1,10 @@
-import { renderedRequestSchema, resolvedInputsSchema, verdictSchema, type Billed, type Environment, type Estimate, type FailureClass, type FitReport, type GenerationId, type JobId, type ObjectId, type ProjectId, type RenderedRequest, type Verdict } from "@aiuteur/contract";
+import { renderedRequestSchema, resolvedInputsSchema, verdictSchema, type ActualCost, type Billed, type Environment, type Estimate, type FailureClass, type FitReport, type GenerationId, type JobId, type ObjectId, type ProjectId, type RenderedRequest, type Verdict } from "@aiuteur/contract";
 import { repairRequest, requestDigest, type ResolvedInputs } from "@aiuteur/compiler";
 import { g7Provenance, passed } from "@aiuteur/guards";
 import type { History } from "@aiuteur/history";
 import { LeaseLost, type Jobs } from "@aiuteur/jobs";
 import { gate, priceEntries, type Catalogue, type CredentialHandle, type PriceEntry, type ProviderTransport, type ReportedCost } from "@aiuteur/providers";
-import { actual } from "@aiuteur/spend";
+import { derivedQuantities, settleActual, type RunQuantities } from "@aiuteur/spend";
 import type { Clock, GenerationRow, Ids, JobRow, Leased, ReadTx, Scope, Store, WriteTx } from "@aiuteur/store";
 
 /** What an operation supplies to settle its output (FC6: `validate` and `attach`); `generation` runs them inside the settling transaction. */
@@ -58,7 +58,7 @@ export function createDispatch(options: DispatchOptions) {
   const { store, history, jobs, catalogue, clock, ids } = options;
   const iso = () => new Date(clock.now()).toISOString();
 
-  async function settleFailed(wtx: WriteTx, lease: Leased, generation: GenerationRow, job: JobRow, from: "queued" | "submitting", failure: Failure, cost: ReturnType<typeof actual>, generationReason: string = failure.reason) {
+  async function settleFailed(wtx: WriteTx, lease: Leased, generation: GenerationRow, job: JobRow, from: "queued" | "submitting", failure: Failure, cost: ActualCost, generationReason: string = failure.reason) {
     await jobs.settle(wtx, lease, from, "failed", failure, async () => {
       await wtx.insertRun({ generationId: generation.generationId, jobId: lease.jobId, projectId: generation.projectId, run: job.run, state: "failed", ...failure, createdAt: iso() });
       await wtx.insertSettlement({ generationId: generation.generationId, projectId: generation.projectId, outcome: "failed", reason: generationReason, actual: cost, outputs: [], settledAt: iso() });
@@ -66,12 +66,22 @@ export function createDispatch(options: DispatchOptions) {
     });
   }
 
-  /** The actual cost of the Generation so far: every earlier call's reported quantities plus this run's (BUSINESS §4.4). */
-  async function spent(wtx: ReadTx, generation: GenerationRow, below: number, extra: Quantities | null, prices: readonly PriceEntry[], billed: Billed) {
-    const earlier = (await wtx.calls(generation.generationId)).filter((c) => c.index < below).flatMap((c) => (c.reportedCost as Quantities | null) ?? []);
-    const all = [...earlier, ...(extra ?? [])];
-    const nominal = (generation.estimate as Estimate).basis.quantities.map((q) => ({ unit: q.unit, amount: q.amount }));
-    return actual(all.length === 0 ? null : all, prices, billed, nominal);
+  /**
+   * The Generation's actual cost over every run billed `yes` (BUSINESS §4.4): each earlier run is priced from its own call (its
+   * own Rendered request, reported quantities and answer), plus the run now settling. Maybe-billed runs are not here; the cap
+   * check counts them from the run history.
+   */
+  async function spent(wtx: ReadTx, generation: GenerationRow, below: number, current: { request: RenderedRequest; response: string | null; reported: Quantities | null } | null, prices: readonly PriceEntry[], billed: Billed) {
+    const rule = catalogue.offerings.find((o) => o.profile.offeringId === (generation.effectiveModel as { offeringId: string }).offeringId)?.profile.cost.billedQuantity ?? { state: "unknown" as const };
+    const runs = await wtx.runs(generation.generationId);
+    const parts: RunQuantities[] = [];
+    for (const c of (await wtx.calls(generation.generationId)).filter((call) => call.index < below)) {
+      if (runs.find((r) => r.jobId === c.jobId)?.billed !== "yes") continue;
+      const request = renderedRequestSchema.parse(c.renderedRequest ?? generation.renderedRequest);
+      parts.push({ reported: c.reportedCost as Quantities | null, derived: derivedQuantities(rule as never, request, c.response) });
+    }
+    if (current !== null && billed === "yes") parts.push({ reported: current.reported, derived: derivedQuantities(rule as never, current.request, current.response) });
+    return settleActual(parts, prices, billed);
   }
 
   async function dispatch<P>(scope: Scope, lease: Leased, operation: OperationSettler<P>): Promise<DispatchOutcome> {
@@ -145,7 +155,7 @@ export function createDispatch(options: DispatchOptions) {
     const failedRun = async (failure: Failure, reported: Quantities | null, logged: boolean) => {
       await store.write(scope, async (wtx) => {
         if (logged || job.run > 1) await call(wtx, failure.operationRef, null, null, reported);
-        await settleFailed(wtx, lease, generation, job, "submitting", failure, await spent(wtx, generation, job.run, reported, prices, failure.billed), priorReason ?? failure.reason);
+        await settleFailed(wtx, lease, generation, job, "submitting", failure, await spent(wtx, generation, job.run, null, prices, failure.billed), priorReason ?? failure.reason);
       });
       return { result: "settled", generationId } as const;
     };
@@ -180,7 +190,7 @@ export function createDispatch(options: DispatchOptions) {
     }
 
     await store.write(scope, async (wtx) => {
-      const cost = await spent(wtx, generation, job.run, reported, prices, "yes");
+      const cost = await spent(wtx, generation, job.run, { request: outgoing.request, response: text, reported }, prices, "yes");
       const settleSucceeded = (outputs: readonly { kind: "option"; objectId: ObjectId; sequence: number }[], reason: string | null) =>
         jobs.settle(wtx, lease, "submitting", "succeeded", { operationRef, failureClass: null, billed: "yes", reason }, async () => {
           await wtx.insertRun({ generationId, jobId: lease.jobId, projectId: generation.projectId, run: job.run, state: "succeeded", operationRef, failureClass: null, billed: "yes", reason, createdAt: iso() });

@@ -1,5 +1,5 @@
 import { actualCostSchema, estimateSchema, type ActualCost, type Billed, type Estimate, type RenderedRequest } from "@aiuteur/contract";
-import { billedQuantities, type BilledQuantity, type BilledQuantityRule, type Declared, type PriceEntry } from "@aiuteur/providers";
+import { billedQuantities, count, type BilledQuantity, type BilledQuantityRule, type Declared, type PriceEntry } from "@aiuteur/providers";
 
 // Draft FC10 `spend.estimate` (BUSINESS-AND-OPERATIONS §4.2, §4.3; MODULE §3.3). Read-only and
 // computed from the Rendered request itself, so the price and the request cannot describe
@@ -63,26 +63,49 @@ export function estimate(input: EstimateInput): Estimate {
 }
 
 /**
- * The actual cost, set once at settlement (JOB-LIFECYCLE §4; BUSINESS §4.4): what the provider reported, priced by the Offering's
- * entries; else, when the run is known to have been billed, COMPUTED from the nominal billed quantities and the same entries;
- * else unknown with what is known about billing.
+ * The billed quantities of ONE run, derived from that run's own Rendered request and answer (BUSINESS §4.4, "computed"): what
+ * the request fixes exactly, and for token-priced text the output the declared counter finds in the response, within the
+ * request's bounds. Null when the quantity genuinely cannot be known (no declared rule, or a bound that only the provider knows).
  */
-export function actual(reported: readonly Quantity[] | null, entries: readonly PriceEntry[], billed: Billed, nominal: readonly Quantity[] | null = null): ActualCost {
-  const price = (quantities: readonly Quantity[]) => {
-    let amountMicros = 0;
-    for (const quantity of quantities) {
-      const entry = entries.find((e) => e.unit === quantity.unit);
-      if (!entry) return null;
-      amountMicros += Math.ceil((quantity.amount * entry.priceMicros) / entry.per);
-    }
-    return { amountMicros, quantities: quantities.map((q) => ({ unit: q.unit, amount: q.amount })) };
-  };
-  if (reported !== null) {
-    const priced = price(reported);
-    return priced ? { form: "reported", currency: "USD", ...priced } : { form: "unknown", billed };
+export function derivedQuantities(rule: Declared<BilledQuantityRule>, request: RenderedRequest, response: string | null): Quantity[] | null {
+  if (rule.state !== "declared") return null;
+  let quantities: BilledQuantity[];
+  try { quantities = billedQuantities(rule.value, request); } catch (error) { if (error instanceof RangeError) return null; throw error; }
+  const out: Quantity[] = [];
+  for (const q of quantities) {
+    if (q.bounds.min === q.bounds.max) out.push({ unit: q.unit, amount: q.bounds.max });
+    else if (rule.value.rule === "text-tokens" && q.unit === "output-token" && response !== null) out.push({ unit: q.unit, amount: Math.min(q.bounds.max, Math.max(q.bounds.min, count(response, rule.value.counter))) });
+    else return null;
   }
-  const computed = billed === "yes" && nominal !== null && nominal.length > 0 ? price(nominal) : null;
-  return computed ? { form: "computed", currency: "USD", ...computed } : { form: "unknown", billed };
+  return out;
+}
+
+/** One run known to have been billed: what the provider reported for it, and what its own request and answer derive. */
+export interface RunQuantities { readonly reported: readonly Quantity[] | null; readonly derived: readonly Quantity[] | null }
+
+/**
+ * The Generation's actual cost, set once at settlement (JOB-LIFECYCLE §4; BUSINESS §4.4), over every run billed `yes`: each run
+ * is priced by its own reported quantities, else its own derived ones, and the costs add (each run once). The form is
+ * `reported` when every run was reported, `computed` otherwise. A run whose quantity cannot be known makes the whole actual
+ * `unknown` (billed yes), which the cap check counts at the Generation's estimate. Runs billed `no` or `maybe` are not in `runs`:
+ * `no` costs nothing and `maybe` is counted by `SpendFact.maybeRuns`, never twice. With no billed run the actual is `unknown`
+ * with what is known about billing.
+ */
+export function settleActual(runs: readonly RunQuantities[], entries: readonly PriceEntry[], billed: Billed): ActualCost {
+  if (runs.length === 0) return { form: "unknown", billed };
+  let amountMicros = 0;
+  const quantities: Quantity[] = [];
+  for (const run of runs) {
+    const used = run.reported ?? run.derived;
+    if (used === null) return { form: "unknown", billed: "yes" };
+    for (const quantity of used) {
+      const entry = entries.find((e) => e.unit === quantity.unit);
+      if (!entry) return { form: "unknown", billed: "yes" };
+      amountMicros += Math.ceil((quantity.amount * entry.priceMicros) / entry.per);
+      quantities.push({ unit: quantity.unit, amount: quantity.amount });
+    }
+  }
+  return { form: runs.every((run) => run.reported !== null) ? "reported" : "computed", currency: "USD", amountMicros, quantities };
 }
 type Quantity = { readonly unit: BilledQuantity["unit"]; readonly amount: number };
 

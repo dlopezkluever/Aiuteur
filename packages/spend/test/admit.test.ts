@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { priceEntries } from "@aiuteur/providers";
-import { actual, admit, type Caps, type SpendFact } from "@aiuteur/spend";
-import { syntheticCatalogue } from "@aiuteur/testing";
+import { admit, derivedQuantities, settleActual, type Caps, type SpendFact } from "@aiuteur/spend";
+import { FAKE_TEXT_PROFILE, syntheticCatalogue } from "@aiuteur/testing";
 
 // spend.admit over explicit values (BUSINESS §6.3). No production default exists; every figure here is a test value.
 const point = (amountMicros: number) => ({ form: "point" as const, currency: "USD" as const, amountMicros, basis: { requestDigest: "sha256:x", quantities: [], entries: [] } });
@@ -10,15 +10,26 @@ const computed = (createdAt: string, amountMicros: number, maybeRuns = 0): Spend
 const at = (iso: string) => Date.parse(iso);
 
 describe("actual cost: reported, computed, unknown (BUSINESS §4.4)", () => {
-  const entries = priceEntries(syntheticCatalogue(), "fake-text", "text.create");
-  const nominal = [{ unit: "input-token" as const, amount: 1000 }, { unit: "output-token" as const, amount: 1000 }];
-  it("computes from the billed quantity and the price entry when nothing was reported and the run was billed", () => {
-    expect(actual(null, entries, "yes", nominal)).toMatchObject({ form: "computed", currency: "USD", amountMicros: 3_000 + 15_000 });
-    expect(actual(nominal, entries, "yes", [])).toMatchObject({ form: "reported", amountMicros: 18_000 });
+  const catalogue = syntheticCatalogue();
+  const entries = priceEntries(catalogue, "fake-text", "text.create");
+  const rule = FAKE_TEXT_PROFILE.cost.billedQuantity;
+  const request = { textParts: [{ layerKey: "source-material", text: "a".repeat(1000), layerDigest: "d" }], mediaParts: [], parameters: { maxOutputTokens: 2048 }, rewrites: [] };
+  it("derives a run's quantities from its own request and answer, within the request's bounds", () => {
+    expect(derivedQuantities(rule, request, "b".repeat(400))).toEqual([{ unit: "input-token", amount: 1000 }, { unit: "output-token", amount: 400 }]);
+    expect(derivedQuantities(rule, request, "b".repeat(5000))).toEqual([{ unit: "input-token", amount: 1000 }, { unit: "output-token", amount: 2048 }]);
+    expect(derivedQuantities(rule, request, null)).toBeNull(); // the output is only the provider's to say
   });
-  it("stays unknown when the run may not have been billed, or nothing can be computed", () => {
-    expect(actual(null, entries, "maybe", nominal)).toEqual({ form: "unknown", billed: "maybe" });
-    expect(actual(null, entries, "yes", null)).toEqual({ form: "unknown", billed: "yes" });
+  it("prices each run by its own quantities and adds each run once; computed when any run was not reported", () => {
+    const one = { reported: [{ unit: "input-token" as const, amount: 1000 }, { unit: "output-token" as const, amount: 1000 }], derived: null };
+    const two = { reported: null, derived: [{ unit: "input-token" as const, amount: 2000 }, { unit: "output-token" as const, amount: 100 }] };
+    expect(settleActual([one], entries, "yes")).toMatchObject({ form: "reported", amountMicros: 18_000 });
+    expect(settleActual([one, two], entries, "yes")).toMatchObject({ form: "computed", amountMicros: 18_000 + 6_000 + 1_500 });
+    expect(settleActual([two], entries, "yes")).toMatchObject({ form: "computed", amountMicros: 7_500 });
+  });
+  it("stays unknown when no run was billed yes or a billed run's quantity cannot be known", () => {
+    expect(settleActual([], entries, "maybe")).toEqual({ form: "unknown", billed: "maybe" });
+    expect(settleActual([], entries, "no")).toEqual({ form: "unknown", billed: "no" });
+    expect(settleActual([{ reported: null, derived: null }], entries, "yes")).toEqual({ form: "unknown", billed: "yes" });
   });
 });
 

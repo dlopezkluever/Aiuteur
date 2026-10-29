@@ -17,7 +17,7 @@ import { createJobs } from "@aiuteur/jobs";
 import { createApi } from "@aiuteur/api";
 import { Pool } from "pg";
 import type { Caps } from "@aiuteur/spend";
-import type { SubmitResult } from "@aiuteur/providers";
+import { priceEntries, type SubmitResult } from "@aiuteur/providers";
 import { freshDatabase, snapshot, testExecution, NO_CAPS } from "./database.ts";
 
 // T0-06 (#103): Treatment drafting is guarded (G1 to G4, G7, one bounded repair; REJECTED and HELD keep their output), admitted
@@ -45,16 +45,24 @@ beforeAll(async () => {
 afterAll(async () => { for (const close of closers) await close(); await store?.close(); await adapter?.close(); await database?.close(); });
 
 /** One composition root: a fake text transport with its own recorded proposals, optionally a spy and a faulty Store for workflows. */
-async function world(proposals: readonly RecordedProposal[], options: { beforeSubmit?: (input: SubmitInput) => Promise<void>; workflowStore?: Store; providerCap?: number; caps?: Caps; repairOutcome?: SubmitResult } = {}) {
+async function world(proposals: readonly RecordedProposal[], options: { beforeSubmit?: (input: SubmitInput) => Promise<void>; workflowStore?: Store; providerCap?: number; caps?: Caps; repairOutcome?: SubmitResult; omitUsage?: "repair" | "all" } = {}) {
   const run = await testExecution(database, clock, ids, proposals, options.beforeSubmit, options.providerCap, options.caps);
   closers.push(run.close);
   // A transport that answers the repair request with a scripted outcome (a Proxy: the real fake still captures nothing for it).
-  const repairOutcome = options.repairOutcome;
-  const execution = repairOutcome === undefined ? run.execution : { ...run.execution, transportFor: (offeringId: string) => {
+  const { repairOutcome, omitUsage } = options;
+  const execution = repairOutcome === undefined && omitUsage === undefined ? run.execution : { ...run.execution, transportFor: (offeringId: string) => {
     const real = run.execution.transportFor(offeringId);
-    return real && new Proxy(real, { get: (target, key) => key === "submit"
-      ? async (input: SubmitInput) => (input.request.request.textParts.some((part) => part.layerKey === "repair") ? repairOutcome : target.submit(input))
-      : (target as never)[key] }) as typeof real;
+    return real && new Proxy(real, { get: (target, key) => {
+      if (key !== "submit") return (target as never)[key];
+      return async (input: SubmitInput): Promise<SubmitResult> => {
+        const isRepair = input.request.request.textParts.some((part) => part.layerKey === "repair");
+        if (isRepair && repairOutcome !== undefined) return repairOutcome;
+        const result = await target.submit(input);
+        // The provider answers without reporting usage: the cost is the Generation's to compute.
+        return omitUsage !== undefined && (omitUsage === "all" || isRepair) && result.outcome === "completed" && result.status.status === "succeeded"
+          ? { ...result, status: { ...result.status, reportedCost: null } } : result;
+      };
+    } }) as typeof real;
   } };
   const workflows = createWorkflows({ store: options.workflowStore ?? store, history: createHistory([sourceMaterialKind, treatmentOptionKind]), clock, ids, catalogue: syntheticCatalogue(), pricePolicy: TEST_PRICE_POLICY, execution });
   const api = createApi({ accounts, views: createViews(store), workflows, handleAuth: adapter.handle, origin, requestId: ids.uuid, now: () => clock.now(), clientAddress: () => "203.0.113.5" });
@@ -322,13 +330,81 @@ describe("duplicate suppression", () => {
   });
 });
 
+describe("a Generation's actual cost covers every run once (BUSINESS §4.4, §5.3, §6.3)", () => {
+  const entries = priceEntries(syntheticCatalogue(), "fake-text", "text.create");
+  const micros = (quantities: readonly { unit: string; amount: number }[]) => quantities.reduce((sum, q) => {
+    const entry = entries.find((e) => e.unit === q.unit)!;
+    return sum + Math.ceil((q.amount * entry.priceMicros) / entry.per);
+  }, 0);
+  const bytes = (text: string) => Buffer.byteLength(text, "utf8");
+  /** What a run's own Rendered request and answer bill (fake-text counts UTF-8 bytes): input is every text part sent, output the response. */
+  const billed = (request: GenerationRead["renderedRequest"], response: string) => [
+    { unit: "input-token", amount: request.textParts.reduce((n, part) => n + bytes(part.text), 0) },
+    { unit: "output-token", amount: bytes(response) },
+  ];
+  async function scopeOf(cookie: string) { return (await accounts.resolveScope((await accounts.authenticate(new Headers({ cookie })))!))!; }
+  async function upperOf(w: World, c: { source: string; cookie: string }) {
+    const preview = treatmentPreviewSchema.parse(await (await w.call("GET", `${c.source}/treatment-preview`, c.cookie)).json());
+    if (preview.result !== "ready" || preview.estimate.form !== "range") throw new Error("expected a range estimate");
+    return preview.estimate.maxMicros;
+  }
+
+  it("a repair run that omits usage is COMPUTED from its own request and answer; the settled actual is run 1 reported plus run 2 computed, and the next admission sees exactly that", async () => {
+    const w = await world([synthetic(1, ALTERED), synthetic(2, FIXED)], { omitUsage: "repair" });
+    const c = await pasted(w, SOURCE);
+    const scope = await scopeOf(c.cookie);
+    await store.write(scope, (tx) => tx.putSettings({ treatmentOptionCount: 3, timeZone: "America/Chicago" }));
+    const generation = generationOf((await draft(w, c)).body);
+    const [first, repair] = generation.calls;
+    expect(first!.reportedCost).not.toBeNull();
+    expect(repair!.reportedCost).toBeNull();
+    const run1 = micros(first!.reportedCost!);
+    const run2 = micros(billed(repair!.renderedRequest!, FIXED));
+    expect(run2).toBeGreaterThan(0);
+    expect(generation.outcome!.actual).toMatchObject({ form: "computed", amountMicros: run1 + run2 });
+    const committedMicros = run1 + run2;
+
+    // The next request near the Account's cap, through the real creating transaction. Same inputs, a new action id: the first has settled.
+    const upper = await upperOf(w, c);
+    const tight = await world([synthetic(1, FIXED)], { caps: { ...NO_CAPS, creator: { dailyMicros: committedMicros + upper - 1, monthlyMicros: null, perActionMicros: null } } });
+    const refused = await draft(tight, c);
+    expect(refused.body).toEqual({ result: "cap-reached", cap: "daily", remainingMicros: upper - 1 });
+    expect(await rows("generation", c.accountId)).toBe(1);
+    const exact = await world([synthetic(1, FIXED)], { caps: { ...NO_CAPS, creator: { dailyMicros: committedMicros + upper, monthlyMicros: null, perActionMicros: null } } });
+    expect((await draft(exact, c)).body.result).toBe("generation");
+  });
+
+  it("a fully reported repair counts each run once", async () => {
+    const w = await world([synthetic(1, ALTERED), synthetic(2, FIXED)]);
+    const generation = generationOf((await draft(w, await pasted(w, SOURCE))).body);
+    const [first, repair] = generation.calls;
+    expect(generation.outcome!.actual).toMatchObject({ form: "reported", amountMicros: micros(first!.reportedCost!) + micros(repair!.reportedCost!) });
+  });
+
+  it("a single run that omits usage is computed from its own request and answer", async () => {
+    const w = await world([synthetic(1, GOOD)], { omitUsage: "all" });
+    const generation = generationOf((await draft(w, await pasted(w))).body);
+    expect(generation.calls[0]!.reportedCost).toBeNull();
+    expect(generation.outcome!.actual).toMatchObject({ form: "computed", amountMicros: micros(billed(generation.renderedRequest, GOOD)) });
+  });
+
+  it("a repair that may have been billed keeps the draft's cost as the actual and its own exposure as a maybe-billed run, counted once each", async () => {
+    const w = await world([synthetic(1, ALTERED)], { repairOutcome: { outcome: "unconfirmed" } });
+    const c = await pasted(w, SOURCE);
+    const generation = generationOf((await draft(w, c)).body);
+    expect(generation.outcome!.actual).toMatchObject({ form: "reported", amountMicros: micros(generation.calls[0]!.reportedCost!) });
+    const facts = await store.read(await scopeOf(c.cookie), (tx) => tx.spendFacts(new Date(0).toISOString()));
+    expect(facts[0]).toMatchObject({ maybeRuns: 1, actual: { amountMicros: micros(generation.calls[0]!.reportedCost!) } });
+  });
+});
+
 describe("migration 7 is an expand step (PERSISTENCE §10; OPERATIONAL-BASELINE §4.2)", () => {
   it("the previous image's Generation and call writes still succeed on the migrated schema, and the new reader reads what they wrote", async () => {
     const w = await world([synthetic(1, GOOD)]);
     const c = await pasted(w);
     const made = generationOf((await draft(w, c)).body);
     const legacy = uuidv7();
-    // The previous image's INSERT column lists (T0-05, 338fc79): no input_fingerprint, no rendered_request.
+    // The previous image's INSERT column lists (T0-05, 338fc79): they have no input_fingerprint; the call insert has no rendered_request.
     const pool = new Pool({ connectionString: database.url("app") });
     try {
       const client = await pool.connect();
