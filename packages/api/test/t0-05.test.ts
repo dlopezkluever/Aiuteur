@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createAccounts, createBetterAuth } from "@aiuteur/accounts";
 import { blockSchema, chooseOutcomeSchema, commitOutcomeSchema, draftTreatmentResultSchema, generationReadSchema, projectSchema, redeemedInvitationSchema, treatmentOptionReadSchema, treatmentPreviewSchema, WORKFLOW_OPERATIONS, type GenerationRead, type WorkflowOperation } from "@aiuteur/contract";
-import { createPostgresScheduler, createPostgresStore, type Scope, type Store, type WriteTx } from "@aiuteur/store";
+import { createPostgresScheduler, createPostgresStore, fakeGenerationCount, type Scope, type Store, type WriteTx } from "@aiuteur/store";
 import { createViews } from "@aiuteur/views";
 import { createHistory } from "@aiuteur/history";
 import { sourceMaterialKind, treatmentOptionKind } from "@aiuteur/story";
@@ -361,4 +361,13 @@ it("trace fields (R22): every Generation recorded in this run reads back with it
     expect(trace.runs.length).toBeGreaterThan(0);
     expect(trace.digest).toBe(sha256(canonicalJson(trace.renderedRequest)));
   }
+});
+
+it("VC10 line 8: the nightly derived check counts every Generation that carries a fake snapshot", async () => {
+  const total = Number((await database.inspect.query("SELECT count(*) AS n FROM accounts.generation")).rows[0].n);
+  expect(total).toBeGreaterThanOrEqual(8);
+  // Every Generation in this database was served by a fake, so the check must find all of them and a clean database none.
+  expect(await fakeGenerationCount(database.url("backup"))).toBe(total);
+  const clean = await freshDatabase();
+  try { expect(await fakeGenerationCount(clean.url("backup"))).toBe(0); } finally { await clean.close(); }
 });

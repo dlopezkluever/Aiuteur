@@ -1,7 +1,7 @@
 import { z } from "zod";
 import {
   BILLED_UNITS, OFFERING_STATUSES, OPERATION_CLASSES, PRICE_SOURCES,
-  type BilledUnit, type OfferingStatus, type OperationClass, type SelectionReason,
+  type BilledUnit, type Environment, type OfferingStatus, type OperationClass, type SelectionReason,
 } from "@aiuteur/contract";
 import { dialectFor } from "./dialect.ts";
 import { deepFreeze, profileContentSchema, snapshotProfile, type ProfileContent, type ProfileSnapshot } from "./profile.ts";
@@ -132,6 +132,29 @@ export function loadCatalogue(data: unknown): Catalogue {
     ranking: structuredClone(ranking),
     priceEntries: structuredClone(priceEntries),
   }) as unknown as Catalogue;
+}
+
+/** Offerings whose profile snapshot is of kind `fake`. */
+export const fakeOfferings = (catalogue: Catalogue): readonly string[] => catalogue.offerings.filter((o) => o.profile.kind === "fake").map((o) => o.profile.offeringId);
+
+/**
+ * The boot-time loader (PROVIDERS F2; VERIFICATION §3.2 line 4). A production boot that loads a fake Offering is refused,
+ * and so is any default chain that resolves to one (a chain only names loaded Offerings). There is no fallback.
+ */
+export function bootCatalogue(environment: Environment, data: unknown): Catalogue {
+  const catalogue = loadCatalogue(data);
+  const fakes = fakeOfferings(catalogue);
+  if (environment === "production" && fakes.length > 0) throw new CatalogueInvalid(fakes.map((id) => `fake Offering ${id} in a production boot`));
+  return catalogue;
+}
+
+/**
+ * Readiness and the heartbeat (VERIFICATION §3.2 line 8): a production process that reports a fake Offering is not ready.
+ * The same answer serves `/healthz/deep` and the heartbeat, so neither can disagree with the other.
+ */
+export function readiness(environment: Environment, catalogue: Catalogue): { readonly ready: true } | { readonly ready: false; readonly fakeOfferings: readonly string[] } {
+  const fakes = environment === "production" ? fakeOfferings(catalogue) : [];
+  return fakes.length === 0 ? { ready: true } : { ready: false, fakeOfferings: fakes };
 }
 
 /** Fields whose `unknown` keeps an Offering out of Automatic (PROVIDERS §4.3). */
