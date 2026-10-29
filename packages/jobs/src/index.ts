@@ -56,7 +56,7 @@ export function createJobs(options: { scheduler: Scheduler; clock: Clock }) {
 
   return {
     /** A new provider-class Job, queued and due now, with the admission deadline. */
-    newJob(input: { readonly jobId: JobId; readonly generationId: GenerationId; readonly projectId: ProjectId; readonly run: number }): JobRow {
+    newJob(input: { readonly jobId: JobId; readonly generationId: GenerationId; readonly projectId: ProjectId; readonly run: number; readonly provider: string }): JobRow {
       const at = clock.now();
       return { ...input, class: "provider", state: "queued", dueAt: iso(at), deadlineAt: iso(deadline("queued", at)!), leaseToken: null, leaseExpiresAt: null, operationRef: null, failureClass: null, billed: null, reason: null, createdAt: iso(at), updatedAt: iso(at) };
     },

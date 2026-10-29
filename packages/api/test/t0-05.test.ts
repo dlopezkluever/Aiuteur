@@ -80,11 +80,11 @@ function generationOf(result: ReturnType<typeof draftTreatmentResultSchema.parse
   return result.generation;
 }
 
-describeSchedulerConformance("Postgres, migrated database", async () => {
+describeSchedulerConformance("Postgres, migrated database", async ({ admission }) => {
   // Its own virtual clock, so moving time for leases touches no session in the other tests.
   const virtual = new ManualClock(Date.now());
   const leaseMs = 60_000;
-  const scheduler = await createPostgresScheduler(database.url("scheduler"), { clock: virtual, ids, leaseMs });
+  const scheduler = await createPostgresScheduler(database.url("scheduler"), { clock: virtual, ids, leaseMs, admission });
   closers.push(scheduler.close);
   const w = await world([]);
   const scope = async (): Promise<Scope> => {
@@ -94,7 +94,11 @@ describeSchedulerConformance("Postgres, migrated database", async () => {
     if (!resolved) throw new Error("no scope");
     return resolved;
   };
-  return { store, scheduler, clock: virtual, leaseMs, a: await scope(), b: await scope() };
+  // The breaker row's write path (S7) is not built; the seam writes it as the bootstrap role, as the lock seam does.
+  const setBreaker = async (provider: string, open: boolean) => {
+    await database.inspect.query("INSERT INTO operator.breaker (provider, open, opened_at, updated_at) VALUES ($1, $2, CASE WHEN $2 THEN now() END, now()) ON CONFLICT (provider) DO UPDATE SET open = EXCLUDED.open, opened_at = EXCLUDED.opened_at, updated_at = EXCLUDED.updated_at", [provider, open]);
+  };
+  return { store, scheduler, clock: virtual, leaseMs, a: await scope(), b: await scope(), setBreaker };
 });
 
 it("demo: Draft Treatment on the fake returns an Option; choose it; the stored Rendered request equals the fake's wire capture", async () => {

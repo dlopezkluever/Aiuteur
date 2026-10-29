@@ -416,10 +416,15 @@ it("D4/G7: catalogue classification, forced policies, composite tenant keys, rol
     SELECT n.nspname || '.' || c.relname AS name, pg_get_userbyid(c.relowner) AS owner,
       c.relrowsecurity AS rls, c.relforcerowsecurity AS force FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
     WHERE c.relkind = 'r' AND n.nspname NOT LIKE 'pg_%' AND n.nspname <> 'information_schema' ORDER BY 1`);
-  expect(tables.map((table) => table.name)).toEqual(["accounts.account", "accounts.attempt", "accounts.capture", "accounts.decision", "accounts.event", "accounts.event_counter", "accounts.generation", "accounts.generation_call", "accounts.generation_run", "accounts.generation_settlement", "accounts.idempotency", "accounts.job", "accounts.lock", "accounts.object", "accounts.project", "accounts.revision", "accounts.settings", "auth.account", "auth.audit_event", "auth.invitation", "auth.rate_limit", "auth.recovery", "auth.session", "auth.subject_map", "auth.twoFactor", "auth.user", "auth.verification", "public.migrations"]);
+  expect(tables.map((table) => table.name)).toEqual(["accounts.account", "accounts.attempt", "accounts.capture", "accounts.decision", "accounts.event", "accounts.event_counter", "accounts.generation", "accounts.generation_call", "accounts.generation_run", "accounts.generation_settlement", "accounts.idempotency", "accounts.job", "accounts.lock", "accounts.object", "accounts.project", "accounts.revision", "accounts.settings", "auth.account", "auth.audit_event", "auth.invitation", "auth.rate_limit", "auth.recovery", "auth.session", "auth.subject_map", "auth.twoFactor", "auth.user", "auth.verification", "operator.breaker", "public.migrations"]);
   for (const table of tables) {
     expect(table.owner).toBe("owner");
     if (table.name.startsWith("accounts.")) expect(table).toMatchObject({ rls: true, force: true });
+    // Operator-scoped state (RUNTIME §5.1; PERSISTENCE §6.5) has no account_id and no row rule; no runtime role writes it directly.
+    if (table.name.startsWith("operator.")) for (const role of ["app", "identity"]) {
+      const direct = await database.inspect.query("SELECT has_table_privilege($1, $2, 'INSERT,UPDATE,DELETE,TRUNCATE') AS any", [role, table.name]);
+      expect(direct.rows, `${role} on ${table.name}`).toEqual([{ any: false }]);
+    }
     for (const role of ["scheduler", "operator_read", "backup"]) {
       const privileges = await database.inspect.query(`SELECT has_table_privilege($1, $2, 'INSERT,DELETE,TRUNCATE,TRIGGER,REFERENCES') OR has_any_column_privilege($1, $2, 'UPDATE') AS writes,
         has_table_privilege($1, $2, 'SELECT') AS reads`, [role, table.name.split(".").map((part) => `"${part}"`).join(".")]);

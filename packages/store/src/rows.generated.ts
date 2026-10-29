@@ -131,6 +131,7 @@ export interface accounts_job {
   "generation_id": string;
   "run": number;
   "class": string;
+  "provider": string | null;
   "state": string;
   "due_at": Date | null;
   "deadline_at": Date | null;

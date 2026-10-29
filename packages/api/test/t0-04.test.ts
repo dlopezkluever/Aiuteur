@@ -107,7 +107,7 @@ it("P11: previews and estimates create no record, across repeated previews inter
   await call("POST", `${a.object}/role`, a.cookie, { base: 1, role: "primary" }); // a stale write: the side line has a row
   const { rows: schemas } = await database.inspect.query<{ schema: string }>("SELECT DISTINCT n.nspname AS schema FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE c.relkind = 'r' AND n.nspname NOT LIKE 'pg\\_%' AND n.nspname <> 'information_schema' ORDER BY 1");
   // The snapshot covers every schema that holds records (the migrations ledger lives in public and is not a record).
-  expect(schemas.map((s) => s.schema).filter((s) => s !== "public")).toStrictEqual(["accounts", "auth"]);
+  expect(schemas.map((s) => s.schema).filter((s) => s !== "public")).toStrictEqual(["accounts", "auth", "operator"]);
   const reads = [
     [a, `${a.object}/treatment-preview`], [a, `${a.object}/treatment-preview`], [b, `${b.object}/treatment-preview`],
     [a, `${a.material}/${ids.ordered()}/treatment-preview`], [b, `${a.object}/treatment-preview`.replace(a.accountId, b.accountId)],

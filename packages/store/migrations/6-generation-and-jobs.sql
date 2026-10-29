@@ -39,6 +39,8 @@ CREATE TABLE accounts.job (
   generation_id uuid NOT NULL,
   run integer NOT NULL CHECK (run >= 1),
   class text NOT NULL,
+  -- The provider whose in-flight cap and breaker admit the Job (RUNTIME §4.3); none for local work (§4.6).
+  provider text,
   state text NOT NULL,
   -- The one due time (RUNTIME §4.2); null for a terminal Job.
   due_at timestamptz,
@@ -53,7 +55,8 @@ CREATE TABLE accounts.job (
   updated_at timestamptz NOT NULL,
   FOREIGN KEY (account_id, project_id, generation_id) REFERENCES accounts.generation(account_id, project_id, generation_id),
   UNIQUE (generation_id, run),
-  CHECK ((state IN ('succeeded', 'failed', 'cancelled')) = (due_at IS NULL))
+  CHECK ((state IN ('succeeded', 'failed', 'cancelled')) = (due_at IS NULL)),
+  CHECK ((class = 'provider') = (provider IS NOT NULL))
 );
 CREATE INDEX job_due ON accounts.job (due_at, job_id) WHERE due_at IS NOT NULL;
 
@@ -192,13 +195,36 @@ CREATE POLICY scheduler_claim ON accounts.job TO owner
   USING (current_setting('aiuteur.claim', true) = 'on')
   WITH CHECK (current_setting('aiuteur.claim', true) = 'on');
 
--- One claim: due, non-terminal, runnable Jobs (or the one named Job, for the text fast path), oldest due
--- first, exclusive by FOR UPDATE SKIP LOCKED under one transaction-scoped lock. Each gets the lease token
--- and its due time becomes the earlier of lease expiry and the state deadline.
-CREATE FUNCTION accounts.job_claim(max_jobs integer, at_time timestamptz, lease_ms integer, token uuid, only_job uuid)
+-- The provider circuit breaker (S7; RUNTIME §4.3, §5.1): operator-scoped state shared across Accounts, with no
+-- account_id and no creator content. A mutable cell (PERSISTENCE §3). The claim reads it; its write path
+-- (`breaker_record`, `breaker_clear`, PERSISTENCE §6.5) belongs to S7 and is not built yet, so no runtime role writes it.
+CREATE SCHEMA operator AUTHORIZATION owner;
+CREATE TABLE operator.breaker (
+  provider text PRIMARY KEY,
+  open boolean NOT NULL,
+  opened_at timestamptz,
+  updated_at timestamptz NOT NULL,
+  CHECK (open = (opened_at IS NOT NULL))
+);
+GRANT USAGE ON SCHEMA operator TO backup;
+GRANT SELECT ON operator.breaker TO backup;
+
+-- One claim (RUNTIME §4.2, §4.3), serialised by one transaction-scoped lock so the counts it reads are exact. First,
+-- due work that admission does not gate: Jobs already in flight (expired lease, deadline) and local work, oldest
+-- due first. Then admission, one Job at a time: a due `queued` provider Job is claimable only if its provider's
+-- breaker is not open and its provider's and its Account's in-flight counts are below their caps (a provider with
+-- no cap in `provider_caps` admits nothing). Among claimable Jobs, the least-loaded Account first, then the oldest
+-- queued Job, so successive picks go round-robin across Accounts. In flight: `submitting`, `running`, `cancelling`,
+-- or `queued` under a live lease. `only_job` restricts the claim to one Job (the text fast path).
+CREATE FUNCTION accounts.job_claim(max_jobs integer, at_time timestamptz, lease_ms integer, token uuid, only_job uuid, account_cap integer, provider_caps jsonb)
 RETURNS TABLE (job_id uuid, account_id uuid, state text, lease_token uuid)
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog
 AS $$
+#variable_conflict use_column
+DECLARE
+  claimed integer := 0;
+  picked uuid;
+  lease_end timestamptz := at_time + make_interval(secs => lease_ms / 1000.0);
 BEGIN
   PERFORM pg_advisory_xact_lock(hashtextextended('aiuteur.job_claim', 0));
   PERFORM set_config('aiuteur.claim', 'on', true);
@@ -206,18 +232,43 @@ BEGIN
     WITH due AS (
       SELECT j.job_id FROM accounts.job j
       WHERE j.due_at <= at_time AND j.state NOT IN ('waiting', 'succeeded', 'failed', 'cancelled')
+        AND (j.state <> 'queued' OR j.class = 'local')
         AND (only_job IS NULL OR j.job_id = only_job)
       ORDER BY j.due_at, j.job_id
       LIMIT max_jobs
       FOR UPDATE SKIP LOCKED
     )
     UPDATE accounts.job j SET
-      lease_token = token,
-      lease_expires_at = at_time + make_interval(secs => lease_ms / 1000.0),
-      due_at = LEAST(at_time + make_interval(secs => lease_ms / 1000.0), COALESCE(j.deadline_at, 'infinity')),
-      updated_at = at_time
+      lease_token = token, lease_expires_at = lease_end,
+      due_at = LEAST(lease_end, COALESCE(j.deadline_at, 'infinity')), updated_at = at_time
     FROM due WHERE j.job_id = due.job_id
     RETURNING j.job_id, j.account_id, j.state, j.lease_token;
+  GET DIAGNOSTICS claimed = ROW_COUNT;
+  WHILE claimed < max_jobs LOOP
+    SELECT j.job_id INTO picked FROM accounts.job j
+    WHERE j.due_at <= at_time AND j.state = 'queued' AND j.class = 'provider'
+      AND (only_job IS NULL OR j.job_id = only_job)
+      AND NOT EXISTS (SELECT 1 FROM operator.breaker b WHERE b.provider = j.provider AND b.open)
+      AND (SELECT count(*) FROM accounts.job f WHERE f.class = 'provider' AND f.provider = j.provider
+        AND (f.state IN ('submitting', 'running', 'cancelling') OR (f.state = 'queued' AND f.lease_expires_at > at_time)))
+        < COALESCE((provider_caps ->> j.provider)::integer, 0)
+      AND (SELECT count(*) FROM accounts.job f WHERE f.class = 'provider' AND f.account_id = j.account_id
+        AND (f.state IN ('submitting', 'running', 'cancelling') OR (f.state = 'queued' AND f.lease_expires_at > at_time)))
+        < account_cap
+    ORDER BY (SELECT count(*) FROM accounts.job f WHERE f.class = 'provider' AND f.account_id = j.account_id
+        AND (f.state IN ('submitting', 'running', 'cancelling') OR (f.state = 'queued' AND f.lease_expires_at > at_time))),
+      j.created_at, j.job_id
+    LIMIT 1
+    FOR UPDATE OF j SKIP LOCKED;
+    EXIT WHEN picked IS NULL;
+    RETURN QUERY
+      UPDATE accounts.job j SET
+        lease_token = token, lease_expires_at = lease_end,
+        due_at = LEAST(lease_end, COALESCE(j.deadline_at, 'infinity')), updated_at = at_time
+      WHERE j.job_id = picked
+      RETURNING j.job_id, j.account_id, j.state, j.lease_token;
+    claimed := claimed + 1;
+  END LOOP;
   PERFORM set_config('aiuteur.claim', '', true);
 END $$;
 
@@ -266,9 +317,9 @@ BEGIN
   RETURN n = 1;
 END $$;
 
-REVOKE ALL ON FUNCTION accounts.job_claim(integer, timestamptz, integer, uuid, uuid), accounts.job_extend(uuid, uuid, timestamptz, integer), accounts.job_release(uuid, uuid, timestamptz), accounts.job_wake(uuid, timestamptz) FROM PUBLIC;
+REVOKE ALL ON FUNCTION accounts.job_claim(integer, timestamptz, integer, uuid, uuid, integer, jsonb), accounts.job_extend(uuid, uuid, timestamptz, integer), accounts.job_release(uuid, uuid, timestamptz), accounts.job_wake(uuid, timestamptz) FROM PUBLIC;
 GRANT USAGE ON SCHEMA accounts TO scheduler;
-GRANT EXECUTE ON FUNCTION accounts.job_claim(integer, timestamptz, integer, uuid, uuid), accounts.job_extend(uuid, uuid, timestamptz, integer), accounts.job_release(uuid, uuid, timestamptz), accounts.job_wake(uuid, timestamptz) TO scheduler;
+GRANT EXECUTE ON FUNCTION accounts.job_claim(integer, timestamptz, integer, uuid, uuid, integer, jsonb), accounts.job_extend(uuid, uuid, timestamptz, integer), accounts.job_release(uuid, uuid, timestamptz), accounts.job_wake(uuid, timestamptz) TO scheduler;
 
 GRANT SELECT, INSERT ON accounts.generation, accounts.job, accounts.generation_run, accounts.generation_call, accounts.generation_settlement, accounts.capture, accounts.decision, accounts.event, accounts.event_counter TO app;
 GRANT UPDATE (state, due_at, deadline_at, lease_token, lease_expires_at, operation_ref, failure_class, billed, reason, updated_at) ON accounts.job TO app;

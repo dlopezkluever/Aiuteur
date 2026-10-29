@@ -1057,6 +1057,12 @@
           "nullable": false
         },
         {
+          "name": "provider",
+          "type": "text",
+          "default": null,
+          "nullable": true
+        },
+        {
           "name": "state",
           "type": "text",
           "default": null,
@@ -1135,6 +1141,10 @@
         {
           "name": "job_check",
           "definition": "CHECK (((state = ANY (ARRAY['succeeded'::text, 'failed'::text, 'cancelled'::text])) = (due_at IS NULL)))"
+        },
+        {
+          "name": "job_check1",
+          "definition": "CHECK (((class = 'provider'::text) = (provider IS NOT NULL)))"
         },
         {
           "name": "job_class",
@@ -2255,6 +2265,54 @@
       "policies": []
     },
     {
+      "schema": "operator",
+      "name": "breaker",
+      "owner": "owner",
+      "rls": false,
+      "force_rls": false,
+      "grants": "{owner=arwdDxt/owner,backup=r/owner}",
+      "columns": [
+        {
+          "name": "provider",
+          "type": "text",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "open",
+          "type": "boolean",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "opened_at",
+          "type": "timestamp with time zone",
+          "default": null,
+          "nullable": true
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "default": null,
+          "nullable": false
+        }
+      ],
+      "constraints": [
+        {
+          "name": "breaker_check",
+          "definition": "CHECK ((open = (opened_at IS NOT NULL)))"
+        },
+        {
+          "name": "breaker_pkey",
+          "definition": "PRIMARY KEY (provider)"
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX breaker_pkey ON operator.breaker USING btree (provider)"
+      ],
+      "policies": []
+    },
+    {
       "schema": "public",
       "name": "migrations",
       "owner": "owner",
@@ -2315,7 +2373,7 @@
     {
       "schema": "accounts",
       "name": "job_claim",
-      "definition": "CREATE OR REPLACE FUNCTION accounts.job_claim(max_jobs integer, at_time timestamp with time zone, lease_ms integer, token uuid, only_job uuid)\n RETURNS TABLE(job_id uuid, account_id uuid, state text, lease_token uuid)\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog'\nAS $function$\nBEGIN\n  PERFORM pg_advisory_xact_lock(hashtextextended('aiuteur.job_claim', 0));\n  PERFORM set_config('aiuteur.claim', 'on', true);\n  RETURN QUERY\n    WITH due AS (\n      SELECT j.job_id FROM accounts.job j\n      WHERE j.due_at <= at_time AND j.state NOT IN ('waiting', 'succeeded', 'failed', 'cancelled')\n        AND (only_job IS NULL OR j.job_id = only_job)\n      ORDER BY j.due_at, j.job_id\n      LIMIT max_jobs\n      FOR UPDATE SKIP LOCKED\n    )\n    UPDATE accounts.job j SET\n      lease_token = token,\n      lease_expires_at = at_time + make_interval(secs => lease_ms / 1000.0),\n      due_at = LEAST(at_time + make_interval(secs => lease_ms / 1000.0), COALESCE(j.deadline_at, 'infinity')),\n      updated_at = at_time\n    FROM due WHERE j.job_id = due.job_id\n    RETURNING j.job_id, j.account_id, j.state, j.lease_token;\n  PERFORM set_config('aiuteur.claim', '', true);\nEND $function$\n",
+      "definition": "CREATE OR REPLACE FUNCTION accounts.job_claim(max_jobs integer, at_time timestamp with time zone, lease_ms integer, token uuid, only_job uuid, account_cap integer, provider_caps jsonb)\n RETURNS TABLE(job_id uuid, account_id uuid, state text, lease_token uuid)\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog'\nAS $function$\n#variable_conflict use_column\nDECLARE\n  claimed integer := 0;\n  picked uuid;\n  lease_end timestamptz := at_time + make_interval(secs => lease_ms / 1000.0);\nBEGIN\n  PERFORM pg_advisory_xact_lock(hashtextextended('aiuteur.job_claim', 0));\n  PERFORM set_config('aiuteur.claim', 'on', true);\n  RETURN QUERY\n    WITH due AS (\n      SELECT j.job_id FROM accounts.job j\n      WHERE j.due_at <= at_time AND j.state NOT IN ('waiting', 'succeeded', 'failed', 'cancelled')\n        AND (j.state <> 'queued' OR j.class = 'local')\n        AND (only_job IS NULL OR j.job_id = only_job)\n      ORDER BY j.due_at, j.job_id\n      LIMIT max_jobs\n      FOR UPDATE SKIP LOCKED\n    )\n    UPDATE accounts.job j SET\n      lease_token = token, lease_expires_at = lease_end,\n      due_at = LEAST(lease_end, COALESCE(j.deadline_at, 'infinity')), updated_at = at_time\n    FROM due WHERE j.job_id = due.job_id\n    RETURNING j.job_id, j.account_id, j.state, j.lease_token;\n  GET DIAGNOSTICS claimed = ROW_COUNT;\n  WHILE claimed < max_jobs LOOP\n    SELECT j.job_id INTO picked FROM accounts.job j\n    WHERE j.due_at <= at_time AND j.state = 'queued' AND j.class = 'provider'\n      AND (only_job IS NULL OR j.job_id = only_job)\n      AND NOT EXISTS (SELECT 1 FROM operator.breaker b WHERE b.provider = j.provider AND b.open)\n      AND (SELECT count(*) FROM accounts.job f WHERE f.class = 'provider' AND f.provider = j.provider\n        AND (f.state IN ('submitting', 'running', 'cancelling') OR (f.state = 'queued' AND f.lease_expires_at > at_time)))\n        < COALESCE((provider_caps ->> j.provider)::integer, 0)\n      AND (SELECT count(*) FROM accounts.job f WHERE f.class = 'provider' AND f.account_id = j.account_id\n        AND (f.state IN ('submitting', 'running', 'cancelling') OR (f.state = 'queued' AND f.lease_expires_at > at_time)))\n        < account_cap\n    ORDER BY (SELECT count(*) FROM accounts.job f WHERE f.class = 'provider' AND f.account_id = j.account_id\n        AND (f.state IN ('submitting', 'running', 'cancelling') OR (f.state = 'queued' AND f.lease_expires_at > at_time))),\n      j.created_at, j.job_id\n    LIMIT 1\n    FOR UPDATE OF j SKIP LOCKED;\n    EXIT WHEN picked IS NULL;\n    RETURN QUERY\n      UPDATE accounts.job j SET\n        lease_token = token, lease_expires_at = lease_end,\n        due_at = LEAST(lease_end, COALESCE(j.deadline_at, 'infinity')), updated_at = at_time\n      WHERE j.job_id = picked\n      RETURNING j.job_id, j.account_id, j.state, j.lease_token;\n    claimed := claimed + 1;\n  END LOOP;\n  PERFORM set_config('aiuteur.claim', '', true);\nEND $function$\n",
       "owner": "owner",
       "grants": "{owner=X/owner,scheduler=X/owner}"
     },
@@ -2365,6 +2423,11 @@
       "name": "auth",
       "owner": "owner",
       "grants": "{owner=UC/owner,identity=U/owner,backup=U/owner}"
+    },
+    {
+      "name": "operator",
+      "owner": "owner",
+      "grants": "{owner=UC/owner,backup=U/owner}"
     }
   ]
 }

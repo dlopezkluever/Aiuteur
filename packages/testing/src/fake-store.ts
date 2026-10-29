@@ -1,5 +1,5 @@
 import { accountIdSchema, creatorIdSchema, DEFAULT_SETTINGS, eventSchema, type Account, type AccountId, type JobId, type ObjectId, type Project, type Settings, type StudioEvent } from "@aiuteur/contract";
-import type { AttemptRow, CallRow, CaptureRow, Clock, DecisionRow, GenerationRow, IdempotencyRow, Ids, JobRow, Leased, ObjectRow, ReadTx, RevisionRow, RunRow, Scheduler, Scope, SettlementRow, Store, WriteTx } from "@aiuteur/store";
+import type { Admission, AttemptRow, CallRow, CaptureRow, Clock, DecisionRow, GenerationRow, IdempotencyRow, Ids, JobRow, Leased, ObjectRow, ReadTx, RevisionRow, RunRow, Scheduler, Scope, SettlementRow, Store, WriteTx } from "@aiuteur/store";
 import { ManualClock } from "./fake-transport.ts";
 import type { StoreSubject } from "./conformance/store.ts";
 import type { SchedulerSubject } from "./conformance/scheduler.ts";
@@ -60,6 +60,8 @@ const unique = <T>(rows: T[], row: T, key: (row: T) => string, what: string) => 
 export class MemoryStore implements Store {
   readonly #rows = new Map<string, AccountState>();
   readonly #locks = new Map<string, Promise<void>>();
+  /** Providers whose circuit breaker is open: the operator-scoped row the claim reads (RUNTIME §5.1). */
+  readonly #breakers = new Set<string>();
 
   constructor(scopes: readonly Scope[], clock: Clock) {
     for (const scope of scopes) this.#rows.set(scope.accountId, {
@@ -94,7 +96,7 @@ export class MemoryStore implements Store {
    * Job rows across Accounts as the claim function does, and taking each Account's write lock to lease, so a lease
    * and a transaction on the same Job serialise exactly as row locks make them.
    */
-  scheduler(options: { clock: Clock; ids: Ids; leaseMs: number }): Scheduler {
+  scheduler(options: { clock: Clock; ids: Ids; leaseMs: number; admission: Admission }): Scheduler {
     const iso = (ms: number) => new Date(ms).toISOString();
     const dueWithin = (job: JobRow, ms: number) => iso(Math.min(ms, job.deadlineAt === null ? Infinity : Date.parse(job.deadlineAt)));
     let claiming: Promise<unknown> = Promise.resolve();
@@ -111,24 +113,46 @@ export class MemoryStore implements Store {
     return {
       enqueue: (wtx, job) => wtx.insertJob(job),
       claim: (max, only) => {
-        // Claims serialise among themselves, as the claim's transaction-scoped lock makes them.
+        // Claims serialise among themselves, as the claim's transaction-scoped lock makes them (RUNTIME §4.3).
         const run = claiming.then(async () => {
           const now = options.clock.now();
-          const due = [...this.#rows.values()].flatMap((state) => [...state.jobs.values()].map((job) => ({ job, accountId: state.account.accountId })))
-            .filter(({ job }) => job.dueAt !== null && Date.parse(job.dueAt) <= now && job.state !== "waiting" && (only === undefined || job.jobId === only))
-            .sort((a, b) => Date.parse(a.job.dueAt!) - Date.parse(b.job.dueAt!) || (a.job.jobId < b.job.jobId ? -1 : 1));
+          const all = () => [...this.#rows.values()].flatMap((state) => [...state.jobs.values()].map((job) => ({ job, accountId: state.account.accountId })));
+          const due = (job: JobRow) => job.dueAt !== null && Date.parse(job.dueAt) <= now && job.state !== "waiting" && (only === undefined || job.jobId === only);
+          const gated = (job: JobRow) => job.state === "queued" && job.class === "provider";
+          const inFlight = (job: JobRow) => job.class === "provider" && (job.state === "submitting" || job.state === "running" || job.state === "cancelling"
+            || (job.state === "queued" && job.leaseExpiresAt !== null && Date.parse(job.leaseExpiresAt) > now));
           const leased: Leased[] = [];
-          for (const { job, accountId } of due) {
-            if (leased.length >= max) break;
+          const lease = async (jobId: string, accountId: string, admitted: boolean) => {
             const token = options.ids.uuid();
             const taken = await this.#locked(accountId, async (state) => {
-              const current = state.jobs.get(job.jobId);
-              if (!current || current.dueAt === null || Date.parse(current.dueAt) > now || current.state === "waiting") return null;
+              const current = state.jobs.get(jobId);
+              if (!current || !due(current) || gated(current) !== admitted) return null;
               const expires = now + options.leaseMs;
-              state.jobs.set(job.jobId, { ...current, leaseToken: token, leaseExpiresAt: iso(expires), dueAt: dueWithin(current, expires), updatedAt: iso(now) });
+              state.jobs.set(jobId, { ...current, leaseToken: token, leaseExpiresAt: iso(expires), dueAt: dueWithin(current, expires), updatedAt: iso(now) });
               return current.state;
             });
-            if (taken !== null) leased.push({ jobId: job.jobId as JobId, accountId: accountId as AccountId, work: "step", stateSeen: taken, leaseToken: token });
+            if (taken !== null) leased.push({ jobId: jobId as JobId, accountId: accountId as AccountId, work: "step", stateSeen: taken, leaseToken: token });
+          };
+          // Work admission does not gate: Jobs already in flight, and local work; oldest due first.
+          const ungated = all().filter(({ job }) => due(job) && !gated(job))
+            .sort((a, b) => Date.parse(a.job.dueAt!) - Date.parse(b.job.dueAt!) || (a.job.jobId < b.job.jobId ? -1 : 1));
+          for (const { job, accountId } of ungated) {
+            if (leased.length >= max) break;
+            await lease(job.jobId, accountId, false);
+          }
+          // Admission, one Job at a time over exact counts: breaker, provider cap, Account cap; least-loaded Account, then oldest queued.
+          const tried = new Set<string>();
+          while (leased.length < max) {
+            const rows = all();
+            const providerLoad = (provider: string) => rows.filter(({ job }) => inFlight(job) && job.provider === provider).length;
+            const accountLoad = (accountId: string) => rows.filter(({ job, accountId: owner }) => inFlight(job) && owner === accountId).length;
+            const [next] = rows
+              .filter(({ job, accountId }) => due(job) && gated(job) && !tried.has(job.jobId) && !this.#breakers.has(job.provider!)
+                && providerLoad(job.provider!) < (options.admission.providerInFlight[job.provider!] ?? 0) && accountLoad(accountId) < options.admission.accountInFlight)
+              .sort((a, b) => accountLoad(a.accountId) - accountLoad(b.accountId) || Date.parse(a.job.createdAt) - Date.parse(b.job.createdAt) || (a.job.jobId < b.job.jobId ? -1 : 1));
+            if (!next) break;
+            tried.add(next.job.jobId);
+            await lease(next.job.jobId, next.accountId, true);
           }
           return leased;
         });
@@ -212,6 +236,11 @@ export class MemoryStore implements Store {
     }));
   }
 
+  /** Test seam: opens or closes a provider's breaker. Its write path (S7) is not built yet. */
+  setBreaker(provider: string, open: boolean): void {
+    if (open) this.#breakers.add(provider); else this.#breakers.delete(provider);
+  }
+
   /** Test seam: appends a lock Decision. No product path writes locks at T0-03. */
   lockObject(scope: Scope, objectId: ObjectId): void {
     const state = this.#rows.get(scope.accountId);
@@ -255,11 +284,12 @@ export function storeIgnoringScope(real: Store, victim: Scope): Store {
 }
 
 /** The in-memory virtual-time Scheduler over a MemoryStore, for the FC5 conformance suite. */
-export async function fakeSchedulerSubject(): Promise<SchedulerSubject> {
+export async function fakeSchedulerSubject(setup: { readonly admission: Admission }): Promise<SchedulerSubject> {
   const a: Scope = { accountId: accountIdSchema.parse("11111111-1111-4111-8111-111111111111"), creatorId: creatorIdSchema.parse("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa") };
   const b: Scope = { accountId: accountIdSchema.parse("22222222-2222-4222-8222-222222222222"), creatorId: creatorIdSchema.parse("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb") };
   const clock = new ManualClock();
   const store = new MemoryStore([a, b], clock);
   const leaseMs = 60_000;
-  return { store, scheduler: store.scheduler({ clock, ids: { uuid: () => crypto.randomUUID(), ordered: uuidv7, token: () => crypto.randomUUID() }, leaseMs }), clock, leaseMs, a, b };
+  return { store, scheduler: store.scheduler({ clock, ids: { uuid: () => crypto.randomUUID(), ordered: uuidv7, token: () => crypto.randomUUID() }, leaseMs, admission: setup.admission }), clock, leaseMs, a, b,
+    setBreaker: async (provider, open) => store.setBreaker(provider, open) };
 }

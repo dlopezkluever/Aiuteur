@@ -52,7 +52,7 @@ export function createRecord(options: { history: History; jobs: Jobs; clock: Clo
       });
       const captures = await history.capture(wtx, scope, generationId, plan.projectId, captured.map((c) => ({ ...c, objectId: c.objectId as never })), at);
       if (captures.result !== "Applied") throw new Error(`capture refused: ${captures.reason}`);
-      const job = jobs.newJob({ jobId: ids.ordered() as JobId, generationId, projectId: plan.projectId, run: 1 });
+      const job = jobs.newJob({ jobId: ids.ordered() as JobId, generationId, projectId: plan.projectId, run: 1, provider: plan.profile.adapterId });
       await jobs.enqueue(wtx, job);
       return { result: "created", generationId, jobId: job.jobId };
     },

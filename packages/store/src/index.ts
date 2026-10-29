@@ -83,6 +83,8 @@ export interface JobRow {
   readonly generationId: GenerationId;
   readonly run: number;
   readonly class: JobClass;
+  /** The provider whose in-flight cap and circuit breaker admit this Job (RUNTIME §4.3): the Offering's adapter. Null exactly for local work (§4.6). */
+  readonly provider: string | null;
   readonly state: JobState;
   /** The one due time (RUNTIME §4.2); null exactly when terminal. */
   readonly dueAt: string | null;
@@ -228,13 +230,26 @@ export interface Leased {
   readonly leaseToken: string;
 }
 /**
+ * FC5 Draft: claim admission configuration (RUNTIME §4.3; S8). Caps are configuration with no default: a provider with no
+ * configured cap admits nothing. In-flight is a provider Job that is `submitting`, `running` or `cancelling`, or `queued`
+ * under a live lease (claimed, about to submit). Local work counts against neither cap.
+ */
+export interface Admission {
+  readonly accountInFlight: number;
+  readonly providerInFlight: Readonly<Record<string, number>>;
+}
+/**
  * FC5 Draft: the `Scheduler` port (RUNTIME §4.2). It answers "which Jobs need attention now, exclusively"; `jobs` owns
  * the state machine. The real adapter is Postgres; the fake is in-memory over the injected Clock (virtual time).
  */
 export interface Scheduler {
   /** Inside the creating transaction: the new Job is durable and due now. */
   enqueue(wtx: WriteTx, job: JobRow): Promise<void>;
-  /** One tick: leases up to `max` due Jobs, or only the named Job (the text fast path claims its own, RUNTIME §4.6). */
+  /**
+   * One tick: leases up to `max` due Jobs, or only the named Job (the text fast path claims its own, RUNTIME §4.6). A due
+   * `queued` provider Job is claimable only while its provider's breaker is not open and both its provider's and its
+   * Account's in-flight counts are below their caps; among those, least-loaded Account first, then oldest queued (§4.3).
+   */
   claim(max: number, only?: JobId): Promise<Leased[]>;
   /** Heartbeat for a step longer than a lease; false when the lease was lost. */
   extend(lease: Leased): Promise<boolean>;

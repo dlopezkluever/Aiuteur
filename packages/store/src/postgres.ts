@@ -28,7 +28,7 @@ const iso = (value: Date | null) => (value === null ? null : value.toISOString()
 const nullable = <T>(schema: z.ZodType<T>) => (value: unknown) => (value === null ? null : schema.parse(value));
 export const jobRow = (row: accounts_job): JobRow => ({
   jobId: row.job_id as JobId, projectId: projectIdSchema.parse(row.project_id), generationId: generationIdSchema.parse(row.generation_id), run: row.run,
-  class: z.enum(JOB_CLASSES).parse(row.class), state: z.enum(JOB_STATES).parse(row.state), dueAt: iso(row.due_at), deadlineAt: iso(row.deadline_at),
+  class: z.enum(JOB_CLASSES).parse(row.class), provider: row.provider, state: z.enum(JOB_STATES).parse(row.state), dueAt: iso(row.due_at), deadlineAt: iso(row.deadline_at),
   leaseToken: row.lease_token, leaseExpiresAt: iso(row.lease_expires_at), operationRef: row.operation_ref,
   failureClass: nullable(z.enum(FAILURE_CLASSES))(row.failure_class), billed: nullable(z.enum(BILLED))(row.billed), reason: row.reason,
   createdAt: row.created_at.toISOString(), updatedAt: row.updated_at.toISOString(),
@@ -206,9 +206,9 @@ export async function createPostgresStore(connectionString: string): Promise<Sto
     },
     async insertJob(row: JobRow) {
       await client.query(
-        `INSERT INTO accounts.job (job_id, account_id, project_id, generation_id, run, class, state, due_at, deadline_at, lease_token, lease_expires_at, operation_ref, failure_class, billed, reason, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)`,
-        [row.jobId, scope.accountId, row.projectId, row.generationId, row.run, row.class, row.state, row.dueAt, row.deadlineAt, row.leaseToken, row.leaseExpiresAt, row.operationRef, row.failureClass, row.billed, row.reason, row.createdAt, row.updatedAt]);
+        `INSERT INTO accounts.job (job_id, account_id, project_id, generation_id, run, class, provider, state, due_at, deadline_at, lease_token, lease_expires_at, operation_ref, failure_class, billed, reason, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)`,
+        [row.jobId, scope.accountId, row.projectId, row.generationId, row.run, row.class, row.provider, row.state, row.dueAt, row.deadlineAt, row.leaseToken, row.leaseExpiresAt, row.operationRef, row.failureClass, row.billed, row.reason, row.createdAt, row.updatedAt]);
     },
     async updateJob(id, expected, change) {
       const entries = Object.entries(change) as [keyof typeof JOB_COLUMNS, unknown][];
