@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createAccounts, createBetterAuth } from "@aiuteur/accounts";
 import { blockSchema, chooseOutcomeSchema, commitOutcomeSchema, draftTreatmentResultSchema, generationReadSchema, projectSchema, redeemedInvitationSchema, treatmentOptionReadSchema, treatmentPreviewSchema, WORKFLOW_OPERATIONS, type GenerationRead, type WorkflowOperation } from "@aiuteur/contract";
-import { createPostgresScheduler, createPostgresStore, type Scope, type Store, type WriteTx } from "@aiuteur/store";
+import { createPostgresScheduler, createPostgresStore, fakeGenerationCount, type Scope, type Store, type WriteTx } from "@aiuteur/store";
 import { createViews } from "@aiuteur/views";
 import { createHistory } from "@aiuteur/history";
 import { sourceMaterialKind, treatmentOptionKind } from "@aiuteur/story";
@@ -15,7 +15,7 @@ import { describeSchedulerConformance, FakeMailer, FAKE_TEXT_PROFILE, GP_S_COMMA
 import { createDispatch } from "@aiuteur/generation";
 import { createJobs } from "@aiuteur/jobs";
 import { createApi } from "@aiuteur/api";
-import { freshDatabase, snapshot, testExecution } from "./database.ts";
+import { freshDatabase, snapshot, testExecution, contracted } from "./database.ts";
 
 // T0-05 (#102): Draft Treatment runs end to end on the fake and lands a choosable Option. Through the API: the
 // Generation and its Job commit together, the text fast path claims its own Job through the Scheduler port, the one
@@ -48,7 +48,7 @@ async function world(proposals: readonly RecordedProposal[], options: { beforeSu
   const run = await testExecution(database, clock, ids, proposals, options.beforeSubmit, options.providerCap);
   closers.push(run.close);
   const workflows = createWorkflows({ store: options.workflowStore ?? store, history: createHistory([sourceMaterialKind, treatmentOptionKind]), clock, ids, catalogue: syntheticCatalogue(), pricePolicy: TEST_PRICE_POLICY, execution: run.execution });
-  const api = createApi({ accounts, views: createViews(store), workflows, handleAuth: adapter.handle, origin, requestId: ids.uuid, now: () => clock.now(), clientAddress: () => "203.0.113.5" });
+  const api = contracted(createApi({ accounts, views: createViews(store), workflows, handleAuth: adapter.handle, origin, requestId: ids.uuid, now: () => clock.now(), clientAddress: () => "203.0.113.5" }));
   const call = (method: "GET" | "POST", path: string, cookie: string, body?: unknown, key: string = ids.uuid()) =>
     api.request(`${origin}${path}`, { method, headers: { origin, "content-type": "application/json", "x-aiuteur-command": "1", "idempotency-key": key, cookie }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
   return { api, call, transport: run.transport, workflows, execution: run.execution };
@@ -361,4 +361,13 @@ it("trace fields (R22): every Generation recorded in this run reads back with it
     expect(trace.runs.length).toBeGreaterThan(0);
     expect(trace.digest).toBe(sha256(canonicalJson(trace.renderedRequest)));
   }
+});
+
+it("VC10 line 8: the nightly derived check counts every Generation that carries a fake snapshot", async () => {
+  const total = Number((await database.inspect.query("SELECT count(*) AS n FROM accounts.generation")).rows[0].n);
+  expect(total).toBeGreaterThanOrEqual(8);
+  // Every Generation in this database was served by a fake, so the check must find all of them and a clean database none.
+  expect(await fakeGenerationCount(database.url("backup"))).toBe(total);
+  const clean = await freshDatabase();
+  try { expect(await fakeGenerationCount(clean.url("backup"))).toBe(0); } finally { await clean.close(); }
 });

@@ -262,3 +262,4 @@ export { createPostgresStore, assertRuntimeRole } from "./postgres.ts";
 export { createPostgresScheduler } from "./scheduler.ts";
 export { migrateDatabase } from "./migrations.ts";
 export { schemaCatalogue } from "./catalogue.ts";
+export { fakeGenerationCount } from "./derived.ts";
