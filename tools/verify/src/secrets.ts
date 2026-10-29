@@ -10,7 +10,7 @@ const SECRET_SHAPES: readonly { readonly name: string; readonly pattern: RegExp 
   { name: "AWS access key id", pattern: /\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/ },
   { name: "GitHub token", pattern: /\b(?:gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{50,})\b/ },
   { name: "Slack token", pattern: /\bxox[abprs]-[A-Za-z0-9-]{10,}\b/ },
-  { name: "Google API key", pattern: /\bAIza[0-9A-Za-z_-]{35}\b/ },
+  { name: "AIza-shape API key", pattern: /\bAIza[0-9A-Za-z_-]{35}\b/ },
   { name: "provider-style secret key", pattern: /\bsk-(?:ant-|proj-)?[A-Za-z0-9_-]{32,}\b/ },
   { name: "Stripe key", pattern: /\b[rs]k_live_[A-Za-z0-9]{20,}\b/ },
   { name: "credential in a connection URL", pattern: /\b[a-z][a-z0-9+.-]*:\/\/[^\s:/@"'`]+:[^\s@"'`]{6,}@(?!localhost\b|127\.0\.0\.1\b)[^\s/"'`]+/i },

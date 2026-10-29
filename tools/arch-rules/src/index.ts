@@ -80,8 +80,8 @@ function collectWorkspaceFiles(root: string, pattern: RegExp): string[] {
 
 /** Where a vendor or model name may appear (R9): adapters, and the Catalogue data directory. */
 const VENDOR_NAME_HOMES = [ADAPTERS_DIR, "packages/providers/catalogue/"];
-/** The names R9 searches for, whole words, case-insensitive. */
-export const VENDOR_NAMES = /\b(openai|anthropic|gemini|veo|kling|runway|elevenlabs|midjourney|replicate|claude|gpt-?[0-9]\w*|llama|mistral|ideogram|recraft|minimax|seedance|hailuo|imagen|stabilityai|sdxl|fal\.ai|sentry|langfuse|datadog|posthog)\b/i;
+/** The names R9 searches for, whole words, case-insensitive: the providers and models PROVIDERS-AND-MODELS names, and the tracing vendors VERIFICATION-AND-OBSERVABILITY forbids. */
+export const VENDOR_NAMES = /\b(openai|anthropic|google|gemini|veo|kling|luma|wan|sora|grok|ltx|runway|elevenlabs|midjourney|replicate|claude|gpt-?[0-9]\w*|llama|mistral|ideogram|recraft|minimax|seedance|hailuo|imagen|stabilityai|sdxl|fal\.ai|sentry|langfuse|datadog|posthog)\b/i;
 /** Ambient flags no module may branch on, wherever it lives outside a composition root. */
 const AMBIENT_FLAGS = new Set(["NODE_ENV", "VITEST", "CI"]);
 /** Files whose job is to name what they search for. */
@@ -192,6 +192,17 @@ function checkFile(path: string, text: string, resolveFrom: (path: string, speci
       bindings.get(nameOf(n["object"]) ?? "")?.from === "vitest" && VITEST_OBJECTS.has(nameOf(n["property"]) ?? "");
   };
 
+  // `const { env } = process` (or `{ env: e }`): the local names that hold the ambient environment.
+  const envNames = new Set<string>();
+  walk(result.program, (node) => {
+    if (node.type === "VariableDeclarator" && (node["id"] as AstNode).type === "ObjectPattern" && nameOf(node["init"]) === "process") {
+      for (const property of (node["id"] as AstNode)["properties"] as AstNode[]) {
+        const local = nameOf(property["value"]);
+        if ((nameOf(property["key"]) ?? stringValue(property["key"])) === "env" && local !== undefined) envNames.add(local);
+      }
+      if (!mayReadEnvironment(path)) report("R24", node.start, "process.env read outside a composition root; inject it");
+    }
+  });
   walk(result.program, (node) => {
     if (node.type === "ClassDeclaration" || node.type === "ClassExpression") {
       if (!path.startsWith(TESTING_DIR) && refersTo(node["superClass"], new Set(["FakeTransport"]), TESTING_DIR)) {
@@ -210,10 +221,10 @@ function checkFile(path: string, text: string, resolveFrom: (path: string, speci
         report("LOG", node.start, "console is banned in product code; use the typed logger");
       }
       // R24: the ambient environment is read in composition roots only (scripts and tests may read their own inputs, never a flag).
-      if (isProcessEnv(node) || isProcessEnv(object0)) {
-        const flag = isProcessEnv(node) ? undefined : property;
+      if (isProcessEnv(node, envNames) || isProcessEnv(object0, envNames)) {
+        const flag = isProcessEnv(node, envNames) ? undefined : property;
         if (flag !== undefined && AMBIENT_FLAGS.has(flag) && !isNonProductionCompositionRoot(path) && !isProductionRoot(path)) report("R24", node.start, `ambient flag ${flag} read outside a composition root; inject the environment`);
-        else if (flag === undefined && isProcessEnv(node) && !mayReadEnvironment(path)) report("R24", node.start, "process.env read outside a composition root; inject it");
+        else if (flag === undefined && node.type === "MemberExpression" && isProcessEnv(node) && !mayReadEnvironment(path)) report("R24", node.start, "process.env read outside a composition root; inject it");
       }
       const object = node["object"] as AstNode;
       const banned =
@@ -223,7 +234,7 @@ function checkFile(path: string, text: string, resolveFrom: (path: string, speci
         (property === "module" && (nameOf(object) === "mock" || (object.type === "MemberExpression" && nameOf(object["property"]) === "mock")));
       if (banned) report("R20", node.start, `module-mocking API ${text.slice(node.start, node["end"] as number)} is banned; enter doubles through a port`);
     }
-    if (node.type === "VariableDeclarator" && (node["id"] as AstNode).type === "ObjectPattern" && isProcessEnv(node["init"]) && !isNonProductionCompositionRoot(path) && !isProductionRoot(path)) {
+    if (node.type === "VariableDeclarator" && (node["id"] as AstNode).type === "ObjectPattern" && isProcessEnv(node["init"], envNames) && !isNonProductionCompositionRoot(path) && !isProductionRoot(path)) {
       for (const property of (node["id"] as AstNode)["properties"] as AstNode[]) {
         const key = nameOf(property["key"]) ?? stringValue(property["key"]);
         if (key !== undefined && AMBIENT_FLAGS.has(key)) report("R24", property.start, `ambient flag ${key} read outside a composition root; inject the environment`);
@@ -240,11 +251,12 @@ function checkFile(path: string, text: string, resolveFrom: (path: string, speci
 }
 
 /** `process.env` or `import.meta.env`. */
-function isProcessEnv(node: unknown): boolean {
+function isProcessEnv(node: unknown, aliases: ReadonlySet<string> = new Set()): boolean {
   const n = node as AstNode | null;
-  if (n?.type !== "MemberExpression" || n["computed"]) return false;
+  if (n?.type === "Identifier") return aliases.has(n["name"] as string);
+  if (n?.type !== "MemberExpression" || memberName(n) !== "env") return false;
   const object = n["object"] as AstNode;
-  return nameOf(n["property"]) === "env" && (nameOf(object) === "process" || (object.type === "MetaProperty"));
+  return nameOf(object) === "process" || object.type === "MetaProperty";
 }
 
 /** The property a member expression selects: `a.b`, or `a["b"]` with a literal key. */
