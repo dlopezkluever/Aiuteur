@@ -17,7 +17,7 @@ import { sourceMaterialKind } from "@aiuteur/story";
 import { createWorkflows } from "@aiuteur/workflows";
 import { describeHistoryConformance, describeStoreConformance, storeIgnoringScope, FakeMailer, ManualClock, uuidv7, syntheticCatalogue, TEST_PRICE_POLICY } from "@aiuteur/testing";
 import { createApi } from "@aiuteur/api";
-import { freshDatabase } from "./database.ts";
+import { freshDatabase, testExecution } from "./database.ts";
 
 const origin = "https://aiuteur.test";
 const password = "Paper-crane-lighthouse-98!";
@@ -26,19 +26,21 @@ const ids = { uuid: randomUUID, ordered: uuidv7, token: () => randomBytes(32).to
 let database: Awaited<ReturnType<typeof freshDatabase>>;
 let adapter: Awaited<ReturnType<typeof createBetterAuth>>;
 let store: Awaited<ReturnType<typeof createPostgresStore>>;
+let run: Awaited<ReturnType<typeof testExecution>>;
 let accounts: ReturnType<typeof createAccounts>;
 let api: ReturnType<typeof createApi>;
 
 beforeAll(async () => {
   database = await freshDatabase();
+  run = await testExecution(database, clock, ids);
   adapter = await createBetterAuth({ connectionString: database.url("identity"), baseURL: origin, secret: "synthetic-test-only-secret-with-more-than-32-characters", clock, ids, idleSessionSeconds: 3600, absoluteSessionSeconds: 86400 });
   store = await createPostgresStore(database.url("app"));
   const generous = { max: 1_000_000, windowMs: 60_000 };
   const limit = { address: generous, email: generous };
   accounts = createAccounts({ ...adapter, clock, ids, invitationTtlMs: 60_000, operatorEmails: ["operator@example.test"], mailer: new FakeMailer(), limits: { signIn: limit, recovery: limit, redemption: limit }, recoveryTtlMs: 600_000, recoveryPage: `${origin}/recover`, onMailFailure: (error) => { throw error; } });
-  api = createApi({ accounts, views: createViews(store), workflows: createWorkflows({ store, history: createHistory([sourceMaterialKind]), clock, ids, catalogue: syntheticCatalogue(), pricePolicy: TEST_PRICE_POLICY }), handleAuth: adapter.handle, origin, clientAddress: () => "203.0.113.1" });
+  api = createApi({ accounts, views: createViews(store), workflows: createWorkflows({ store, history: createHistory([sourceMaterialKind]), clock, ids, catalogue: syntheticCatalogue(), pricePolicy: TEST_PRICE_POLICY, execution: run.execution }), handleAuth: adapter.handle, origin, requestId: ids.uuid, now: () => clock.now(), clientAddress: () => "203.0.113.1" });
 });
-afterAll(async () => { await store?.close(); await adapter?.close(); await database?.close(); });
+afterAll(async () => { await run?.close(); await store?.close(); await adapter?.close(); await database?.close(); });
 
 async function request(path: string, body?: unknown, cookie = "") {
   return api.request(`${origin}${path}`, {
@@ -126,6 +128,8 @@ describeHistoryConformance("Postgres, migrated database", postgresSubject);
 const bodies: Record<string, unknown> = {
   "POST /api/studios/:accountId/projects/:projectId/source-material": { text: "probe" },
   "POST /api/studios/:accountId/projects/:projectId/source-material/:objectId/role": { base: 1, role: "supporting" },
+  "POST /api/studios/:accountId/projects/:projectId/source-material/:objectId/treatment-drafts": {},
+  "POST /api/studios/:accountId/projects/:projectId/treatment-options/:objectId/choose": {},
 };
 async function assertG1(target: ReturnType<typeof createApi>, owner: { accountId: string; project: string; object: string }, intruder: { accountId: string; cookie: string }) {
   const send = (method: string, path: string, body: unknown) => target.request(`${origin}${path}`, {
@@ -169,15 +173,15 @@ it("G1: every scoped operation, with its real method, refuses another Account ex
 
   // Negative control: one operation that stops enforcing isolation makes G1 fail.
   // Fault injected at the Store port (R19, R20): reads run as Account A whoever asks.
-  const leaky = createApi({ accounts, views: createViews(storeIgnoringScope(store, a.scope)), workflows: createWorkflows({ store, history: createHistory([sourceMaterialKind]), clock, ids, catalogue: syntheticCatalogue(), pricePolicy: TEST_PRICE_POLICY }),
-    handleAuth: adapter.handle, origin, clientAddress: () => "203.0.113.1" });
+  const leaky = createApi({ accounts, views: createViews(storeIgnoringScope(store, a.scope)), workflows: createWorkflows({ store, history: createHistory([sourceMaterialKind]), clock, ids, catalogue: syntheticCatalogue(), pricePolicy: TEST_PRICE_POLICY, execution: run.execution }),
+    handleAuth: adapter.handle, origin, requestId: ids.uuid, now: () => clock.now(), clientAddress: () => "203.0.113.1" });
   await expect(assertG1(leaky, owner, { accountId: b.accountId, cookie: b.cookie })).rejects.toThrow(/G1/);
 
   // Negative control for the Draft Treatment preview (#101): only the preview's read ignores the Scope,
   // so every other operation stays isolated and G1 must fail on the preview route itself.
   const leakyRead: typeof store = { ...store, read: storeIgnoringScope(store, a.scope).read };
-  const leakyPreview = createApi({ accounts, views: createViews(store), workflows: createWorkflows({ store: leakyRead, history: createHistory([sourceMaterialKind]), clock, ids, catalogue: syntheticCatalogue(), pricePolicy: TEST_PRICE_POLICY }),
-    handleAuth: adapter.handle, origin, clientAddress: () => "203.0.113.1" });
+  const leakyPreview = createApi({ accounts, views: createViews(store), workflows: createWorkflows({ store: leakyRead, history: createHistory([sourceMaterialKind]), clock, ids, catalogue: syntheticCatalogue(), pricePolicy: TEST_PRICE_POLICY, execution: run.execution }),
+    handleAuth: adapter.handle, origin, requestId: ids.uuid, now: () => clock.now(), clientAddress: () => "203.0.113.1" });
   await expect(assertG1(leakyPreview, owner, { accountId: b.accountId, cookie: b.cookie })).rejects.toThrow(/G1 GET \/api\/studios\/:accountId\/projects\/:projectId\/source-material\/:objectId\/treatment-preview/);
 });
 
@@ -412,18 +416,26 @@ it("D4/G7: catalogue classification, forced policies, composite tenant keys, rol
     SELECT n.nspname || '.' || c.relname AS name, pg_get_userbyid(c.relowner) AS owner,
       c.relrowsecurity AS rls, c.relforcerowsecurity AS force FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
     WHERE c.relkind = 'r' AND n.nspname NOT LIKE 'pg_%' AND n.nspname <> 'information_schema' ORDER BY 1`);
-  expect(tables.map((table) => table.name)).toEqual(["accounts.account", "accounts.attempt", "accounts.idempotency", "accounts.lock", "accounts.object", "accounts.project", "accounts.revision", "accounts.settings", "auth.account", "auth.audit_event", "auth.invitation", "auth.rate_limit", "auth.recovery", "auth.session", "auth.subject_map", "auth.twoFactor", "auth.user", "auth.verification", "public.migrations"]);
+  expect(tables.map((table) => table.name)).toEqual(["accounts.account", "accounts.attempt", "accounts.capture", "accounts.decision", "accounts.event", "accounts.event_counter", "accounts.generation", "accounts.generation_call", "accounts.generation_run", "accounts.generation_settlement", "accounts.idempotency", "accounts.job", "accounts.lock", "accounts.object", "accounts.project", "accounts.revision", "accounts.settings", "auth.account", "auth.audit_event", "auth.invitation", "auth.rate_limit", "auth.recovery", "auth.session", "auth.subject_map", "auth.twoFactor", "auth.user", "auth.verification", "operator.breaker", "public.migrations"]);
   for (const table of tables) {
     expect(table.owner).toBe("owner");
     if (table.name.startsWith("accounts.")) expect(table).toMatchObject({ rls: true, force: true });
+    // Operator-scoped state (RUNTIME §5.1; PERSISTENCE §6.5) has no account_id and no row rule; no runtime role writes it directly.
+    if (table.name.startsWith("operator.")) for (const role of ["app", "identity"]) {
+      const direct = await database.inspect.query("SELECT has_table_privilege($1, $2, 'INSERT,UPDATE,DELETE,TRUNCATE') AS any", [role, table.name]);
+      expect(direct.rows, `${role} on ${table.name}`).toEqual([{ any: false }]);
+    }
     for (const role of ["scheduler", "operator_read", "backup"]) {
       const privileges = await database.inspect.query(`SELECT has_table_privilege($1, $2, 'INSERT,DELETE,TRUNCATE,TRIGGER,REFERENCES') OR has_any_column_privilege($1, $2, 'UPDATE') AS writes,
         has_table_privilege($1, $2, 'SELECT') AS reads`, [role, table.name.split(".").map((part) => `"${part}"`).join(".")]);
       expect(privileges.rows).toEqual([{ writes: false, reads: role === "backup" }]);
     }
   }
-  const policies = await database.inspect.query("SELECT tablename, qual = with_check AS checked FROM pg_policies WHERE schemaname = 'accounts' ORDER BY tablename");
-  expect(policies.rows).toEqual(["account", "attempt", "idempotency", "lock", "object", "project", "revision", "settings"].map((tablename) => ({ tablename, checked: true })));
+  const policies = await database.inspect.query("SELECT tablename, policyname, roles::text[] AS roles, qual = with_check AS checked FROM pg_policies WHERE schemaname = 'accounts' ORDER BY tablename, policyname");
+  // Every Account table has exactly the tenant policy; the Job table also has the claim policy, for the owner the
+  // claim functions run as, so the Scheduler sees every Account's Jobs only inside those functions (RUNTIME §5).
+  expect(policies.rows).toEqual(["account", "attempt", "capture", "decision", "event", "event_counter", "generation", "generation_call", "generation_run", "generation_settlement", "idempotency", "job", "lock", "object", "project", "revision", "settings"]
+    .flatMap((tablename) => [{ tablename, policyname: "account_scope", roles: ["public"], checked: true }, ...(tablename === "job" ? [{ tablename, policyname: "scheduler_claim", roles: ["owner"], checked: true }] : [])]));
   const constraints = await database.inspect.query<{ definition: string }>("SELECT pg_get_constraintdef(oid) AS definition FROM pg_constraint WHERE conrelid = 'accounts.settings'::regclass ORDER BY conname");
   expect(constraints.rows.map((row) => row.definition)).toContain("PRIMARY KEY (account_id, key)");
   expect(constraints.rows.map((row) => row.definition)).toContain("FOREIGN KEY (account_id) REFERENCES accounts.account(account_id)");
@@ -432,10 +444,15 @@ it("D4/G7: catalogue classification, forced policies, composite tenant keys, rol
   const memberships = await database.inspect.query("SELECT FROM pg_auth_members WHERE member IN (SELECT oid FROM pg_roles WHERE rolname = ANY($1))", [["app", "scheduler", "identity", "operator_read", "backup", "owner"]]);
   expect(memberships.rows).toEqual([]);
   const definers = await database.inspect.query("SELECT p.proname, p.prosecdef, p.proconfig FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname IN ('accounts', 'auth') ORDER BY p.proname");
-  expect(definers.rows).toEqual([{ proname: "create_studio", prosecdef: true, proconfig: ["search_path=pg_catalog"] }, { proname: "map_subject", prosecdef: true, proconfig: ["search_path=pg_catalog"] }, { proname: "reject_rewrite", prosecdef: false, proconfig: ["search_path=pg_catalog"] }]);
+  const pinned = ["search_path=pg_catalog"];
+  expect(definers.rows).toEqual([{ proname: "create_studio", prosecdef: true, proconfig: pinned }, ...["job_claim", "job_extend", "job_release", "job_wake"].map((proname) => ({ proname, prosecdef: true, proconfig: pinned })),
+    { proname: "map_subject", prosecdef: true, proconfig: pinned }, { proname: "reject_rewrite", prosecdef: false, proconfig: pinned }]);
   expect((await database.inspect.query("SELECT FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname IN ('accounts', 'auth') AND c.relkind IN ('v', 'm')")).rows).toEqual([]);
   for (const role of ["app", "scheduler", "identity", "operator_read", "backup"]) {
     expect((await database.inspect.query("SELECT has_function_privilege($1, 'accounts.map_subject(text)', 'EXECUTE') AS map, has_function_privilege($1, 'accounts.create_studio(text,uuid,timestamptz,jsonb)', 'EXECUTE') AS create", [role])).rows).toEqual([{ map: role === "identity", create: role === "identity" }]);
+    // The claim functions are the Scheduler port's only door: executable by the scheduler role and nobody else.
+    const claim = await database.inspect.query("SELECT bool_or(has_function_privilege($1, p.oid, 'EXECUTE')) AS any, bool_and(has_function_privilege($1, p.oid, 'EXECUTE')) AS every FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'accounts' AND p.proname LIKE 'job\\_%'", [role]);
+    expect(claim.rows).toEqual([{ any: role === "scheduler", every: role === "scheduler" }]);
   }
   await expect(createPostgresStore(database.url())).rejects.toThrow("unsafe app database role");
 });

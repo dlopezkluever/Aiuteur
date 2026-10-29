@@ -43,7 +43,7 @@ export interface OutputRef {
   readonly expiresAt: number | null;
 }
 
-/** What the provider reports it billed for a run. */
+/** What the provider reports it billed for a run, per billed unit (token-priced text reports input and output separately). */
 export interface ReportedCost {
   readonly unit: BilledUnit;
   readonly amount: number;
@@ -56,9 +56,11 @@ export type NeutralStatus =
   | {
       readonly status: "succeeded";
       readonly outputs: readonly OutputRef[];
+      /** A text provider's raw response, returned inline (the text fast path skips fetching, JOB-LIFECYCLE §1 rule 2). Null for media. */
+      readonly text: string | null;
       readonly echoedPrompt: string | null;
       readonly effectiveSeed: number | null;
-      readonly reportedCost: ReportedCost | null;
+      readonly reportedCost: readonly ReportedCost[] | null;
     }
   | { readonly status: "failed"; readonly failureClass: FailureClass; readonly billed: Billed; readonly reason: string }
   | { readonly status: "cancelled"; readonly billing: CancelBilling }
@@ -69,10 +71,14 @@ export interface SubmitInput {
   readonly credential: CredentialHandle;
   /** The Job id: the idempotency key, or the correlation field where no key exists (JOB-LIFECYCLE §4). */
   readonly idempotencyKey: JobId;
+  /** The Generation id, sent as metadata where the provider accepts it (build rule R22). Never content. */
+  readonly generationId: string;
 }
 
 export type SubmitResult =
   | { readonly outcome: "accepted"; readonly operation: OperationReference }
+  /** A synchronous provider answered in the submit response (the text fast path: submitting → succeeded, JOB-LIFECYCLE §2). */
+  | { readonly outcome: "completed"; readonly operation: OperationReference; readonly status: Extract<NeutralStatus, { status: "succeeded" | "failed" }> }
   | {
       readonly outcome: "refused";
       readonly failureClass: FailureClass;
@@ -126,7 +132,8 @@ export interface ProviderTransport<K extends TransportKind = TransportKind> {
   cancel(input: { readonly credential: CredentialHandle; readonly operation: OperationReference }): Promise<CancelResult>;
   lookup(input: { readonly credential: CredentialHandle; readonly correlationId: JobId }): Promise<LookupResult>;
   fetch(input: { readonly credential: CredentialHandle; readonly output: OutputRef }): Promise<FetchResult>;
-  billedQuantity(request: RenderedRequest): BilledQuantity;
+  /** Every quantity the provider bills for this request, with bounds (BUSINESS §4.2); token-priced text bills input and output. */
+  billedQuantity(request: RenderedRequest): readonly BilledQuantity[];
   wireCapture(request: RenderedRequest): WireCapture;
 }
 

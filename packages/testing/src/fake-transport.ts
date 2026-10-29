@@ -1,13 +1,14 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { CANCEL_BILLING, type CancelBilling, type JobId } from "@aiuteur/contract";
 import {
-  billedQuantityFor,
+  billedQuantities,
   canonicalJson,
+  count,
   classifyProviderError,
   declaredValue,
   type Declared,
   type BilledQuantity,
-  type MediaBilledQuantityRule,
+  type BilledQuantityRule,
   type CancelResult,
   type CredentialHandle,
   type FetchResult,
@@ -21,6 +22,7 @@ import {
   type ProfileSnapshot,
   type ProviderTransport,
   type RenderedRequest,
+  type ReportedCost,
   type RunBehaviour,
   type SubmitInput,
   type SubmitResult,
@@ -28,6 +30,7 @@ import {
 } from "@aiuteur/providers";
 import { fakeOutput, outputKindOf, type FakeOutputKind } from "./fake-outputs.ts";
 import { validateScripts, type ProviderScript, type ScriptedBehaviour } from "./script.ts";
+import { validateProposals, type RecordedProposal } from "./proposals.ts";
 
 /** Virtual time for the fake. Draft: the Clock+Ids port (FC5) and its virtual time arrive with T0's Scheduler work. */
 export interface FakeClock {
@@ -55,6 +58,8 @@ export interface FakeTransportOptions {
   /** The secret the fake signs its callbacks with. */
   readonly webhookSecret: string;
   readonly scripts?: readonly ProviderScript[];
+  /** A text profile's model output: recorded proposals replayed in scenario-step order (VERIFICATION §3.5). */
+  readonly proposals?: readonly RecordedProposal[];
 }
 
 /** Test-only controls: what the fake provider sent and billed, and its pending callbacks. */
@@ -63,8 +68,8 @@ export interface FakeControl {
   takeCallbacks(): InboundCallback[];
   /** Provider runs started, each of which the provider bills. */
   billableRuns(): number;
-  /** Every wire body sent by `submit`, in order. */
-  sentWireBodies(): readonly { readonly jobId: JobId; readonly body: Uint8Array }[];
+  /** Every wire body sent by `submit`, in order, with the Job and Generation ids it carried (build rule R22). */
+  sentWireBodies(): readonly { readonly jobId: JobId; readonly generationId: string; readonly body: Uint8Array }[];
 }
 
 type Resolved<F extends keyof RunBehaviour> = RunBehaviour[F] extends Declared<infer T> ? T : never;
@@ -75,7 +80,9 @@ interface Run {
   readonly acceptedAt: number;
   readonly completesAt: number;
   readonly failure: { readonly providerCode: string; readonly message: string } | null;
-  readonly billed: BilledQuantity;
+  readonly billed: readonly BilledQuantity[];
+  /** A text run's inline response and what the provider reports it billed; null for media. */
+  readonly text: { readonly response: string; readonly reported: readonly ReportedCost[] } | null;
   readonly completesDespiteCancel: boolean;
   readonly reorderCallbacks: boolean;
   readonly callbackCopies: number;
@@ -109,17 +116,20 @@ export class FakeTransport implements ProviderTransport<"fake"> {
   readonly #secret: string;
   readonly #scripts: ReadonlyMap<JobId, readonly ScriptedBehaviour[]>;
   readonly #outputKind: FakeOutputKind;
-  readonly #rule: MediaBilledQuantityRule;
+  readonly #rule: BilledQuantityRule;
   readonly #rb: {
     readonly idempotentSubmission: Resolved<"idempotentSubmission">;
     readonly completionSignal: Resolved<"completionSignal">;
     readonly cancellation: Resolved<"cancellation">;
-    readonly outputRetention: Resolved<"outputRetention">;
+    /** Null for text: its response is inline, with no output URL to retain. */
+    readonly outputRetention: Resolved<"outputRetention"> | null;
     readonly billingOnCancel: Resolved<"billingOnCancel">;
   };
   readonly #runs = new Map<OperationReference, Run>();
   readonly #runsByJob = new Map<JobId, OperationReference[]>();
-  readonly #sent: { jobId: JobId; body: Uint8Array }[] = [];
+  readonly #sent: { jobId: JobId; generationId: string; body: Uint8Array }[] = [];
+  readonly #proposals: readonly RecordedProposal[];
+  #step = 0;
 
   constructor(options: FakeTransportOptions) {
     const { profile } = options;
@@ -132,15 +142,14 @@ export class FakeTransport implements ProviderTransport<"fake"> {
     this.#outputKind = outputKindOf(profile.operationClasses);
     const rule = profile.cost.billedQuantity;
     if (rule.state !== "declared") throw new Error("a FakeTransport needs a declared billed-quantity rule");
-    // Token-priced text bills two quantities; the single-quantity adapter face serves media until #102's text fake.
-    if (rule.value.rule === "text-tokens") throw new Error("a FakeTransport serves media billed-quantity rules only");
     this.#rule = rule.value;
+    this.#proposals = validateProposals(this.#outputKind, options.proposals ?? []);
     const rb = profile.runBehaviour;
     this.#rb = {
       idempotentSubmission: required(rb, "idempotentSubmission"),
       completionSignal: required(rb, "completionSignal"),
       cancellation: required(rb, "cancellation"),
-      outputRetention: required(rb, "outputRetention"),
+      outputRetention: this.#outputKind === "text" ? null : required(rb, "outputRetention"),
       billingOnCancel: required(rb, "billingOnCancel"),
     };
     this.control = {
@@ -150,9 +159,9 @@ export class FakeTransport implements ProviderTransport<"fake"> {
     };
   }
 
-  async submit({ request, idempotencyKey: jobId }: SubmitInput): Promise<SubmitResult> {
+  async submit({ request, idempotencyKey: jobId, generationId }: SubmitInput): Promise<SubmitResult> {
     const behaviours = this.#scripts.get(jobId) ?? [];
-    this.#sent.push({ jobId, body: this.wireCapture(request.request).body });
+    this.#sent.push({ jobId, generationId, body: this.wireCapture(request.request).body });
 
     const refusal = find(behaviours, "fail-at-submit");
     if (refusal !== undefined) {
@@ -161,19 +170,22 @@ export class FakeTransport implements ProviderTransport<"fake"> {
     const earlier = this.#runsByJob.get(jobId) ?? [];
     const existing = earlier.at(-1);
     if (this.#rb.idempotentSubmission === "key" && existing !== undefined) {
-      return { outcome: "accepted", operation: existing };
+      return this.#answer(this.#runs.get(existing)!);
     }
 
     const now = this.#clock.now();
     const operation = `fake-op:${jobId}:${earlier.length + 1}` as OperationReference;
     const failure = find(behaviours, "fail-while-running");
+    const billed = this.billedQuantity(request.request);
     this.#runs.set(operation, {
       operation,
       jobId,
       acceptedAt: now,
-      completesAt: now + (find(behaviours, "run-for")?.ms ?? this.#defaultRunMs()),
+      // A text model answers within the request: its run ends when it is accepted.
+      completesAt: this.#outputKind === "text" ? now : now + (find(behaviours, "run-for")?.ms ?? this.#defaultRunMs()),
       failure: failure === undefined ? null : { providerCode: failure.providerCode, message: failure.message },
-      billed: this.billedQuantity(request.request),
+      billed,
+      text: this.#outputKind === "text" ? this.#nextProposal(billed) : null,
       completesDespiteCancel: find(behaviours, "complete-despite-cancel") !== undefined,
       reorderCallbacks: find(behaviours, "reorder-callbacks") !== undefined,
       callbackCopies: find(behaviours, "duplicate-callbacks")?.copies ?? 1,
@@ -185,7 +197,29 @@ export class FakeTransport implements ProviderTransport<"fake"> {
     if (earlier.length === 0 && find(behaviours, "lose-submit-response") !== undefined) {
       return { outcome: "unconfirmed" };
     }
-    return { outcome: "accepted", operation };
+    return this.#answer(this.#runs.get(operation)!);
+  }
+
+  /** A media run is accepted and observed later; a text run answers synchronously with its final status. */
+  #answer(run: Run): SubmitResult {
+    if (this.#outputKind !== "text") return { outcome: "accepted", operation: run.operation };
+    const status = this.#toNeutral(run, this.#eventsDue(run).at(-1)!);
+    if (status.status !== "succeeded" && status.status !== "failed") throw new Error(`a text run ends succeeded or failed, not ${status.status}`);
+    return { outcome: "completed", operation: run.operation, status };
+  }
+
+  /** The next scenario step's recorded proposal, with the quantities the provider reports for it. A missing step fails the scenario. */
+  #nextProposal(billed: readonly BilledQuantity[]): { response: string; reported: readonly ReportedCost[] } {
+    const proposal = this.#proposals[this.#step];
+    if (proposal === undefined) throw new Error(`no recorded proposal for scenario step ${this.#step + 1}`);
+    this.#step += 1;
+    const rule = this.#rule;
+    if (rule.rule !== "text-tokens") throw new Error("a text fake needs a token-priced rule");
+    const output = count(proposal.response, rule.counter);
+    return {
+      response: proposal.response,
+      reported: billed.map((q) => ({ unit: q.unit, amount: q.unit === "output-token" ? Math.min(output, q.bounds.max) : q.amount })),
+    };
   }
 
   async observe(input: ObserveInput): Promise<ObserveResult> {
@@ -228,7 +262,7 @@ export class FakeTransport implements ProviderTransport<"fake"> {
     const run = parsed === null ? undefined : this.#runs.get(parsed.operation);
     if (parsed === null || run === undefined) return { outcome: "not-found" };
     if (this.#clock.now() >= parsed.expires) return { outcome: "expired" };
-    if (this.#eventsDue(run).at(-1)?.state !== "completed") return { outcome: "not-found" };
+    if (this.#eventsDue(run).at(-1)?.state !== "completed" || this.#outputKind === "text") return { outcome: "not-found" };
     const { contentType, bytes } = await fakeOutput(this.#outputKind, run.operation);
     return {
       outcome: "fetched",
@@ -242,8 +276,8 @@ export class FakeTransport implements ProviderTransport<"fake"> {
     };
   }
 
-  billedQuantity(request: RenderedRequest): BilledQuantity {
-    return billedQuantityFor(this.#rule, request);
+  billedQuantity(request: RenderedRequest): readonly BilledQuantity[] {
+    return billedQuantities(this.#rule, request);
   }
 
   wireCapture(request: RenderedRequest): WireCapture {
@@ -282,10 +316,11 @@ export class FakeTransport implements ProviderTransport<"fake"> {
       case "completed":
         return {
           status: "succeeded",
-          outputs: this.#issueOutputs(run),
+          outputs: run.text === null ? this.#issueOutputs(run) : [],
+          text: run.text?.response ?? null,
           echoedPrompt: null,
           effectiveSeed: null,
-          reportedCost: this.#reportsCost() ? { unit: run.billed.unit, amount: run.billed.amount } : null,
+          reportedCost: !this.#reportsCost() ? null : run.text?.reported ?? run.billed.map((q) => ({ unit: q.unit, amount: q.amount })),
         };
       case "error":
         return { status: "failed", ...this.#classify(event.errorCode), reason: event.message };
@@ -302,10 +337,10 @@ export class FakeTransport implements ProviderTransport<"fake"> {
   /** Fresh output URLs, valid for the declared URL lifetime and never past the retention window. */
   #issueOutputs(run: Run): OutputRef[] {
     const now = this.#clock.now();
-    const { urlLifetimeMs, windowMs } = this.#rb.outputRetention;
+    const { urlLifetimeMs, windowMs } = this.#rb.outputRetention!;
     const expires = Math.min(now + urlLifetimeMs, run.completesAt + windowMs);
-    const count = this.#outputKind === "image" ? run.billed.amount : 1;
-    return Array.from({ length: count }, (_, index) => ({
+    const outputs = this.#outputKind === "image" ? run.billed[0]!.amount : 1;
+    return Array.from({ length: outputs }, (_, index) => ({
       url: `${OUTPUT_SCHEME}//${encodeURIComponent(run.operation)}/${index}?expires=${expires}`,
       expiresAt: expires,
     }));
@@ -398,4 +433,20 @@ function parseOutputUrl(url: string): { operation: OperationReference; expires: 
   const match = /^fake-output:\/\/([^/]+)\/\d+\?expires=(\d+)$/.exec(url);
   if (match === null) return null;
   return { operation: decodeURIComponent(match[1] ?? "") as OperationReference, expires: Number(match[2]) };
+}
+
+/**
+ * A FakeTransport that runs a check immediately before each submit, for the operation harness's "record before send"
+ * assertion (VERIFICATION §3.4 P7). It sends exactly what its parent sends.
+ */
+export class SpyTransport extends FakeTransport {
+  readonly #beforeSubmit: (input: SubmitInput) => Promise<void>;
+  constructor(options: FakeTransportOptions & { readonly beforeSubmit: (input: SubmitInput) => Promise<void> }) {
+    super(options);
+    this.#beforeSubmit = options.beforeSubmit;
+  }
+  override async submit(input: SubmitInput): Promise<SubmitResult> {
+    await this.#beforeSubmit(input);
+    return super.submit(input);
+  }
 }

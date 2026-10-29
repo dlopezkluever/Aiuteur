@@ -9,6 +9,9 @@
     "@aiuteur/compiler": "workspace:*",
     "@aiuteur/contract": "workspace:*",
     "@aiuteur/providers": "workspace:*",
-    "@aiuteur/spend": "workspace:*"
+    "@aiuteur/spend": "workspace:*",
+    "@aiuteur/history": "workspace:*",
+    "@aiuteur/jobs": "workspace:*",
+    "@aiuteur/store": "workspace:*"
   }
 }

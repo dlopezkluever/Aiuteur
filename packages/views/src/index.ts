@@ -1,6 +1,7 @@
-import { projectListSchema, sourceMaterialReadSchema, sourceMaterialRevisionSchema, studioSchema, type AccountId, type ObjectId, type ProjectId } from "@aiuteur/contract";
+import { generationReadSchema, projectListSchema, sourceMaterialReadSchema, sourceMaterialRevisionSchema, studioSchema, treatmentOptionReadSchema, type AccountId, type GenerationId, type ObjectId, type ProjectId } from "@aiuteur/contract";
+import { readGeneration } from "@aiuteur/generation";
 import { read } from "@aiuteur/history";
-import { sourceMaterialKind, sourceMaterialRevision } from "@aiuteur/story";
+import { sourceMaterialKind, sourceMaterialRevision, treatmentOptionKind } from "@aiuteur/story";
 import type { Scope, Store } from "@aiuteur/store";
 
 export function createViews(store: Store) {
@@ -29,6 +30,20 @@ export function createViews(store: Store) {
         }),
       });
     },
+    /** The Generation's full trace (FC7/R22), or null when this Account has no such Generation in that project. */
+    generation: (scope: Scope, projectId: ProjectId, generationId: GenerationId) => store.read(scope, async (tx) => {
+      const found = await readGeneration(tx, scope, projectId, generationId);
+      return found && generationReadSchema.parse(found);
+    }),
+    /** A Treatment Option's head; `chosen` when the project's latest choose Decision on a Treatment Option names it. */
+    treatmentOption: (scope: Scope, projectId: ProjectId, objectId: ObjectId) => store.read(scope, async (tx) => {
+      const found = await read(tx, scope, objectId);
+      if (!found || found.projectId !== projectId || found.kind !== treatmentOptionKind.kind) return null;
+      const document = treatmentOptionKind.parse(found.head.body);
+      if (!document) throw new Error("stored Treatment Option body does not parse");
+      const latest = await tx.latestDecision(projectId, "choose", treatmentOptionKind.kind);
+      return treatmentOptionReadSchema.parse({ objectId, sequence: found.head.sequence, generationId: found.head.generationId, document, chosen: latest?.objectId === objectId, createdAt: found.head.createdAt });
+    }),
     async sourceMaterialRevision(scope: Scope, projectId: ProjectId, objectId: ObjectId, sequence: number) {
       const found = await sourceMaterial(scope, projectId, objectId, sequence);
       return found?.revision ? sourceMaterialRevisionSchema.parse(sourceMaterialRevision(found.revision)) : null;

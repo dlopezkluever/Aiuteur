@@ -150,6 +150,792 @@
     },
     {
       "schema": "accounts",
+      "name": "capture",
+      "owner": "owner",
+      "rls": true,
+      "force_rls": true,
+      "grants": "{owner=arwdDxt/owner,app=ar/owner,backup=r/owner}",
+      "columns": [
+        {
+          "name": "generation_id",
+          "type": "uuid",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "object_id",
+          "type": "uuid",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "slice",
+          "type": "text",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "account_id",
+          "type": "uuid",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "project_id",
+          "type": "uuid",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "sequence",
+          "type": "integer",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "fingerprint",
+          "type": "text",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": null,
+          "nullable": false
+        }
+      ],
+      "constraints": [
+        {
+          "name": "capture_account_id_project_id_generation_id_fkey",
+          "definition": "FOREIGN KEY (account_id, project_id, generation_id) REFERENCES accounts.generation(account_id, project_id, generation_id)"
+        },
+        {
+          "name": "capture_account_id_project_id_object_id_fkey",
+          "definition": "FOREIGN KEY (account_id, project_id, object_id) REFERENCES accounts.object(account_id, project_id, object_id)"
+        },
+        {
+          "name": "capture_pkey",
+          "definition": "PRIMARY KEY (generation_id, object_id, slice)"
+        },
+        {
+          "name": "capture_sequence_check",
+          "definition": "CHECK ((sequence >= 1))"
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX capture_pkey ON accounts.capture USING btree (generation_id, object_id, slice)",
+        "CREATE INDEX capture_unit ON accounts.capture USING btree (object_id, slice)"
+      ],
+      "policies": [
+        {
+          "name": "account_scope",
+          "check": "(account_id = (NULLIF(current_setting('aiuteur.account_id'::text, true), ''::text))::uuid)",
+          "roles": [
+            "public"
+          ],
+          "using": "(account_id = (NULLIF(current_setting('aiuteur.account_id'::text, true), ''::text))::uuid)",
+          "command": "ALL"
+        }
+      ]
+    },
+    {
+      "schema": "accounts",
+      "name": "decision",
+      "owner": "owner",
+      "rls": true,
+      "force_rls": true,
+      "grants": "{owner=arwdDxt/owner,app=ar/owner,backup=r/owner}",
+      "columns": [
+        {
+          "name": "object_id",
+          "type": "uuid",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "sequence",
+          "type": "integer",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "account_id",
+          "type": "uuid",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "project_id",
+          "type": "uuid",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "type",
+          "type": "text",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "payload",
+          "type": "jsonb",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "actor",
+          "type": "text",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "action_group",
+          "type": "uuid",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": null,
+          "nullable": false
+        }
+      ],
+      "constraints": [
+        {
+          "name": "decision_account_id_project_id_object_id_fkey",
+          "definition": "FOREIGN KEY (account_id, project_id, object_id) REFERENCES accounts.object(account_id, project_id, object_id)"
+        },
+        {
+          "name": "decision_pkey",
+          "definition": "PRIMARY KEY (object_id, sequence)"
+        },
+        {
+          "name": "decision_sequence_check",
+          "definition": "CHECK ((sequence >= 1))"
+        },
+        {
+          "name": "decision_type",
+          "definition": "CHECK ((type = 'choose'::text))"
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX decision_pkey ON accounts.decision USING btree (object_id, sequence)"
+      ],
+      "policies": [
+        {
+          "name": "account_scope",
+          "check": "(account_id = (NULLIF(current_setting('aiuteur.account_id'::text, true), ''::text))::uuid)",
+          "roles": [
+            "public"
+          ],
+          "using": "(account_id = (NULLIF(current_setting('aiuteur.account_id'::text, true), ''::text))::uuid)",
+          "command": "ALL"
+        }
+      ]
+    },
+    {
+      "schema": "accounts",
+      "name": "event",
+      "owner": "owner",
+      "rls": true,
+      "force_rls": true,
+      "grants": "{owner=arwdDxt/owner,app=ar/owner,backup=r/owner}",
+      "columns": [
+        {
+          "name": "account_id",
+          "type": "uuid",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "sequence",
+          "type": "integer",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "type",
+          "type": "text",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "payload",
+          "type": "jsonb",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "occurred_at",
+          "type": "timestamp with time zone",
+          "default": null,
+          "nullable": false
+        }
+      ],
+      "constraints": [
+        {
+          "name": "event_account_id_fkey",
+          "definition": "FOREIGN KEY (account_id) REFERENCES accounts.account(account_id)"
+        },
+        {
+          "name": "event_pkey",
+          "definition": "PRIMARY KEY (account_id, sequence)"
+        },
+        {
+          "name": "event_sequence_check",
+          "definition": "CHECK ((sequence >= 1))"
+        },
+        {
+          "name": "event_type",
+          "definition": "CHECK ((type = ANY (ARRAY['account.created'::text, 'job.state_changed'::text, 'generation.settled'::text])))"
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX event_pkey ON accounts.event USING btree (account_id, sequence)"
+      ],
+      "policies": [
+        {
+          "name": "account_scope",
+          "check": "(account_id = (NULLIF(current_setting('aiuteur.account_id'::text, true), ''::text))::uuid)",
+          "roles": [
+            "public"
+          ],
+          "using": "(account_id = (NULLIF(current_setting('aiuteur.account_id'::text, true), ''::text))::uuid)",
+          "command": "ALL"
+        }
+      ]
+    },
+    {
+      "schema": "accounts",
+      "name": "event_counter",
+      "owner": "owner",
+      "rls": true,
+      "force_rls": true,
+      "grants": "{owner=arwdDxt/owner,app=ar/owner,backup=r/owner}",
+      "columns": [
+        {
+          "name": "account_id",
+          "type": "uuid",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "next",
+          "type": "integer",
+          "default": null,
+          "nullable": false
+        }
+      ],
+      "constraints": [
+        {
+          "name": "event_counter_account_id_fkey",
+          "definition": "FOREIGN KEY (account_id) REFERENCES accounts.account(account_id)"
+        },
+        {
+          "name": "event_counter_next_check",
+          "definition": "CHECK ((next >= 1))"
+        },
+        {
+          "name": "event_counter_pkey",
+          "definition": "PRIMARY KEY (account_id)"
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX event_counter_pkey ON accounts.event_counter USING btree (account_id)"
+      ],
+      "policies": [
+        {
+          "name": "account_scope",
+          "check": "(account_id = (NULLIF(current_setting('aiuteur.account_id'::text, true), ''::text))::uuid)",
+          "roles": [
+            "public"
+          ],
+          "using": "(account_id = (NULLIF(current_setting('aiuteur.account_id'::text, true), ''::text))::uuid)",
+          "command": "ALL"
+        }
+      ]
+    },
+    {
+      "schema": "accounts",
+      "name": "generation",
+      "owner": "owner",
+      "rls": true,
+      "force_rls": true,
+      "grants": "{owner=arwdDxt/owner,app=ar/owner,backup=r/owner}",
+      "columns": [
+        {
+          "name": "generation_id",
+          "type": "uuid",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "account_id",
+          "type": "uuid",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "project_id",
+          "type": "uuid",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "operation",
+          "type": "text",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "operation_class",
+          "type": "text",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "initiation",
+          "type": "jsonb",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "effective_model",
+          "type": "jsonb",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "versions",
+          "type": "jsonb",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "test_provider",
+          "type": "boolean",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "resolved_inputs",
+          "type": "jsonb",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "captured",
+          "type": "jsonb",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "package",
+          "type": "jsonb",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "fit_report",
+          "type": "jsonb",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "rendered_request",
+          "type": "jsonb",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "request_digest",
+          "type": "text",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "expected_digest",
+          "type": "text",
+          "default": null,
+          "nullable": true
+        },
+        {
+          "name": "estimate",
+          "type": "jsonb",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "target",
+          "type": "jsonb",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": null,
+          "nullable": false
+        }
+      ],
+      "constraints": [
+        {
+          "name": "generation_account_id_project_id_fkey",
+          "definition": "FOREIGN KEY (account_id, project_id) REFERENCES accounts.project(account_id, project_id)"
+        },
+        {
+          "name": "generation_account_id_project_id_generation_id_key",
+          "definition": "UNIQUE (account_id, project_id, generation_id)"
+        },
+        {
+          "name": "generation_operation",
+          "definition": "CHECK ((operation = 'treatment.draft'::text))"
+        },
+        {
+          "name": "generation_operation_class",
+          "definition": "CHECK ((operation_class = ANY (ARRAY['video.take'::text, 'image.frame'::text, 'image.entity'::text, 'text.create'::text, 'text.check'::text, 'audio.speech'::text, 'audio.transform'::text, 'audio.lipsync'::text, 'audio.voice'::text, 'audio.transcribe'::text, 'audio.music-sfx'::text, 'world.generate'::text])))"
+        },
+        {
+          "name": "generation_pkey",
+          "definition": "PRIMARY KEY (generation_id)"
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX generation_account_id_project_id_generation_id_key ON accounts.generation USING btree (account_id, project_id, generation_id)",
+        "CREATE UNIQUE INDEX generation_pkey ON accounts.generation USING btree (generation_id)"
+      ],
+      "policies": [
+        {
+          "name": "account_scope",
+          "check": "(account_id = (NULLIF(current_setting('aiuteur.account_id'::text, true), ''::text))::uuid)",
+          "roles": [
+            "public"
+          ],
+          "using": "(account_id = (NULLIF(current_setting('aiuteur.account_id'::text, true), ''::text))::uuid)",
+          "command": "ALL"
+        }
+      ]
+    },
+    {
+      "schema": "accounts",
+      "name": "generation_call",
+      "owner": "owner",
+      "rls": true,
+      "force_rls": true,
+      "grants": "{owner=arwdDxt/owner,app=ar/owner,backup=r/owner}",
+      "columns": [
+        {
+          "name": "generation_id",
+          "type": "uuid",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "index",
+          "type": "integer",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "account_id",
+          "type": "uuid",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "project_id",
+          "type": "uuid",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "role",
+          "type": "text",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "job_id",
+          "type": "uuid",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "request_digest",
+          "type": "text",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "operation_ref",
+          "type": "text",
+          "default": null,
+          "nullable": true
+        },
+        {
+          "name": "response",
+          "type": "text",
+          "default": null,
+          "nullable": true
+        },
+        {
+          "name": "verdict",
+          "type": "jsonb",
+          "default": null,
+          "nullable": true
+        },
+        {
+          "name": "reported_cost",
+          "type": "jsonb",
+          "default": null,
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": null,
+          "nullable": false
+        }
+      ],
+      "constraints": [
+        {
+          "name": "generation_call_account_id_project_id_generation_id_fkey",
+          "definition": "FOREIGN KEY (account_id, project_id, generation_id) REFERENCES accounts.generation(account_id, project_id, generation_id)"
+        },
+        {
+          "name": "generation_call_index_check",
+          "definition": "CHECK ((index >= 1))"
+        },
+        {
+          "name": "generation_call_pkey",
+          "definition": "PRIMARY KEY (generation_id, index)"
+        },
+        {
+          "name": "generation_call_role",
+          "definition": "CHECK ((role = ANY (ARRAY['draft'::text, 'repair'::text, 'check'::text, 'partition'::text])))"
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX generation_call_pkey ON accounts.generation_call USING btree (generation_id, index)"
+      ],
+      "policies": [
+        {
+          "name": "account_scope",
+          "check": "(account_id = (NULLIF(current_setting('aiuteur.account_id'::text, true), ''::text))::uuid)",
+          "roles": [
+            "public"
+          ],
+          "using": "(account_id = (NULLIF(current_setting('aiuteur.account_id'::text, true), ''::text))::uuid)",
+          "command": "ALL"
+        }
+      ]
+    },
+    {
+      "schema": "accounts",
+      "name": "generation_run",
+      "owner": "owner",
+      "rls": true,
+      "force_rls": true,
+      "grants": "{owner=arwdDxt/owner,app=ar/owner,backup=r/owner}",
+      "columns": [
+        {
+          "name": "generation_id",
+          "type": "uuid",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "job_id",
+          "type": "uuid",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "account_id",
+          "type": "uuid",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "project_id",
+          "type": "uuid",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "run",
+          "type": "integer",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "state",
+          "type": "text",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "operation_ref",
+          "type": "text",
+          "default": null,
+          "nullable": true
+        },
+        {
+          "name": "failure_class",
+          "type": "text",
+          "default": null,
+          "nullable": true
+        },
+        {
+          "name": "billed",
+          "type": "text",
+          "default": null,
+          "nullable": true
+        },
+        {
+          "name": "reason",
+          "type": "text",
+          "default": null,
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": null,
+          "nullable": false
+        }
+      ],
+      "constraints": [
+        {
+          "name": "generation_run_account_id_project_id_generation_id_fkey",
+          "definition": "FOREIGN KEY (account_id, project_id, generation_id) REFERENCES accounts.generation(account_id, project_id, generation_id)"
+        },
+        {
+          "name": "generation_run_billed",
+          "definition": "CHECK ((billed = ANY (ARRAY['no'::text, 'maybe'::text, 'yes'::text])))"
+        },
+        {
+          "name": "generation_run_failure_class",
+          "definition": "CHECK ((failure_class = ANY (ARRAY['transient-unbilled'::text, 'transient-maybe-billed'::text, 'output-retrieval'::text, 'output-lost'::text, 'permanent-input'::text, 'provider-safety-refusal'::text, 'platform-configuration'::text, 'unknown'::text])))"
+        },
+        {
+          "name": "generation_run_pkey",
+          "definition": "PRIMARY KEY (generation_id, job_id)"
+        },
+        {
+          "name": "generation_run_run_check",
+          "definition": "CHECK ((run >= 1))"
+        },
+        {
+          "name": "generation_run_state",
+          "definition": "CHECK ((state = ANY (ARRAY['waiting'::text, 'queued'::text, 'submitting'::text, 'running'::text, 'fetching'::text, 'cancelling'::text, 'succeeded'::text, 'failed'::text, 'cancelled'::text])))"
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX generation_run_pkey ON accounts.generation_run USING btree (generation_id, job_id)"
+      ],
+      "policies": [
+        {
+          "name": "account_scope",
+          "check": "(account_id = (NULLIF(current_setting('aiuteur.account_id'::text, true), ''::text))::uuid)",
+          "roles": [
+            "public"
+          ],
+          "using": "(account_id = (NULLIF(current_setting('aiuteur.account_id'::text, true), ''::text))::uuid)",
+          "command": "ALL"
+        }
+      ]
+    },
+    {
+      "schema": "accounts",
+      "name": "generation_settlement",
+      "owner": "owner",
+      "rls": true,
+      "force_rls": true,
+      "grants": "{owner=arwdDxt/owner,app=ar/owner,backup=r/owner}",
+      "columns": [
+        {
+          "name": "generation_id",
+          "type": "uuid",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "account_id",
+          "type": "uuid",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "project_id",
+          "type": "uuid",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "outcome",
+          "type": "text",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "reason",
+          "type": "text",
+          "default": null,
+          "nullable": true
+        },
+        {
+          "name": "actual",
+          "type": "jsonb",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "outputs",
+          "type": "jsonb",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "settled_at",
+          "type": "timestamp with time zone",
+          "default": null,
+          "nullable": false
+        }
+      ],
+      "constraints": [
+        {
+          "name": "generation_settlement_account_id_project_id_generation_id_fkey",
+          "definition": "FOREIGN KEY (account_id, project_id, generation_id) REFERENCES accounts.generation(account_id, project_id, generation_id)"
+        },
+        {
+          "name": "generation_settlement_outcome",
+          "definition": "CHECK ((outcome = ANY (ARRAY['succeeded'::text, 'failed'::text, 'cancelled'::text])))"
+        },
+        {
+          "name": "generation_settlement_pkey",
+          "definition": "PRIMARY KEY (generation_id)"
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX generation_settlement_pkey ON accounts.generation_settlement USING btree (generation_id)"
+      ],
+      "policies": [
+        {
+          "name": "account_scope",
+          "check": "(account_id = (NULLIF(current_setting('aiuteur.account_id'::text, true), ''::text))::uuid)",
+          "roles": [
+            "public"
+          ],
+          "using": "(account_id = (NULLIF(current_setting('aiuteur.account_id'::text, true), ''::text))::uuid)",
+          "command": "ALL"
+        }
+      ]
+    },
+    {
+      "schema": "accounts",
       "name": "idempotency",
       "owner": "owner",
       "rls": true,
@@ -204,7 +990,7 @@
         },
         {
           "name": "idempotency_operation",
-          "definition": "CHECK ((operation = ANY (ARRAY['source-material.paste'::text, 'source-material.change-role'::text])))"
+          "definition": "CHECK ((operation = ANY (ARRAY['source-material.paste'::text, 'source-material.change-role'::text, 'treatment-option.choose'::text, 'treatment.draft'::text])))"
         },
         {
           "name": "idempotency_pkey",
@@ -222,6 +1008,191 @@
             "public"
           ],
           "using": "(account_id = (NULLIF(current_setting('aiuteur.account_id'::text, true), ''::text))::uuid)",
+          "command": "ALL"
+        }
+      ]
+    },
+    {
+      "schema": "accounts",
+      "name": "job",
+      "owner": "owner",
+      "rls": true,
+      "force_rls": true,
+      "grants": "{owner=arwdDxt/owner,app=ar/owner,backup=r/owner}",
+      "columns": [
+        {
+          "name": "job_id",
+          "type": "uuid",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "account_id",
+          "type": "uuid",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "project_id",
+          "type": "uuid",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "generation_id",
+          "type": "uuid",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "run",
+          "type": "integer",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "class",
+          "type": "text",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "provider",
+          "type": "text",
+          "default": null,
+          "nullable": true
+        },
+        {
+          "name": "state",
+          "type": "text",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "due_at",
+          "type": "timestamp with time zone",
+          "default": null,
+          "nullable": true
+        },
+        {
+          "name": "deadline_at",
+          "type": "timestamp with time zone",
+          "default": null,
+          "nullable": true
+        },
+        {
+          "name": "lease_token",
+          "type": "uuid",
+          "default": null,
+          "nullable": true
+        },
+        {
+          "name": "lease_expires_at",
+          "type": "timestamp with time zone",
+          "default": null,
+          "nullable": true
+        },
+        {
+          "name": "operation_ref",
+          "type": "text",
+          "default": null,
+          "nullable": true
+        },
+        {
+          "name": "failure_class",
+          "type": "text",
+          "default": null,
+          "nullable": true
+        },
+        {
+          "name": "billed",
+          "type": "text",
+          "default": null,
+          "nullable": true
+        },
+        {
+          "name": "reason",
+          "type": "text",
+          "default": null,
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "default": null,
+          "nullable": false
+        }
+      ],
+      "constraints": [
+        {
+          "name": "job_account_id_project_id_generation_id_fkey",
+          "definition": "FOREIGN KEY (account_id, project_id, generation_id) REFERENCES accounts.generation(account_id, project_id, generation_id)"
+        },
+        {
+          "name": "job_billed",
+          "definition": "CHECK ((billed = ANY (ARRAY['no'::text, 'maybe'::text, 'yes'::text])))"
+        },
+        {
+          "name": "job_check",
+          "definition": "CHECK (((state = ANY (ARRAY['succeeded'::text, 'failed'::text, 'cancelled'::text])) = (due_at IS NULL)))"
+        },
+        {
+          "name": "job_check1",
+          "definition": "CHECK (((class = 'provider'::text) = (provider IS NOT NULL)))"
+        },
+        {
+          "name": "job_class",
+          "definition": "CHECK ((class = ANY (ARRAY['provider'::text, 'local'::text])))"
+        },
+        {
+          "name": "job_failure_class",
+          "definition": "CHECK ((failure_class = ANY (ARRAY['transient-unbilled'::text, 'transient-maybe-billed'::text, 'output-retrieval'::text, 'output-lost'::text, 'permanent-input'::text, 'provider-safety-refusal'::text, 'platform-configuration'::text, 'unknown'::text])))"
+        },
+        {
+          "name": "job_generation_id_run_key",
+          "definition": "UNIQUE (generation_id, run)"
+        },
+        {
+          "name": "job_pkey",
+          "definition": "PRIMARY KEY (job_id)"
+        },
+        {
+          "name": "job_run_check",
+          "definition": "CHECK ((run >= 1))"
+        },
+        {
+          "name": "job_state",
+          "definition": "CHECK ((state = ANY (ARRAY['waiting'::text, 'queued'::text, 'submitting'::text, 'running'::text, 'fetching'::text, 'cancelling'::text, 'succeeded'::text, 'failed'::text, 'cancelled'::text])))"
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX job_due ON accounts.job USING btree (due_at, job_id) WHERE (due_at IS NOT NULL)",
+        "CREATE UNIQUE INDEX job_generation_id_run_key ON accounts.job USING btree (generation_id, run)",
+        "CREATE UNIQUE INDEX job_pkey ON accounts.job USING btree (job_id)"
+      ],
+      "policies": [
+        {
+          "name": "account_scope",
+          "check": "(account_id = (NULLIF(current_setting('aiuteur.account_id'::text, true), ''::text))::uuid)",
+          "roles": [
+            "public"
+          ],
+          "using": "(account_id = (NULLIF(current_setting('aiuteur.account_id'::text, true), ''::text))::uuid)",
+          "command": "ALL"
+        },
+        {
+          "name": "scheduler_claim",
+          "check": "(current_setting('aiuteur.claim'::text, true) = 'on'::text)",
+          "roles": [
+            "owner"
+          ],
+          "using": "(current_setting('aiuteur.claim'::text, true) = 'on'::text)",
           "command": "ALL"
         }
       ]
@@ -1294,6 +2265,54 @@
       "policies": []
     },
     {
+      "schema": "operator",
+      "name": "breaker",
+      "owner": "owner",
+      "rls": false,
+      "force_rls": false,
+      "grants": "{owner=arwdDxt/owner,backup=r/owner}",
+      "columns": [
+        {
+          "name": "provider",
+          "type": "text",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "open",
+          "type": "boolean",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "opened_at",
+          "type": "timestamp with time zone",
+          "default": null,
+          "nullable": true
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "default": null,
+          "nullable": false
+        }
+      ],
+      "constraints": [
+        {
+          "name": "breaker_check",
+          "definition": "CHECK ((open = (opened_at IS NOT NULL)))"
+        },
+        {
+          "name": "breaker_pkey",
+          "definition": "PRIMARY KEY (provider)"
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX breaker_pkey ON operator.breaker USING btree (provider)"
+      ],
+      "policies": []
+    },
+    {
       "schema": "public",
       "name": "migrations",
       "owner": "owner",
@@ -1353,6 +2372,34 @@
     },
     {
       "schema": "accounts",
+      "name": "job_claim",
+      "definition": "CREATE OR REPLACE FUNCTION accounts.job_claim(max_jobs integer, at_time timestamp with time zone, lease_ms integer, token uuid, only_job uuid, account_cap integer, provider_caps jsonb)\n RETURNS TABLE(job_id uuid, account_id uuid, state text, lease_token uuid)\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog'\nAS $function$\n#variable_conflict use_column\nDECLARE\n  claimed integer := 0;\n  picked uuid;\n  lease_end timestamptz := at_time + make_interval(secs => lease_ms / 1000.0);\nBEGIN\n  PERFORM pg_advisory_xact_lock(hashtextextended('aiuteur.job_claim', 0));\n  PERFORM set_config('aiuteur.claim', 'on', true);\n  RETURN QUERY\n    WITH due AS (\n      SELECT j.job_id FROM accounts.job j\n      WHERE j.due_at <= at_time AND j.state NOT IN ('waiting', 'succeeded', 'failed', 'cancelled')\n        AND (j.state <> 'queued' OR j.class = 'local' OR j.deadline_at <= at_time)\n        AND (only_job IS NULL OR j.job_id = only_job)\n      ORDER BY j.due_at, j.job_id\n      LIMIT max_jobs\n      FOR UPDATE SKIP LOCKED\n    )\n    UPDATE accounts.job j SET\n      lease_token = token, lease_expires_at = lease_end,\n      due_at = LEAST(lease_end, COALESCE(j.deadline_at, 'infinity')), updated_at = at_time\n    FROM due WHERE j.job_id = due.job_id\n    RETURNING j.job_id, j.account_id, j.state, j.lease_token;\n  GET DIAGNOSTICS claimed = ROW_COUNT;\n  WHILE claimed < max_jobs LOOP\n    SELECT j.job_id INTO picked FROM accounts.job j\n    WHERE j.due_at <= at_time AND j.state = 'queued' AND j.class = 'provider'\n      AND (j.deadline_at IS NULL OR j.deadline_at > at_time)\n      AND (only_job IS NULL OR j.job_id = only_job)\n      AND NOT EXISTS (SELECT 1 FROM operator.breaker b WHERE b.provider = j.provider AND b.open)\n      AND (SELECT count(*) FROM accounts.job f WHERE f.class = 'provider' AND f.provider = j.provider\n        AND (f.state IN ('submitting', 'running', 'cancelling') OR (f.state = 'queued' AND f.lease_expires_at > at_time)))\n        < COALESCE((provider_caps ->> j.provider)::integer, 0)\n      AND (SELECT count(*) FROM accounts.job f WHERE f.class = 'provider' AND f.account_id = j.account_id\n        AND (f.state IN ('submitting', 'running', 'cancelling') OR (f.state = 'queued' AND f.lease_expires_at > at_time)))\n        < account_cap\n    ORDER BY (SELECT count(*) FROM accounts.job f WHERE f.class = 'provider' AND f.account_id = j.account_id\n        AND (f.state IN ('submitting', 'running', 'cancelling') OR (f.state = 'queued' AND f.lease_expires_at > at_time))),\n      j.created_at, j.job_id\n    LIMIT 1\n    FOR UPDATE OF j SKIP LOCKED;\n    EXIT WHEN picked IS NULL;\n    RETURN QUERY\n      UPDATE accounts.job j SET\n        lease_token = token, lease_expires_at = lease_end,\n        due_at = LEAST(lease_end, COALESCE(j.deadline_at, 'infinity')), updated_at = at_time\n      WHERE j.job_id = picked\n      RETURNING j.job_id, j.account_id, j.state, j.lease_token;\n    claimed := claimed + 1;\n  END LOOP;\n  PERFORM set_config('aiuteur.claim', '', true);\nEND $function$\n",
+      "owner": "owner",
+      "grants": "{owner=X/owner,scheduler=X/owner}"
+    },
+    {
+      "schema": "accounts",
+      "name": "job_extend",
+      "definition": "CREATE OR REPLACE FUNCTION accounts.job_extend(job uuid, token uuid, at_time timestamp with time zone, lease_ms integer)\n RETURNS boolean\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog'\nAS $function$\nDECLARE n integer;\nBEGIN\n  PERFORM set_config('aiuteur.claim', 'on', true);\n  UPDATE accounts.job j SET\n    lease_expires_at = at_time + make_interval(secs => lease_ms / 1000.0),\n    due_at = LEAST(at_time + make_interval(secs => lease_ms / 1000.0), COALESCE(j.deadline_at, 'infinity')),\n    updated_at = at_time\n  WHERE j.job_id = job AND j.lease_token = token AND j.lease_expires_at > at_time AND j.due_at IS NOT NULL;\n  GET DIAGNOSTICS n = ROW_COUNT;\n  PERFORM set_config('aiuteur.claim', '', true);\n  RETURN n = 1;\nEND $function$\n",
+      "owner": "owner",
+      "grants": "{owner=X/owner,scheduler=X/owner}"
+    },
+    {
+      "schema": "accounts",
+      "name": "job_release",
+      "definition": "CREATE OR REPLACE FUNCTION accounts.job_release(job uuid, token uuid, due timestamp with time zone)\n RETURNS boolean\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog'\nAS $function$\nDECLARE n integer;\nBEGIN\n  PERFORM set_config('aiuteur.claim', 'on', true);\n  UPDATE accounts.job j SET lease_token = NULL, lease_expires_at = NULL, due_at = LEAST(due, COALESCE(j.deadline_at, 'infinity'))\n  WHERE j.job_id = job AND j.lease_token = token AND j.due_at IS NOT NULL;\n  GET DIAGNOSTICS n = ROW_COUNT;\n  PERFORM set_config('aiuteur.claim', '', true);\n  RETURN n = 1;\nEND $function$\n",
+      "owner": "owner",
+      "grants": "{owner=X/owner,scheduler=X/owner}"
+    },
+    {
+      "schema": "accounts",
+      "name": "job_wake",
+      "definition": "CREATE OR REPLACE FUNCTION accounts.job_wake(job uuid, at_time timestamp with time zone)\n RETURNS boolean\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog'\nAS $function$\nDECLARE n integer;\nBEGIN\n  PERFORM set_config('aiuteur.claim', 'on', true);\n  UPDATE accounts.job j SET due_at = LEAST(j.due_at, at_time)\n  WHERE j.job_id = job AND j.due_at IS NOT NULL AND (j.lease_expires_at IS NULL OR j.lease_expires_at <= at_time);\n  GET DIAGNOSTICS n = ROW_COUNT;\n  PERFORM set_config('aiuteur.claim', '', true);\n  RETURN n = 1;\nEND $function$\n",
+      "owner": "owner",
+      "grants": "{owner=X/owner,scheduler=X/owner}"
+    },
+    {
+      "schema": "accounts",
       "name": "map_subject",
       "definition": "CREATE OR REPLACE FUNCTION accounts.map_subject(subject_id text)\n RETURNS uuid\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'pg_catalog'\nAS $function$\n  SELECT m.account_id FROM auth.subject_map m\n  JOIN auth.\"user\" u ON u.id = m.subject\n  WHERE m.subject = subject_id AND u.\"emailVerified\"\n$function$\n",
       "owner": "owner",
@@ -1370,12 +2417,17 @@
     {
       "name": "accounts",
       "owner": "owner",
-      "grants": "{owner=UC/owner,app=U/owner,identity=U/owner,backup=U/owner}"
+      "grants": "{owner=UC/owner,app=U/owner,identity=U/owner,backup=U/owner,scheduler=U/owner}"
     },
     {
       "name": "auth",
       "owner": "owner",
       "grants": "{owner=UC/owner,identity=U/owner,backup=U/owner}"
+    },
+    {
+      "name": "operator",
+      "owner": "owner",
+      "grants": "{owner=UC/owner,backup=U/owner}"
     }
   ]
 }

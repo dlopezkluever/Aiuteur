@@ -24,7 +24,7 @@ export async function schemaCatalogue(connectionString: string) {
         pg_get_userbyid(p.proowner) AS owner, p.proacl::text AS grants
       FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
       WHERE n.nspname NOT LIKE 'pg_%' AND n.nspname <> 'information_schema' ORDER BY n.nspname, p.proname`);
-    const schemas = await pool.query("SELECT nspname AS name, pg_get_userbyid(nspowner) AS owner, nspacl::text AS grants FROM pg_namespace WHERE nspname IN ('accounts', 'auth') ORDER BY nspname");
+    const schemas = await pool.query("SELECT nspname AS name, pg_get_userbyid(nspowner) AS owner, nspacl::text AS grants FROM pg_namespace WHERE nspname IN ('accounts', 'auth', 'operator') ORDER BY nspname");
     return { tables: tables.rows, functions: functions.rows, schemas: schemas.rows };
   } finally { await pool.end(); }
 }

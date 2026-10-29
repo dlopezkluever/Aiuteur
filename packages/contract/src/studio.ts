@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { GENERATION_OUTCOMES, JOB_STATES } from "./generation.ts";
 
 // Only the server mints these ids, using injected UUID v4 generation. An id
 // parsed from a request is still resolved under the authenticated Scope.
@@ -32,13 +33,14 @@ export const projectListSchema = z.strictObject({ projects: z.array(projectSchem
 export const ERROR_CODES = ["not-found", "unauthenticated", "forbidden", "invalid-request", "invitation-refused", "recovery-refused", "idempotency-key-reused", "rate-limited", "internal-error"] as const;
 export const errorSchema = z.strictObject({ code: z.enum(ERROR_CODES) });
 export type ErrorCode = z.infer<typeof errorSchema>["code"];
-export const EVENT_TYPES = ["account.created"] as const;
-export const eventSchema = z.strictObject({
-  accountId: accountIdSchema,
-  sequence: z.int().positive(),
-  type: z.enum(EVENT_TYPES),
-  occurredAt: z.iso.datetime(),
-});
+export const EVENT_TYPES = ["account.created", "job.state_changed", "generation.settled"] as const;
+const eventBase = { accountId: accountIdSchema, sequence: z.int().positive(), occurredAt: z.iso.datetime() };
+/** The outbox event envelope (RUNTIME-PLATFORM §6): per-Account sequence, type, ids and statuses only (RT4). */
+export const eventSchema = z.discriminatedUnion("type", [
+  z.strictObject({ ...eventBase, type: z.literal("account.created") }),
+  z.strictObject({ ...eventBase, type: z.literal("job.state_changed"), jobId: z.uuidv7(), generationId: generationIdSchema, state: z.enum(JOB_STATES) }),
+  z.strictObject({ ...eventBase, type: z.literal("generation.settled"), generationId: generationIdSchema, outcome: z.enum(GENERATION_OUTCOMES) }),
+]);
 export type StudioEvent = z.infer<typeof eventSchema>;
 
 export const issueInvitationSchema = z.strictObject({ email: emailSchema });
@@ -79,6 +81,10 @@ export const ROUTES = [
   { method: "GET", path: "/api/studios/:accountId/projects/:projectId/source-material/:objectId/revisions/:sequence", access: "scope" },
   { method: "POST", path: "/api/studios/:accountId/projects/:projectId/source-material/:objectId/role", access: "scope" },
   { method: "GET", path: "/api/studios/:accountId/projects/:projectId/source-material/:objectId/treatment-preview", access: "scope" },
+  { method: "POST", path: "/api/studios/:accountId/projects/:projectId/source-material/:objectId/treatment-drafts", access: "scope" },
+  { method: "GET", path: "/api/studios/:accountId/projects/:projectId/generations/:generationId", access: "scope" },
+  { method: "GET", path: "/api/studios/:accountId/projects/:projectId/treatment-options/:objectId", access: "scope" },
+  { method: "POST", path: "/api/studios/:accountId/projects/:projectId/treatment-options/:objectId/choose", access: "scope" },
   { method: "POST", path: "/api/auth/sign-in/email", access: "auth" },
   { method: "POST", path: "/api/auth/sign-out", access: "auth" },
   { method: "POST", path: "/api/auth/two-factor/enable", access: "auth" },

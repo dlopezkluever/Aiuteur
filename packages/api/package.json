@@ -14,7 +14,9 @@
     "hono": "^4.13.14"
   },
   "devDependencies": {
+    "@aiuteur/generation": "workspace:*",
     "@aiuteur/history": "workspace:*",
+    "@aiuteur/jobs": "workspace:*",
     "@aiuteur/providers": "workspace:*",
     "@aiuteur/story": "workspace:*",
     "@aiuteur/testing": "workspace:*",

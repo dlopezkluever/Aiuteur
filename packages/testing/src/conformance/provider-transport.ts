@@ -23,6 +23,7 @@ import {
 import { testCredential, testJobId } from "../fake-profiles.ts";
 import { FakeTransport, ManualClock } from "../fake-transport.ts";
 import { ScriptCitationError, type ProviderScript } from "../script.ts";
+import type { RecordedProposal } from "../proposals.ts";
 
 // The ProviderTransport conformance suite (VERIFICATION-AND-OBSERVABILITY §3.3, FC11).
 // A fake runs every case ("full"); a real adapter runs the probe subset live ("probe").
@@ -42,8 +43,8 @@ export interface FullConformanceContext extends ConformanceContext {
 /** A Rendered request to send, with the quantity the provider's documented pricing rule bills for it. */
 export interface SuppliedRequest {
   readonly request: RenderedRequest;
-  /** Derived by hand from the provider's documentation, never from the adapter. */
-  readonly billed: ReportedCost;
+  /** Derived by hand from the provider's documentation, never from the adapter: one entry per billed unit. */
+  readonly billed: readonly ReportedCost[];
 }
 
 interface SubjectBase {
@@ -158,11 +159,14 @@ const FULL_CASES: readonly Case<FullSubject>[] = [
     title: "accepting a run returns an operation reference that observe resolves",
     async run(subject) {
       const ctx = subject.setUp([]);
-      const operation = accepted(await submit(ctx, job("ref", 1), firstRequest(subject)));
+      const result = await submit(ctx, job("ref", 1), firstRequest(subject));
+      const operation = accepted(result);
       expect(typeof operation === "string" && operation.length > 0).toBe(true);
       const early = await poll(ctx, operation);
       expect(early).toMatchObject({ outcome: "observed", operation, eventId: null });
-      expect(["pending", "running"]).toContain(statusOf(early).status);
+      // A synchronous (text) provider answered in the submit response; observing it later reads the same final status.
+      if (result.outcome === "completed") expect(statusOf(early)).toStrictEqual(result.status);
+      else expect(["pending", "running"]).toContain(statusOf(early).status);
       runToEnd(ctx);
       expect(statusOf(await poll(ctx, operation)).status).toBe("succeeded");
       const unknown = await poll(ctx, "not-an-operation" as OperationReference);
@@ -237,6 +241,14 @@ const FULL_CASES: readonly Case<FullSubject>[] = [
     title: "expired output URLs are reported as expired, never as output",
     async run(subject) {
       const ctx = subject.setUp([]);
+      if (ctx.transport.profile.runBehaviour.outputRetention.state === "declared-none") {
+        // An inline (text) response has no output URL: nothing can expire, and a fetch finds nothing.
+        const operation = accepted(await submit(ctx, job("expiry", 1), firstRequest(subject)));
+        const status = statusOf(await poll(ctx, operation));
+        expect(status).toMatchObject({ status: "succeeded", outputs: [] });
+        expect(typeof (status as { text: unknown }).text).toBe("string");
+        return;
+      }
       const { urlLifetimeMs, windowMs } = declared(ctx, "outputRetention");
       const operation = accepted(await submit(ctx, job("expiry", 1), firstRequest(subject)));
       runToEnd(ctx);
@@ -300,9 +312,12 @@ const FULL_CASES: readonly Case<FullSubject>[] = [
       runToEnd(ctx);
       const status = statusOf(await poll(ctx, operation));
       expect(status.status).toBe("succeeded");
-      const [output] = outputsOf({ outcome: "observed", operation, eventId: null, status });
-      expect((await fetchBytes(ctx, output!)).length).toBeGreaterThan(0);
-      if (status.status === "succeeded" && status.reportedCost !== null) expect(status.reportedCost).toStrictEqual(billed);
+      if (status.status === "succeeded" && status.text !== null) expect(status.outputs).toStrictEqual([]);
+      else {
+        const [output] = outputsOf({ outcome: "observed", operation, eventId: null, status });
+        expect((await fetchBytes(ctx, output!)).length).toBeGreaterThan(0);
+      }
+      if (status.status === "succeeded" && status.reportedCost !== null) expect(within(status.reportedCost, billed)).toBe(true);
     },
   },
   {
@@ -332,7 +347,7 @@ const FULL_CASES: readonly Case<FullSubject>[] = [
       runToEnd(ctx);
       const status = statusOf(await poll(ctx, operation));
       expect(status.status).toBe("succeeded");
-      if (status.status === "succeeded" && status.reportedCost !== null) expect(status.reportedCost).toStrictEqual(billed);
+      if (status.status === "succeeded" && status.reportedCost !== null) expect(within(status.reportedCost, billed)).toBe(true);
     },
   },
   {
@@ -344,18 +359,24 @@ const FULL_CASES: readonly Case<FullSubject>[] = [
       expect(rule.state).toBe("declared");
       for (const [index, { request, billed }] of subject.suppliedRequests.entries()) {
         const estimate = ctx.transport.billedQuantity(request);
-        if (rule.state === "declared" && rule.value.rule !== "text-tokens") expect(estimate.unit).toBe(rule.value.unit);
-        expect({ unit: estimate.unit, amount: estimate.amount }).toStrictEqual(billed);
-        expect(estimate.bounds.min).toBeLessThanOrEqual(estimate.amount);
-        expect(estimate.amount).toBeLessThanOrEqual(estimate.bounds.max);
+        // One estimate per billed unit the rule declares: one for media, input and output tokens for token-priced text.
+        if (rule.state === "declared") expect(estimate.map((q) => q.unit)).toStrictEqual(rule.value.rule === "text-tokens" ? ["input-token", "output-token"] : [rule.value.unit]);
+        expect(estimate.map((q) => ({ unit: q.unit, amount: q.amount }))).toStrictEqual(billed);
+        for (const q of estimate) {
+          expect(q.bounds.min).toBeLessThanOrEqual(q.amount);
+          expect(q.amount).toBeLessThanOrEqual(q.bounds.max);
+        }
         const operation = accepted(await submit(ctx, job("billed", index), request));
         runToEnd(ctx);
         const status = statusOf(await poll(ctx, operation));
         if (status.status !== "succeeded") throw new Error(`expected success, got ${status.status}`);
         if (reported.state === "declared" && reported.value) {
-          expect(status.reportedCost?.unit).toBe(estimate.unit);
-          expect(status.reportedCost!.amount).toBeGreaterThanOrEqual(estimate.bounds.min);
-          expect(status.reportedCost!.amount).toBeLessThanOrEqual(estimate.bounds.max);
+          // What the provider reports per unit lies within that unit's estimated bounds.
+          expect(status.reportedCost?.map((c) => c.unit)).toStrictEqual(estimate.map((q) => q.unit));
+          for (const [i, cost] of (status.reportedCost ?? []).entries()) {
+            expect(cost.amount).toBeGreaterThanOrEqual(estimate[i]!.bounds.min);
+            expect(cost.amount).toBeLessThanOrEqual(estimate[i]!.bounds.max);
+          }
         } else {
           expect(status.reportedCost).toBeNull();
         }
@@ -363,6 +384,11 @@ const FULL_CASES: readonly Case<FullSubject>[] = [
     },
   },
 ];
+
+/** Each reported quantity is of a billed unit and inside the bounds the documented rule gives for it (text output varies). */
+function within(reported: readonly ReportedCost[], billed: readonly ReportedCost[]): boolean {
+  return reported.length === billed.length && reported.every((cost, i) => cost.unit === billed[i]!.unit && (cost.unit === "output-token" ? cost.amount <= billed[i]!.amount : cost.amount === billed[i]!.amount));
+}
 
 /** Registers the suite for one subject: every case for a fake, the probe subset for a real adapter. */
 export function describeProviderTransportConformance(subject: ProviderTransportSubject): void {
@@ -377,6 +403,8 @@ export function fakeTransportSubject(
   name: string,
   profile: ProfileSnapshot,
   suppliedRequests: readonly SuppliedRequest[],
+  /** A text fake's recorded proposals: enough steps for every submission a case makes. */
+  proposals: (count: number) => readonly RecordedProposal[] = () => [],
 ): FullSubject {
   return {
     name,
@@ -385,7 +413,7 @@ export function fakeTransportSubject(
     setUp(scripts) {
       const clock = new ManualClock();
       return {
-        transport: new FakeTransport({ profile, clock, webhookSecret: "conformance-webhook-secret", scripts }),
+        transport: new FakeTransport({ profile, clock, webhookSecret: "conformance-webhook-secret", scripts, proposals: proposals(64) }),
         clock,
         credential: testCredential(),
         decodeWireBody: (capture) => JSON.parse(new TextDecoder().decode(capture.body)),
@@ -435,7 +463,7 @@ function record(request: RenderedRequest) {
 }
 
 function submit(ctx: ConformanceContext, jobId: JobId, request: RenderedRequest): Promise<SubmitResult> {
-  return ctx.transport.submit({ request: record(request), credential: ctx.credential, idempotencyKey: jobId });
+  return ctx.transport.submit({ request: record(request), credential: ctx.credential, idempotencyKey: jobId, generationId: `generation-of-${jobId}` });
 }
 
 function poll(ctx: ConformanceContext, operation: OperationReference): Promise<ObserveResult> {
@@ -450,8 +478,9 @@ function lookup(ctx: ConformanceContext, correlationId: JobId) {
   return ctx.transport.lookup({ credential: ctx.credential, correlationId });
 }
 
+/** The operation reference of an accepted run, or of a synchronous provider's completed one. */
 function accepted(result: SubmitResult): OperationReference {
-  if (result.outcome !== "accepted") throw new Error(`expected accepted, got ${JSON.stringify(result)}`);
+  if (result.outcome !== "accepted" && result.outcome !== "completed") throw new Error(`expected accepted, got ${JSON.stringify(result)}`);
   return result.operation;
 }
 

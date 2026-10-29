@@ -1,0 +1,9 @@
+{
+  "name": "@aiuteur/jobs",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": { "@aiuteur/contract": "workspace:*", "@aiuteur/store": "workspace:*" }
+}

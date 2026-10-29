@@ -39,7 +39,7 @@ async function finishedOutput(profile: ProfileSnapshot, parameters: RenderedRequ
   const { clock, transport } = fake(profile);
   const credential = testCredential();
   const r = request(parameters);
-  const submitted = await transport.submit({ request: { digest: "sha256:x", request: r }, credential, idempotencyKey: testJobId("out") });
+  const submitted = await transport.submit({ request: { digest: "sha256:x", request: r }, credential, idempotencyKey: testJobId("out"), generationId: "generation-out" });
   if (submitted.outcome !== "accepted") throw new Error(submitted.outcome);
   clock.advance(60 * 60_000);
   const observed = await transport.observe({ via: "poll", credential, operation: submitted.operation });
@@ -119,13 +119,13 @@ describe("FakeTransport is a test provider", () => {
   it("bills by the declared rule", () => {
     const video = fake(FAKE_VIDEO_PROFILE).transport;
     // Duration set {4, 6, 8}: the smallest member at or above the request.
-    expect(video.billedQuantity(request({ durationSeconds: 7 }))).toStrictEqual({ unit: "second", amount: 8, bounds: { min: 8, max: 8 } });
-    expect(video.billedQuantity(request({ durationSeconds: 4 })).amount).toBe(4);
-    expect(video.billedQuantity(request({ durationSeconds: 4.5 })).amount).toBe(6);
+    expect(video.billedQuantity(request({ durationSeconds: 7 }))).toStrictEqual([{ unit: "second", amount: 8, bounds: { min: 8, max: 8 } }]);
+    expect(video.billedQuantity(request({ durationSeconds: 4 }))[0]!.amount).toBe(4);
+    expect(video.billedQuantity(request({ durationSeconds: 4.5 }))[0]!.amount).toBe(6);
     expect(() => video.billedQuantity(request({ durationSeconds: 9 }))).toThrow(RangeError);
     const image = fake(FAKE_IMAGE_PROFILE).transport;
-    expect(image.billedQuantity(request({ count: 3 }))).toStrictEqual({ unit: "image", amount: 3, bounds: { min: 3, max: 3 } });
-    expect(image.billedQuantity(request({})).amount).toBe(1);
+    expect(image.billedQuantity(request({ count: 3 }))).toStrictEqual([{ unit: "image", amount: 3, bounds: { min: 3, max: 3 } }]);
+    expect(image.billedQuantity(request({}))[0]!.amount).toBe(1);
   });
 });
 
