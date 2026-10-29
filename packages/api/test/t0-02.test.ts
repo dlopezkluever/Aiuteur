@@ -11,7 +11,7 @@ import { createWorkflows } from "@aiuteur/workflows";
 import { FakeMailer, ManualClock, uuidv7, syntheticCatalogue, TEST_PRICE_POLICY } from "@aiuteur/testing";
 import { createApi } from "@aiuteur/api";
 import { redeemedInvitationSchema, ROUTES } from "@aiuteur/contract";
-import { freshDatabase } from "./database.ts";
+import { freshDatabase, testExecution } from "./database.ts";
 
 const origin = "https://aiuteur.test";
 const password = "Paper-crane-lighthouse-98!";
@@ -30,6 +30,7 @@ const mailFailures: unknown[] = [];
 let database: Awaited<ReturnType<typeof freshDatabase>>;
 let adapter: Awaited<ReturnType<typeof createBetterAuth>>;
 let store: Awaited<ReturnType<typeof createPostgresStore>>;
+let run: Awaited<ReturnType<typeof testExecution>>;
 let accounts: ReturnType<typeof createAccounts>;
 let api: ReturnType<typeof createApi>;
 let counter = 0;
@@ -37,12 +38,13 @@ const freshAddress = () => `198.51.100.${++counter}`;
 
 beforeAll(async () => {
   database = await freshDatabase();
+  run = await testExecution(database, clock, ids);
   adapter = await createBetterAuth({ connectionString: database.url("identity"), baseURL: origin, secret: "synthetic-test-only-secret-with-more-than-32-characters", clock, ids, idleSessionSeconds: 3600, absoluteSessionSeconds: 86400 });
   store = await createPostgresStore(database.url("app"));
   accounts = createAccounts({ ...adapter, clock, ids, invitationTtlMs: 60_000, operatorEmails: [], mailer, limits, recoveryTtlMs: 600_000, recoveryPage: `${origin}/recover`, onMailFailure: (error) => mailFailures.push(error) });
-  api = createApi({ accounts, views: createViews(store), workflows: createWorkflows({ store, history: createHistory([sourceMaterialKind]), clock, ids, catalogue: syntheticCatalogue(), pricePolicy: TEST_PRICE_POLICY }), handleAuth: adapter.handle, origin, clientAddress: (request) => request.headers.get("x-test-address") ?? "203.0.113.250" });
+  api = createApi({ accounts, views: createViews(store), workflows: createWorkflows({ store, history: createHistory([sourceMaterialKind]), clock, ids, catalogue: syntheticCatalogue(), pricePolicy: TEST_PRICE_POLICY, execution: run.execution }), handleAuth: adapter.handle, origin, requestId: ids.uuid, now: () => clock.now(), clientAddress: (request) => request.headers.get("x-test-address") ?? "203.0.113.250" });
 });
-afterAll(async () => { await store?.close(); await adapter?.close(); await database?.close(); });
+afterAll(async () => { await run?.close(); await store?.close(); await adapter?.close(); await database?.close(); });
 
 async function request(path: string, body?: unknown, cookie = "", address = freshAddress()) {
   return api.request(`${origin}${path}`, {

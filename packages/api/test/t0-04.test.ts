@@ -11,7 +11,7 @@ import { createWorkflows } from "@aiuteur/workflows";
 import { billedQuantities, canonicalJson, count, NEUTRAL_TEXT_DIALECT, sha256, unwrap } from "@aiuteur/providers";
 import { FakeMailer, FAKE_TEXT_PROFILE, ManualClock, syntheticCatalogue, TEST_PRICE_POLICY, uuidv7 } from "@aiuteur/testing";
 import { createApi } from "@aiuteur/api";
-import { freshDatabase, snapshot } from "./database.ts";
+import { freshDatabase, snapshot, testExecution } from "./database.ts";
 
 // T0-04 (#101): a Draft Treatment preview through the API returns the effective Model and
 // Offering, the estimate and the exact would-be Rendered request, and writes nothing (P11).
@@ -23,19 +23,21 @@ const ids = { uuid: randomUUID, ordered: uuidv7, token: () => randomBytes(32).to
 let database: Awaited<ReturnType<typeof freshDatabase>>;
 let adapter: Awaited<ReturnType<typeof createBetterAuth>>;
 let store: Awaited<ReturnType<typeof createPostgresStore>>;
+let run: Awaited<ReturnType<typeof testExecution>>;
 let api: ReturnType<typeof createApi>;
 
 beforeAll(async () => {
   database = await freshDatabase();
+  run = await testExecution(database, clock, ids);
   adapter = await createBetterAuth({ connectionString: database.url("identity"), baseURL: origin, secret: "synthetic-test-only-secret-with-more-than-32-characters", clock, ids, idleSessionSeconds: 3600, absoluteSessionSeconds: 86400 });
   store = await createPostgresStore(database.url("app"));
   const generous = { max: 1_000_000, windowMs: 60_000 };
   const limit = { address: generous, email: generous };
   const accounts = createAccounts({ ...adapter, clock, ids, invitationTtlMs: 60_000, operatorEmails: [], mailer: new FakeMailer(), limits: { signIn: limit, recovery: limit, redemption: limit }, recoveryTtlMs: 600_000, recoveryPage: `${origin}/recover`, onMailFailure: (error) => { throw error; } });
-  const workflows = createWorkflows({ store, history: createHistory([sourceMaterialKind]), clock, ids, catalogue: syntheticCatalogue(), pricePolicy: TEST_PRICE_POLICY });
-  api = createApi({ accounts, views: createViews(store), workflows, handleAuth: adapter.handle, origin, clientAddress: () => "203.0.113.4" });
+  const workflows = createWorkflows({ store, history: createHistory([sourceMaterialKind]), clock, ids, catalogue: syntheticCatalogue(), pricePolicy: TEST_PRICE_POLICY, execution: run.execution });
+  api = createApi({ accounts, views: createViews(store), workflows, handleAuth: adapter.handle, origin, requestId: ids.uuid, now: () => clock.now(), clientAddress: () => "203.0.113.4" });
 });
-afterAll(async () => { await store?.close(); await adapter?.close(); await database?.close(); });
+afterAll(async () => { await run?.close(); await store?.close(); await adapter?.close(); await database?.close(); });
 
 async function call(method: "GET" | "POST", path: string, cookie: string, body?: unknown) {
   return api.request(`${origin}${path}`, { method, headers: { origin, "content-type": "application/json", "x-aiuteur-command": "1", "idempotency-key": ids.uuid(), cookie }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });

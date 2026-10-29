@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
-import { AI_CAUSES, type ActionGroupId, type ActorKind, type GenerationId, type ObjectId, type ProjectId, type RefusalReason, type RevisionCause } from "@aiuteur/contract";
-import type { AttemptRow, Ids, ReadTx, RevisionRow, Scope, WriteTx } from "@aiuteur/store";
+import { AI_CAUSES, type ActionGroupId, type ActorKind, type DecisionType, type GenerationId, type ObjectId, type ProjectId, type RefusalReason, type RevisionCause } from "@aiuteur/contract";
+import type { AttemptRow, DecisionRow, Ids, ReadTx, RevisionRow, Scope, WriteTx } from "@aiuteur/store";
 
 // Draft FC3 (the write gate) and FC4 (kind declaration). Neither is frozen at T0-03.
 
@@ -140,6 +140,61 @@ async function commit(kinds: ReadonlyMap<string, KindDeclaration>, wtx: WriteTx,
   return { result: "Applied", appended: true, revision };
 }
 
+/** A captured input: the unit read, its Revision and frozen fingerprint (LINEAGE §3.3; EI1). */
+export interface Captured { readonly unit: string; readonly objectId: ObjectId; readonly sequence: number; readonly fingerprint: string }
+
+/**
+ * Capture edges for a Generation (MODULE §6 step 4: "Capture edges via history"), written in the creating transaction.
+ * Each names a Revision of an object in the Generation's project, with the fingerprint frozen on that Revision; a
+ * capture that does not match what is stored is refused, so lineage can never name a state that did not exist.
+ */
+async function capture(wtx: WriteTx, _scope: Scope, generationId: GenerationId, projectId: ProjectId, captured: readonly Captured[], at: number): Promise<{ result: "Applied" } | { result: "Refused"; reason: RefusalReason }> {
+  for (const c of captured) {
+    const object = await wtx.object(c.objectId);
+    const revision = object?.projectId === projectId ? await wtx.revision(c.objectId, c.sequence) : null;
+    if (!revision) return { result: "Refused", reason: "not-found" };
+    if (revision.fingerprints[c.unit] !== c.fingerprint) return { result: "Refused", reason: "invariant-violated" };
+  }
+  for (const c of captured) await wtx.insertCapture({ generationId, objectId: c.objectId, projectId, slice: c.unit, sequence: c.sequence, fingerprint: c.fingerprint, createdAt: new Date(at).toISOString() });
+  return { result: "Applied" };
+}
+
+export interface DecisionChange {
+  readonly projectId: ProjectId;
+  readonly objectId: ObjectId;
+  /** The subject's kind; a Decision on an object of another kind is refused. */
+  readonly kind: string;
+  readonly type: DecisionType;
+  readonly payload: unknown;
+}
+export type DecideResult =
+  | { readonly result: "Applied"; readonly decision: DecisionRow }
+  | NeedsConfirmation
+  | { readonly result: "Refused"; readonly reason: RefusalReason };
+
+/**
+ * Appends one creator Decision (DOMAIN-MODEL §2: append-only; current state is the latest event). Scope, project and
+ * kind are checked under the write lock; a lock on the subject guards a Slot-choice move (MODULE §5.1 step 2), so a
+ * locked subject without the current edit session answers NeedsConfirmation and appends nothing.
+ */
+async function decide(wtx: WriteTx, scope: Scope, change: DecisionChange, ctx: CommitContext): Promise<DecideResult> {
+  if (ctx.actor !== "creator") return { result: "Refused", reason: "missing-provenance" };
+  const object = await wtx.object(change.objectId);
+  if (!object || object.projectId !== change.projectId) return { result: "Refused", reason: "not-found" };
+  if (object.kind !== change.kind) return { result: "Refused", reason: "kind-mismatch" };
+  const lock = await wtx.lockState(change.objectId);
+  const grant = ctx.editSession;
+  if (lock.locked && !(grant && grant.objectId === change.objectId && grant.creatorId === scope.creatorId && grant.impactVersion === lock.version)) {
+    return { result: "NeedsConfirmation", impact: { version: lock.version, reached: [] } };
+  }
+  const decision: DecisionRow = {
+    objectId: change.objectId, projectId: change.projectId, sequence: (await wtx.decisions(change.objectId)).length + 1,
+    type: change.type, payload: change.payload, actor: scope.creatorId, actionGroup: ctx.actionGroup, createdAt: new Date(ctx.at).toISOString(),
+  };
+  await wtx.appendDecision(decision);
+  return { result: "Applied", decision };
+}
+
 export interface ObjectRead {
   readonly kind: string;
   readonly projectId: ProjectId;
@@ -180,6 +235,8 @@ export function createHistory(declarations: readonly KindDeclaration<any>[]) {
   }
   return {
     commit: (wtx: WriteTx, scope: Scope, change: Change, ctx: CommitContext) => commit(kinds, wtx, scope, change, ctx),
+    capture,
+    decide,
     read,
     derive,
   };

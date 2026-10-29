@@ -28,7 +28,25 @@ export const FAKE_TEXT_PROFILE_CONTENT: ProfileContent = {
     billedQuantity: { state: "declared", value: { rule: "text-tokens", counter: "utf8-bytes", outputMaxParameter: "maxOutputTokens", outputMin: 0 }, evidence: synthetic },
     actualCostReported: { state: "declared", value: true, evidence: synthetic },
   },
-  runBehaviour: { idempotentSubmission: unknown, completionSignal: unknown, cancellation: unknown, outputRetention: unknown, billingOnCancel: unknown, errorMapping: unknown },
+  // A synchronous text model (#102): it answers within the request, has no idempotency key or lookup, cannot cancel a
+  // call it already answered, and its response is inline, so there is no output URL to retain.
+  runBehaviour: {
+    idempotentSubmission: { state: "declared", value: "neither", evidence: synthetic },
+    completionSignal: { state: "declared", value: { webhook: "none", pollMinIntervalMs: 0, maxRuntimeMs: 120_000 }, evidence: synthetic },
+    cancellation: { state: "declared", value: "none", evidence: synthetic },
+    outputRetention: none,
+    billingOnCancel: { state: "declared", value: "maybe", evidence: synthetic },
+    errorMapping: {
+      state: "declared",
+      value: [
+        { providerCode: "invalid_request", failureClass: "permanent-input", billed: "no" },
+        { providerCode: "content_filter", failureClass: "provider-safety-refusal", billed: "no" },
+        { providerCode: "overloaded", failureClass: "transient-unbilled", billed: "no" },
+        { providerCode: "server_error", failureClass: "transient-maybe-billed", billed: "maybe" },
+      ],
+      evidence: synthetic,
+    },
+  },
 };
 export const FAKE_TEXT_PROFILE: ProfileSnapshot = snapshotProfile(FAKE_TEXT_PROFILE_CONTENT);
 

@@ -2,6 +2,19 @@
   "name": "@aiuteur/workflows",
   "private": true,
   "type": "module",
-  "exports": { ".": "./src/index.ts" },
-  "dependencies": { "@aiuteur/contract": "workspace:*", "@aiuteur/generation": "workspace:*", "@aiuteur/history": "workspace:*", "@aiuteur/providers": "workspace:*", "@aiuteur/spend": "workspace:*", "@aiuteur/story": "workspace:*", "@aiuteur/store": "workspace:*" }
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@aiuteur/contract": "workspace:*",
+    "@aiuteur/generation": "workspace:*",
+    "@aiuteur/history": "workspace:*",
+    "@aiuteur/providers": "workspace:*",
+    "@aiuteur/spend": "workspace:*",
+    "@aiuteur/story": "workspace:*",
+    "@aiuteur/store": "workspace:*",
+    "@aiuteur/jobs": "workspace:*",
+    "@aiuteur/compiler": "workspace:*",
+    "zod": "^4.3.6"
+  }
 }

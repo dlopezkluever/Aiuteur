@@ -220,14 +220,32 @@ importers:
       '@aiuteur/contract':
         specifier: workspace:*
         version: link:../contract
+      '@aiuteur/history':
+        specifier: workspace:*
+        version: link:../history
+      '@aiuteur/jobs':
+        specifier: workspace:*
+        version: link:../jobs
       '@aiuteur/providers':
         specifier: workspace:*
         version: link:../providers
       '@aiuteur/spend':
         specifier: workspace:*
         version: link:../spend
+      '@aiuteur/store':
+        specifier: workspace:*
+        version: link:../store
 
   packages/history:
+    dependencies:
+      '@aiuteur/contract':
+        specifier: workspace:*
+        version: link:../contract
+      '@aiuteur/store':
+        specifier: workspace:*
+        version: link:../store
+
+  packages/jobs:
     dependencies:
       '@aiuteur/contract':
         specifier: workspace:*
@@ -347,6 +365,9 @@ importers:
       '@aiuteur/contract':
         specifier: workspace:*
         version: link:../contract
+      '@aiuteur/generation':
+        specifier: workspace:*
+        version: link:../generation
       '@aiuteur/history':
         specifier: workspace:*
         version: link:../history
@@ -359,6 +380,9 @@ importers:
 
   packages/workflows:
     dependencies:
+      '@aiuteur/compiler':
+        specifier: workspace:*
+        version: link:../compiler
       '@aiuteur/contract':
         specifier: workspace:*
         version: link:../contract
@@ -368,6 +392,9 @@ importers:
       '@aiuteur/history':
         specifier: workspace:*
         version: link:../history
+      '@aiuteur/jobs':
+        specifier: workspace:*
+        version: link:../jobs
       '@aiuteur/providers':
         specifier: workspace:*
         version: link:../providers
@@ -380,6 +407,9 @@ importers:
       '@aiuteur/story':
         specifier: workspace:*
         version: link:../story
+      zod:
+        specifier: ^4.3.6
+        version: 4.6.7
 
   tools/arch-rules:
     dependencies:

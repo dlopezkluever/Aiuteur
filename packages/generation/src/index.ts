@@ -3,6 +3,9 @@ import { compile, type ResolvedInputs } from "@aiuteur/compiler";
 import type { EffectiveModel, PriceEntry, ProfileSnapshot } from "@aiuteur/providers";
 import { estimate, type PricePolicy } from "@aiuteur/spend";
 
+export { createRecord, readGeneration, type CreateResult, type GenerationPlan } from "./record.ts";
+export { createDispatch, type Dispatch, type DispatchOptions, type DispatchOutcome, type OperationSettler } from "./dispatch.ts";
+
 // `generation.preview` (MODULE §3.3, §6 step 3; GENERATION-PACKAGE §3, guard P11): compile and
 // estimate, and write nothing. It takes no Store, no transaction and no transport, so it cannot
 // create a Generation, a Job or a spend record. Creation, admission and dispatch are #102's.

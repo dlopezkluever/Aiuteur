@@ -3,15 +3,15 @@ import fc from "fast-check";
 import { Pool, type PoolClient } from "pg";
 import { afterAll, beforeAll, expect, it } from "vitest";
 import { createAccounts, createBetterAuth } from "@aiuteur/accounts";
-import { commitOutcomeSchema, projectListSchema, projectSchema, redeemedInvitationSchema, sourceMaterialReadSchema, sourceMaterialRevisionSchema } from "@aiuteur/contract";
+import { commitOutcomeSchema, draftTreatmentResultSchema, projectListSchema, projectSchema, redeemedInvitationSchema, sourceMaterialReadSchema, sourceMaterialRevisionSchema } from "@aiuteur/contract";
 import { createPostgresStore } from "@aiuteur/store";
 import { createViews } from "@aiuteur/views";
 import { createHistory } from "@aiuteur/history";
-import { sourceMaterialKind } from "@aiuteur/story";
+import { sourceMaterialKind, treatmentOptionKind } from "@aiuteur/story";
 import { createWorkflows } from "@aiuteur/workflows";
 import { FakeMailer, ManualClock, uuidv7, syntheticCatalogue, TEST_PRICE_POLICY } from "@aiuteur/testing";
 import { createApi } from "@aiuteur/api";
-import { freshDatabase, snapshot } from "./database.ts";
+import { freshDatabase, snapshot, testExecution } from "./database.ts";
 
 const origin = "https://aiuteur.test";
 const password = "Paper-crane-lighthouse-98!";
@@ -20,18 +20,20 @@ const ids = { uuid: randomUUID, ordered: uuidv7, token: () => randomBytes(32).to
 let database: Awaited<ReturnType<typeof freshDatabase>>;
 let adapter: Awaited<ReturnType<typeof createBetterAuth>>;
 let store: Awaited<ReturnType<typeof createPostgresStore>>;
+let run: Awaited<ReturnType<typeof testExecution>>;
 let api: ReturnType<typeof createApi>;
 
 beforeAll(async () => {
   database = await freshDatabase();
+  run = await testExecution(database, clock, ids, [{ operation: "treatment.draft", step: 1, response: "Mara carries the letter across.\n\nNeither mayor opens it.", source: { kind: "synthetic", note: "D5 needs one settled Generation and one Decision" } }]);
   adapter = await createBetterAuth({ connectionString: database.url("identity"), baseURL: origin, secret: "synthetic-test-only-secret-with-more-than-32-characters", clock, ids, idleSessionSeconds: 3600, absoluteSessionSeconds: 86400 });
   store = await createPostgresStore(database.url("app"));
   const generous = { max: 1_000_000, windowMs: 60_000 };
   const limit = { address: generous, email: generous };
   const accounts = createAccounts({ ...adapter, clock, ids, invitationTtlMs: 60_000, operatorEmails: [], mailer: new FakeMailer(), limits: { signIn: limit, recovery: limit, redemption: limit }, recoveryTtlMs: 600_000, recoveryPage: `${origin}/recover`, onMailFailure: (error) => { throw error; } });
-  api = createApi({ accounts, views: createViews(store), workflows: createWorkflows({ store, history: createHistory([sourceMaterialKind]), clock, ids, catalogue: syntheticCatalogue(), pricePolicy: TEST_PRICE_POLICY }), handleAuth: adapter.handle, origin, clientAddress: () => "203.0.113.3" });
+  api = createApi({ accounts, views: createViews(store), workflows: createWorkflows({ store, history: createHistory([sourceMaterialKind, treatmentOptionKind]), clock, ids, catalogue: syntheticCatalogue(), pricePolicy: TEST_PRICE_POLICY, execution: run.execution }), handleAuth: adapter.handle, origin, requestId: ids.uuid, now: () => clock.now(), clientAddress: () => "203.0.113.3" });
 });
-afterAll(async () => { await store?.close(); await adapter?.close(); await database?.close(); });
+afterAll(async () => { await run?.close(); await store?.close(); await adapter?.close(); await database?.close(); });
 
 async function call(method: "GET" | "POST", path: string, cookie: string, body?: unknown, key: string = ids.uuid()) {
   return api.request(`${origin}${path}`, { method, headers: { origin, "content-type": "application/json", "x-aiuteur-command": "1", "idempotency-key": key, cookie }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
@@ -149,10 +151,16 @@ it("D5: runtime roles cannot rewrite history, and the blocking trigger really st
   if (pasted.result !== "Applied") throw new Error("not applied");
   // A stale write gives the attempt table a row to try to rewrite.
   expect((await call("POST", `${c.material}/${pasted.revision.objectId}/role`, c.cookie, { base: 5, role: "supporting" })).status).toBe(409);
-  const mutableCells = ["accounts.settings"];
+  // A settled Draft Treatment and a choose give every Generation, capture, Decision and outbox table a row too.
+  const drafted = draftTreatmentResultSchema.parse(await (await call("POST", `${c.material}/${pasted.revision.objectId}/treatment-drafts`, c.cookie, {})).json());
+  if (drafted.result !== "generation" || !drafted.generation.outcome) throw new Error("not drafted");
+  const option = drafted.generation.outcome.outputs[0]!.objectId;
+  expect((await call("POST", `${c.base}/${c.project.projectId}/treatment-options/${option}/choose`, c.cookie, {})).status).toBe(201);
+  // The Job row and the per-Account event counter are the only mutable cells besides settings (RUNTIME §4.1, RT4).
+  const mutableCells = ["accounts.event_counter", "accounts.job", "accounts.settings"];
   const { rows: tables } = await database.inspect.query<{ name: string }>("SELECT n.nspname || '.' || c.relname AS name FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE c.relkind = 'r' AND n.nspname = 'accounts' ORDER BY 1");
   const appendOnly = tables.map((table) => table.name).filter((name) => !mutableCells.includes(name));
-  expect(appendOnly).toEqual(["accounts.account", "accounts.attempt", "accounts.idempotency", "accounts.lock", "accounts.object", "accounts.project", "accounts.revision"]);
+  expect(appendOnly).toEqual(["accounts.account", "accounts.attempt", "accounts.capture", "accounts.decision", "accounts.event", "accounts.generation", "accounts.generation_call", "accounts.generation_run", "accounts.generation_settlement", "accounts.idempotency", "accounts.lock", "accounts.object", "accounts.project", "accounts.revision"]);
   for (const name of appendOnly) {
     const [schema, table] = name.split(".");
     for (const role of ["app", "identity", "scheduler", "operator_read", "backup"]) {

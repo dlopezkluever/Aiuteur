@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { ROLES } from "@aiuteur/contract";
-import type { ObjectId, ProjectId } from "@aiuteur/contract";
+import { blockDocumentSchema, ROLES } from "@aiuteur/contract";
+import type { BlockDocument, GenerationId, ObjectId, ProjectId } from "@aiuteur/contract";
 import { read, type KindDeclaration } from "@aiuteur/history";
 import type { ReadTx, RevisionRow, Scope } from "@aiuteur/store";
 
@@ -49,4 +49,35 @@ export async function resolveSourceMaterial(tx: ReadTx, scope: Scope, projectId:
   const fingerprint = found.head.fingerprints["content"];
   if (!body || fingerprint === undefined) throw new Error("stored Source Material does not parse");
   return { text: body.text, captured: { unit: "content", objectId, sequence: found.head.sequence, fingerprint } };
+}
+
+/**
+ * EI4: a Treatment Option is a block document with inline provenance runs (STORY-DOCUMENTS §2.2, §2.3). The block shape
+ * (including the dialogue block kind) is `contract`'s; Treatment and its Options hold `paragraph` blocks only, so a
+ * dialogue block is refused here. An Option's first Revision is generated: every run is `ai_generated`.
+ */
+export const treatmentOptionKind: KindDeclaration<BlockDocument> = {
+  kind: "treatment-option",
+  schemaVersion: 1,
+  parse: (body) => {
+    const parsed = blockDocumentSchema.safeParse(body);
+    return parsed.success && parsed.data.blocks.every((block) => block.kind === "paragraph") ? parsed.data : null;
+  },
+  invariants: [(body, previous) => previous !== null || body.blocks.every((block) => block.kind === "paragraph" && block.fields.text.every((run) => run.provenance === "ai_generated"))],
+  slices: { content: (body) => body.blocks },
+  narrativeBearing: [],
+  declaredIndexes: [],
+  extractedColumns: [],
+  remap: "new-ids",
+  closure: "object",
+  separability: "project",
+};
+
+/**
+ * The planner for a generated Treatment Option (models propose, code commits: ADR 0007). Paragraphs are the proposal's
+ * blank-line-separated passages; each becomes one block with a new id and one run whose provenance is computed here,
+ * `ai_generated` by the Generation that made it (AI-map G7), never reported by the model.
+ */
+export function planTreatmentOption(paragraphs: readonly string[], generation: GenerationId, newBlockId: () => string): BlockDocument {
+  return { blocks: paragraphs.map((text) => ({ id: newBlockId(), kind: "paragraph" as const, fields: { text: [{ text, provenance: "ai_generated" as const, generation }] } })) };
 }

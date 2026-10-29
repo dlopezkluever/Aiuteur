@@ -324,22 +324,82 @@
     },
     "runBehaviour": {
       "idempotentSubmission": {
-        "state": "unknown"
+        "state": "declared",
+        "value": "neither",
+        "evidence": {
+          "kind": "assumed",
+          "reviewer": "T0-04",
+          "reason": "Synthetic test-provider value; a fake has no vendor documentation"
+        }
       },
       "completionSignal": {
-        "state": "unknown"
+        "state": "declared",
+        "value": {
+          "webhook": "none",
+          "pollMinIntervalMs": 0,
+          "maxRuntimeMs": 120000
+        },
+        "evidence": {
+          "kind": "assumed",
+          "reviewer": "T0-04",
+          "reason": "Synthetic test-provider value; a fake has no vendor documentation"
+        }
       },
       "cancellation": {
-        "state": "unknown"
+        "state": "declared",
+        "value": "none",
+        "evidence": {
+          "kind": "assumed",
+          "reviewer": "T0-04",
+          "reason": "Synthetic test-provider value; a fake has no vendor documentation"
+        }
       },
       "outputRetention": {
-        "state": "unknown"
+        "state": "declared-none",
+        "evidence": {
+          "kind": "assumed",
+          "reviewer": "T0-04",
+          "reason": "Synthetic test-provider value; a fake has no vendor documentation"
+        }
       },
       "billingOnCancel": {
-        "state": "unknown"
+        "state": "declared",
+        "value": "maybe",
+        "evidence": {
+          "kind": "assumed",
+          "reviewer": "T0-04",
+          "reason": "Synthetic test-provider value; a fake has no vendor documentation"
+        }
       },
       "errorMapping": {
-        "state": "unknown"
+        "state": "declared",
+        "value": [
+          {
+            "providerCode": "invalid_request",
+            "failureClass": "permanent-input",
+            "billed": "no"
+          },
+          {
+            "providerCode": "content_filter",
+            "failureClass": "provider-safety-refusal",
+            "billed": "no"
+          },
+          {
+            "providerCode": "overloaded",
+            "failureClass": "transient-unbilled",
+            "billed": "no"
+          },
+          {
+            "providerCode": "server_error",
+            "failureClass": "transient-maybe-billed",
+            "billed": "maybe"
+          }
+        ],
+        "evidence": {
+          "kind": "assumed",
+          "reviewer": "T0-04",
+          "reason": "Synthetic test-provider value; a fake has no vendor documentation"
+        }
       }
     }
   },
@@ -353,7 +413,7 @@
       "id": "neutral-text",
       "version": 1
     },
-    "profileSnapshotId": "sha256:1d0e6223aa61e6904b7b51b836bc81c841ec675459f7db7198c0bec16fbd0441"
+    "profileSnapshotId": "sha256:26435e9cae351f79bbebc52df2b709e6f0b3fc5adc0400b75b0d773e88bb87af"
   },
   "digest": "sha256:9b573f58660bdefb2c56a504bb43d5241f05861fab4f89d22c61822a86a6e9b6",
   "package": {
@@ -455,6 +515,10 @@
     },
     {
       "versions": "compiler@1 scaffold:treatment.draft@1 dialect:neutral-text@1 profile:sha256:1d0e6223aa61e6904b7b51b836bc81c841ec675459f7db7198c0bec16fbd0441",
+      "digest": "sha256:9b573f58660bdefb2c56a504bb43d5241f05861fab4f89d22c61822a86a6e9b6"
+    },
+    {
+      "versions": "compiler@1 scaffold:treatment.draft@1 dialect:neutral-text@1 profile:sha256:26435e9cae351f79bbebc52df2b709e6f0b3fc5adc0400b75b0d773e88bb87af",
       "digest": "sha256:9b573f58660bdefb2c56a504bb43d5241f05861fab4f89d22c61822a86a6e9b6"
     }
   ]

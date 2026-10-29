@@ -1,6 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
-import { migrateDatabase } from "@aiuteur/store";
+import { createPostgresScheduler, migrateDatabase, type Clock, type Ids } from "@aiuteur/store";
+import { FAKE_TEXT_PROFILE, FakeTransport, SpyTransport, testCredential, type RecordedProposal } from "@aiuteur/testing";
+import type { SubmitInput } from "@aiuteur/providers";
+import type { Execution } from "@aiuteur/workflows";
 
 /** Only databases created here are ever destroyed. Missing Postgres is a failure. */
 export async function freshDatabase() {
@@ -25,7 +28,7 @@ export async function freshDatabase() {
   };
 }
 
-const HISTORY_TABLES = ["attempt", "lock", "object", "project", "revision"] as const;
+const HISTORY_TABLES = ["attempt", "capture", "decision", "event", "event_counter", "generation", "generation_call", "generation_run", "generation_settlement", "job", "lock", "object", "project", "revision"] as const;
 /** Row counts of every persistent table and content hashes of every history table: the #100 read-purity seam (VC3), reused by P11. */
 export async function snapshot(pool: Pool) {
   const tables = (await pool.query<{ name: string }>("SELECT n.nspname || '.' || c.relname AS name FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE c.relkind = 'r' AND n.nspname IN ('accounts', 'auth') ORDER BY 1")).rows;
@@ -33,4 +36,18 @@ export async function snapshot(pool: Pool) {
   for (const { name } of tables) counts[name] = Number((await pool.query(`SELECT count(*) AS n FROM ${name.replace(/\.(.*)/, '."$1"')}`)).rows[0].n);
   const content = (await pool.query(HISTORY_TABLES.map((table) => `SELECT md5(coalesce(string_agg(t::text, '|' ORDER BY t::text), '')) AS ${table} FROM accounts.${table} t`).join(" UNION ALL ") .replace(/UNION ALL/g, "UNION ALL"))).rows;
   return { counts, content };
+}
+
+/** The composition-root wiring of `execute` for tests: the Postgres Scheduler and a text fake replaying recorded proposals. */
+export async function testExecution(database: { url(role?: string): string }, clock: Clock, ids: Ids, proposals: readonly RecordedProposal[] = [], beforeSubmit?: (input: SubmitInput) => Promise<void>) {
+  const scheduler = await createPostgresScheduler(database.url("scheduler"), { clock, ids, leaseMs: 60_000 });
+  const options = { profile: FAKE_TEXT_PROFILE, clock, webhookSecret: "synthetic-webhook-secret", proposals };
+  const transport = beforeSubmit ? new SpyTransport({ ...options, beforeSubmit }) : new FakeTransport(options);
+  const execution: Execution = {
+    scheduler,
+    transportFor: (offeringId) => (offeringId === transport.profile.offeringId ? transport : undefined),
+    credential: () => testCredential(),
+    environment: "local",
+  };
+  return { execution, transport, close: () => scheduler.close() };
 }

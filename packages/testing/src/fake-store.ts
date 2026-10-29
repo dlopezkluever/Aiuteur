@@ -1,7 +1,9 @@
-import { accountIdSchema, creatorIdSchema, DEFAULT_SETTINGS, type Account, type ObjectId, type Project, type Settings } from "@aiuteur/contract";
-import type { AttemptRow, Clock, IdempotencyRow, ObjectRow, ReadTx, RevisionRow, Scope, Store, WriteTx } from "@aiuteur/store";
+import { accountIdSchema, creatorIdSchema, DEFAULT_SETTINGS, eventSchema, type Account, type AccountId, type JobId, type ObjectId, type Project, type Settings, type StudioEvent } from "@aiuteur/contract";
+import type { AttemptRow, CallRow, CaptureRow, Clock, DecisionRow, GenerationRow, IdempotencyRow, Ids, JobRow, Leased, ObjectRow, ReadTx, RevisionRow, RunRow, Scheduler, Scope, SettlementRow, Store, WriteTx } from "@aiuteur/store";
 import { ManualClock } from "./fake-transport.ts";
 import type { StoreSubject } from "./conformance/store.ts";
+import type { SchedulerSubject } from "./conformance/scheduler.ts";
+import { uuidv7 } from "./uuidv7.ts";
 
 interface AccountState {
   account: Account;
@@ -12,6 +14,14 @@ interface AccountState {
   attempts: AttemptRow[];
   locks: Map<string, { locked: boolean; version: number }>;
   idempotency: Map<string, IdempotencyRow>;
+  generations: Map<string, GenerationRow>;
+  jobs: Map<string, JobRow>;
+  runs: RunRow[];
+  calls: CallRow[];
+  settlements: Map<string, SettlementRow>;
+  captures: CaptureRow[];
+  decisions: DecisionRow[];
+  events: StudioEvent[];
 }
 
 function readView(state: AccountState, scope: Scope): ReadTx {
@@ -27,8 +37,25 @@ function readView(state: AccountState, scope: Scope): ReadTx {
     sequences: async (id) => (state.revisions.get(id) ?? []).map((row) => row.sequence),
     attempts: async (id) => copy(state.attempts.filter((row) => row.objectId === id)),
     lockState: async (id) => copy(state.locks.get(id) ?? { locked: false, version: 0 }),
+    generation: async (id) => copy(state.generations.get(id) ?? null),
+    job: async (id) => copy(state.jobs.get(id) ?? null),
+    jobs: async (generation) => copy([...state.jobs.values()].filter((row) => row.generationId === generation).sort((a, b) => a.run - b.run)),
+    runs: async (generation) => copy(state.runs.filter((row) => row.generationId === generation).sort((a, b) => a.run - b.run)),
+    calls: async (generation) => copy(state.calls.filter((row) => row.generationId === generation).sort((a, b) => a.index - b.index)),
+    settlement: async (generation) => copy(state.settlements.get(generation) ?? null),
+    captures: async (generation) => copy(state.captures.filter((row) => row.generationId === generation).sort((a, b) => (a.objectId + a.slice < b.objectId + b.slice ? -1 : 1))),
+    decisions: async (id) => copy(state.decisions.filter((row) => row.objectId === id).sort((a, b) => a.sequence - b.sequence)),
+    latestDecision: async (project, type, kind) => copy(state.decisions
+      .filter((row) => row.projectId === project && row.type === type && state.objects.get(row.objectId)?.kind === kind)
+      .sort((a, b) => (a.createdAt === b.createdAt ? (a.actionGroup < b.actionGroup ? 1 : -1) : a.createdAt < b.createdAt ? 1 : -1))[0] ?? null),
+    events: async (after) => copy(state.events.filter((event) => event.sequence > after)),
   };
 }
+
+const unique = <T>(rows: T[], row: T, key: (row: T) => string, what: string) => {
+  if (rows.some((other) => key(other) === key(row))) throw new Error(`${what} already recorded`);
+  rows.push(structuredClone(row));
+};
 
 export class MemoryStore implements Store {
   readonly #rows = new Map<string, AccountState>();
@@ -39,7 +66,88 @@ export class MemoryStore implements Store {
       account: { accountId: scope.accountId, createdAt: new Date(clock.now()).toISOString() },
       settings: structuredClone(DEFAULT_SETTINGS),
       projects: [], objects: new Map(), revisions: new Map(), attempts: [], locks: new Map(), idempotency: new Map(),
+      generations: new Map(), jobs: new Map(), runs: [], calls: [], settlements: new Map(), captures: [], decisions: [], events: [],
     });
+  }
+
+  /** Runs `run` under the Account's write lock on a copy of its state; the copy replaces it only when `run` returns. */
+  async #locked<T>(accountId: string, run: (state: AccountState) => Promise<T>): Promise<T> {
+    const previous = this.#locks.get(accountId) ?? Promise.resolve();
+    let release = () => {};
+    const next = new Promise<void>((resolve) => { release = resolve; });
+    this.#locks.set(accountId, next);
+    await previous;
+    try {
+      const state = structuredClone(this.#rows.get(accountId));
+      if (!state) throw new Error("Account not found");
+      const result = await run(state);
+      this.#rows.set(accountId, state);
+      return result;
+    } finally {
+      release();
+      if (this.#locks.get(accountId) === next) this.#locks.delete(accountId);
+    }
+  }
+
+  /**
+   * The in-memory Scheduler over virtual time (RUNTIME §4.2): the same claim rules as the Postgres adapter, reading
+   * Job rows across Accounts as the claim function does, and taking each Account's write lock to lease, so a lease
+   * and a transaction on the same Job serialise exactly as row locks make them.
+   */
+  scheduler(options: { clock: Clock; ids: Ids; leaseMs: number }): Scheduler {
+    const iso = (ms: number) => new Date(ms).toISOString();
+    const dueWithin = (job: JobRow, ms: number) => iso(Math.min(ms, job.deadlineAt === null ? Infinity : Date.parse(job.deadlineAt)));
+    let claiming: Promise<unknown> = Promise.resolve();
+    const leaseOf = async (lease: Leased, change: (job: JobRow, now: number) => JobRow | null) =>
+      this.#locked(lease.accountId, async (state) => {
+        const job = state.jobs.get(lease.jobId);
+        const now = options.clock.now();
+        if (!job || job.leaseToken !== lease.leaseToken || job.dueAt === null) return false;
+        const changed = change(job, now);
+        if (changed === null) return false;
+        state.jobs.set(job.jobId, changed);
+        return true;
+      });
+    return {
+      enqueue: (wtx, job) => wtx.insertJob(job),
+      claim: (max, only) => {
+        // Claims serialise among themselves, as the claim's transaction-scoped lock makes them.
+        const run = claiming.then(async () => {
+          const now = options.clock.now();
+          const due = [...this.#rows.values()].flatMap((state) => [...state.jobs.values()].map((job) => ({ job, accountId: state.account.accountId })))
+            .filter(({ job }) => job.dueAt !== null && Date.parse(job.dueAt) <= now && job.state !== "waiting" && (only === undefined || job.jobId === only))
+            .sort((a, b) => Date.parse(a.job.dueAt!) - Date.parse(b.job.dueAt!) || (a.job.jobId < b.job.jobId ? -1 : 1));
+          const leased: Leased[] = [];
+          for (const { job, accountId } of due) {
+            if (leased.length >= max) break;
+            const token = options.ids.uuid();
+            const taken = await this.#locked(accountId, async (state) => {
+              const current = state.jobs.get(job.jobId);
+              if (!current || current.dueAt === null || Date.parse(current.dueAt) > now || current.state === "waiting") return null;
+              const expires = now + options.leaseMs;
+              state.jobs.set(job.jobId, { ...current, leaseToken: token, leaseExpiresAt: iso(expires), dueAt: dueWithin(current, expires), updatedAt: iso(now) });
+              return current.state;
+            });
+            if (taken !== null) leased.push({ jobId: job.jobId as JobId, accountId: accountId as AccountId, work: "step", stateSeen: taken, leaseToken: token });
+          }
+          return leased;
+        });
+        claiming = run.catch(() => undefined);
+        return run;
+      },
+      extend: (lease) => leaseOf(lease, (job, now) => (job.leaseExpiresAt !== null && Date.parse(job.leaseExpiresAt) > now
+        ? { ...job, leaseExpiresAt: iso(now + options.leaseMs), dueAt: dueWithin(job, now + options.leaseMs), updatedAt: iso(now) } : null)),
+      release: async (lease, dueAt) => { await leaseOf(lease, (job, now) => ({ ...job, leaseToken: null, leaseExpiresAt: null, dueAt: dueWithin(job, dueAt ?? now) })); },
+      wake: async (jobId) => {
+        const owner = [...this.#rows.values()].find((state) => state.jobs.has(jobId));
+        if (!owner) return;
+        await this.#locked(owner.account.accountId, async (state) => {
+          const job = state.jobs.get(jobId)!;
+          const now = options.clock.now();
+          if (job.dueAt !== null && (job.leaseExpiresAt === null || Date.parse(job.leaseExpiresAt) <= now)) state.jobs.set(jobId, { ...job, dueAt: iso(Math.min(Date.parse(job.dueAt), now)) });
+        });
+      },
+    };
   }
 
   async read<T>(scope: Scope, run: (tx: ReadTx) => Promise<T>): Promise<T> {
@@ -49,38 +157,59 @@ export class MemoryStore implements Store {
   }
 
   async write<T>(scope: Scope, run: (tx: WriteTx) => Promise<T>): Promise<T> {
-    const previous = this.#locks.get(scope.accountId) ?? Promise.resolve();
-    let release = () => {};
-    const next = new Promise<void>((resolve) => { release = resolve; });
-    this.#locks.set(scope.accountId, next);
-    await previous;
-    try {
-      const state = structuredClone(this.#rows.get(scope.accountId));
-      if (!state) throw new Error("Account not found");
-      const result = await run({
-        ...readView(state, scope),
-        putSettings: async (settings) => { state.settings = structuredClone(settings); },
-        idempotency: async (operation, key) => structuredClone(state.idempotency.get(`${operation}\0${key}`) ?? null),
-        recordIdempotency: async (row) => {
-          const id = `${row.operation}\0${row.key}`;
-          if (state.idempotency.has(id)) throw new Error("idempotency key already recorded");
-          state.idempotency.set(id, structuredClone(row));
-        },
-        insertProject: async (project) => { state.projects.push(structuredClone(project)); },
-        insertObject: async ({ createdAt: _createdAt, ...row }) => { state.objects.set(row.objectId, structuredClone(row)); state.revisions.set(row.objectId, []); },
-        appendRevision: async (row) => {
-          const rows = state.revisions.get(row.objectId);
-          if (!rows || rows.length !== row.sequence - 1) throw new Error("revision sequence collision");
-          rows.push(structuredClone(row));
-        },
-        insertAttempt: async (row) => { state.attempts.push(structuredClone(row)); },
-      });
-      this.#rows.set(scope.accountId, state);
-      return result;
-    } finally {
-      release();
-      if (this.#locks.get(scope.accountId) === next) this.#locks.delete(scope.accountId);
-    }
+    return this.#locked(scope.accountId, (state) => run({
+      ...readView(state, scope),
+      putSettings: async (settings) => { state.settings = structuredClone(settings); },
+      idempotency: async (operation, key) => structuredClone(state.idempotency.get(`${operation}\0${key}`) ?? null),
+      recordIdempotency: async (row) => {
+        const id = `${row.operation}\0${row.key}`;
+        if (state.idempotency.has(id)) throw new Error("idempotency key already recorded");
+        state.idempotency.set(id, structuredClone(row));
+      },
+      insertProject: async (project) => { state.projects.push(structuredClone(project)); },
+      insertObject: async ({ createdAt: _createdAt, ...row }) => { state.objects.set(row.objectId, structuredClone(row)); state.revisions.set(row.objectId, []); },
+      appendRevision: async (row) => {
+        const rows = state.revisions.get(row.objectId);
+        if (!rows || rows.length !== row.sequence - 1) throw new Error("revision sequence collision");
+        rows.push(structuredClone(row));
+      },
+      insertAttempt: async (row) => { state.attempts.push(structuredClone(row)); },
+      insertCapture: async (row) => {
+        if (state.objects.get(row.objectId)?.projectId !== row.projectId || state.generations.get(row.generationId)?.projectId !== row.projectId) throw new Error("capture names another project");
+        unique(state.captures, row, (r) => `${r.generationId}|${r.objectId}|${r.slice}`, "capture");
+      },
+      appendDecision: async (row) => {
+        if (state.objects.get(row.objectId)?.projectId !== row.projectId) throw new Error("decision names another project");
+        if (state.decisions.filter((d) => d.objectId === row.objectId).length !== row.sequence - 1) throw new Error("decision sequence collision");
+        state.decisions.push(structuredClone(row));
+      },
+      insertGeneration: async (row) => {
+        if (!state.projects.some((p) => p.projectId === row.projectId) || state.generations.has(row.generationId)) throw new Error("generation refused");
+        state.generations.set(row.generationId, structuredClone(row));
+      },
+      insertJob: async (row) => {
+        if (state.generations.get(row.generationId)?.projectId !== row.projectId || state.jobs.has(row.jobId)) throw new Error("job refused");
+        if ([...state.jobs.values()].some((j) => j.generationId === row.generationId && j.run === row.run)) throw new Error("job run collision");
+        state.jobs.set(row.jobId, structuredClone(row));
+      },
+      updateJob: async (id, expected, change) => {
+        const job = state.jobs.get(id);
+        if (!job || job.state !== expected.state || job.leaseToken !== expected.leaseToken) return false;
+        state.jobs.set(id, { ...job, ...structuredClone(change) });
+        return true;
+      },
+      insertRun: async (row) => unique(state.runs, row, (r) => `${r.generationId}|${r.jobId}`, "run"),
+      insertCall: async (row) => unique(state.calls, row, (r) => `${r.generationId}|${r.index}`, "call"),
+      insertSettlement: async (row) => {
+        if (state.settlements.has(row.generationId)) throw new Error("settlement already recorded");
+        state.settlements.set(row.generationId, structuredClone(row));
+      },
+      appendEvent: async (event) => {
+        const sequence = state.events.length + 1;
+        state.events.push(eventSchema.parse({ ...event, accountId: scope.accountId, sequence }));
+        return sequence;
+      },
+    }));
   }
 
   /** Test seam: appends a lock Decision. No product path writes locks at T0-03. */
@@ -92,7 +221,7 @@ export class MemoryStore implements Store {
 
   /** Persistent row counts across every Account, by table. */
   rowCounts(): Record<string, number> {
-    const counts = { project: 0, object: 0, revision: 0, attempt: 0, lock: 0, idempotency: 0 };
+    const counts = { project: 0, object: 0, revision: 0, attempt: 0, lock: 0, idempotency: 0, generation: 0, job: 0, decision: 0, event: 0 };
     for (const state of this.#rows.values()) {
       counts.project += state.projects.length;
       counts.object += state.objects.size;
@@ -100,6 +229,10 @@ export class MemoryStore implements Store {
       counts.attempt += state.attempts.length;
       counts.idempotency += state.idempotency.size;
       counts.lock += [...state.locks.values()].reduce((sum, lock) => sum + lock.version, 0);
+      counts.generation += state.generations.size;
+      counts.job += state.jobs.size;
+      counts.decision += state.decisions.length;
+      counts.event += state.events.length;
     }
     return counts;
   }
@@ -119,4 +252,14 @@ export async function fakeStoreSubject(): Promise<StoreSubject> {
  */
 export function storeIgnoringScope(real: Store, victim: Scope): Store {
   return { read: (_scope, run) => real.read(victim, run), write: (_scope, run) => real.write(victim, run) };
+}
+
+/** The in-memory virtual-time Scheduler over a MemoryStore, for the FC5 conformance suite. */
+export async function fakeSchedulerSubject(): Promise<SchedulerSubject> {
+  const a: Scope = { accountId: accountIdSchema.parse("11111111-1111-4111-8111-111111111111"), creatorId: creatorIdSchema.parse("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa") };
+  const b: Scope = { accountId: accountIdSchema.parse("22222222-2222-4222-8222-222222222222"), creatorId: creatorIdSchema.parse("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb") };
+  const clock = new ManualClock();
+  const store = new MemoryStore([a, b], clock);
+  const leaseMs = 60_000;
+  return { store, scheduler: store.scheduler({ clock, ids: { uuid: () => crypto.randomUUID(), ordered: uuidv7, token: () => crypto.randomUUID() }, leaseMs }), clock, leaseMs, a, b };
 }

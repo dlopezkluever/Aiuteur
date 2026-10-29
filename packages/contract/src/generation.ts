@@ -1,5 +1,32 @@
 import { z } from "zod";
 
+declare const brand: unique symbol;
+type Brand<T, B extends string> = T & { readonly [brand]: B };
+
+/** A Job id. It is also the idempotency key and correlation id sent to a provider (JOB-LIFECYCLE §4). */
+export type JobId = Brand<string, "JobId">;
+
+/** Retry classes of JOB-LIFECYCLE §5.2. */
+export const FAILURE_CLASSES = [
+  "transient-unbilled",
+  "transient-maybe-billed",
+  "output-retrieval",
+  "output-lost",
+  "permanent-input",
+  "provider-safety-refusal",
+  "platform-configuration",
+  "unknown",
+] as const;
+export type FailureClass = (typeof FAILURE_CLASSES)[number];
+
+/** What a failure is known to have cost (JOB-LIFECYCLE §5.2). Anything unknown is `maybe`. */
+export const BILLED = ["no", "maybe", "yes"] as const;
+export type Billed = (typeof BILLED)[number];
+
+/** What a cancelled run is known to have cost (JOB-LIFECYCLE §2, §6). */
+export const CANCEL_BILLING = ["none", "maybe", "yes"] as const;
+export type CancelBilling = (typeof CANCEL_BILLING)[number];
+
 // Draft FC8 and FC10 vocabularies and wire shapes (#101). One owner per closed set
 // (MODULE §8); `providers`, `compiler`, `spend` and `api` derive from these.
 
@@ -155,3 +182,153 @@ export const treatmentPreviewSchema = z.discriminatedUnion("result", [
   z.strictObject({ result: z.literal("unavailable"), operationClass: z.enum(OPERATION_CLASSES), reasons: z.array(selectionReasonSchema) }),
 ]);
 export type TreatmentPreview = z.infer<typeof treatmentPreviewSchema>;
+
+// Draft FC7 and FC9 vocabularies and wire shapes (#102). One owner per closed set (MODULE §8).
+
+/** Job states (JOB-LIFECYCLE §2). There is no `retrying` state. */
+export const JOB_STATES = ["waiting", "queued", "submitting", "running", "fetching", "cancelling", "succeeded", "failed", "cancelled"] as const;
+export type JobState = (typeof JOB_STATES)[number];
+/** Terminal states are absorbing (JOB-LIFECYCLE §1 rule 5). */
+export const TERMINAL_JOB_STATES: readonly JobState[] = ["succeeded", "failed", "cancelled"];
+/** The two executor families (JOB-LIFECYCLE §2.2). */
+export const JOB_CLASSES = ["provider", "local"] as const;
+export type JobClass = (typeof JOB_CLASSES)[number];
+/** A Generation's stored outcome once it settles (JOB-LIFECYCLE §2.1). "In progress" is derived from its Jobs, never stored. */
+export const GENERATION_OUTCOMES = ["succeeded", "failed", "cancelled"] as const;
+export type GenerationOutcome = (typeof GENERATION_OUTCOMES)[number];
+/** Roles of a call in a Generation's call log (GENERATION-PACKAGE §11). */
+export const CALL_ROLES = ["draft", "repair", "check", "partition"] as const;
+export type CallRole = (typeof CALL_ROLES)[number];
+/** Workflow operations in the `workflows` registry (EI2). */
+export const WORKFLOW_OPERATIONS = ["treatment.draft"] as const;
+export type WorkflowOperation = (typeof WORKFLOW_OPERATIONS)[number];
+/**
+ * F3, the dispatch gate (PROVIDERS-AND-MODELS §9): an ordered, closed list of fail-closed clauses, evaluated in this order
+ * immediately before `submit`. `authorised` is the reserved last position for voice work (VOICE-AND-PERFORMANCE §2.3, EI7).
+ */
+export const DISPATCH_GATE_CLAUSES = ["status", "snapshot", "credential", "fit", "inspector-digest", "estimate", "environment", "authorised"] as const;
+export type DispatchGateClause = (typeof DISPATCH_GATE_CLAUSES)[number];
+/** The injected deployment environment (VERIFICATION §3.2 line 3, build rule R24). */
+export const ENVIRONMENTS = ["local", "ci", "staging", "production"] as const;
+export type Environment = (typeof ENVIRONMENTS)[number];
+/** Guards a Verdict can name (AI-RESPONSIBILITY-MAP §3). T0-05 runs G1 (schema) only. */
+export const GUARD_IDS = ["G1", "G2", "G3", "G4", "G5", "G6", "G7", "G8", "G9", "G10"] as const;
+
+declare const initiationBrand: unique symbol;
+/**
+ * Draft FC2: the proof that an authenticated creator command started an operation (AI-map G10; build rule R6).
+ * Opaque: it is minted only in `api`, and nothing else may construct or assert one (arch rule R6).
+ */
+export interface Initiation {
+  readonly [initiationBrand]: "Initiation";
+  readonly accountId: string;
+  readonly creatorId: string;
+  /** The client's action id for this intent (JOB-LIFECYCLE §4): never time-derived; the request's idempotency key. */
+  readonly actionId: string;
+  /** Minted by `api` for the request (VERIFICATION §2.1: the first link of the trace). */
+  readonly requestId: string;
+  readonly at: string;
+}
+/** How a Generation records its Initiation (GENERATION-PACKAGE §11 clause 6). */
+export const initiationRecordSchema = z.strictObject({ creatorId: z.uuidv4(), actionId: z.string().min(1), requestId: z.uuidv4(), at: z.iso.datetime(), actionGroup: z.uuidv7() });
+
+const capturedInputSchema = z.strictObject({ unit: z.string().min(1), objectId: z.uuidv7(), sequence: z.int().min(1), fingerprint: z.string().min(1) });
+/** Draft FC8 wire shape of ResolvedInputs (GENERATION-PACKAGE §3 step 1), as a Generation records it. */
+export const resolvedInputsSchema = z.strictObject({
+  operation: z.enum(PACKAGE_OPERATIONS),
+  sourceMaterial: z.strictObject({ text: z.string(), captured: capturedInputSchema }),
+  writingStyle: z.null(),
+});
+/** Draft FC8 wire shape of the Package (GENERATION-PACKAGE §4.1), as a Generation records it. */
+export const packageSchema = z.strictObject({
+  operation: z.enum(PACKAGE_OPERATIONS),
+  layers: z.array(z.strictObject({
+    key: z.enum(TEXT_LAYER_KEYS),
+    owner: z.string(),
+    tier: z.union([z.literal(0), z.literal(1), z.literal(2)]),
+    parts: z.array(z.strictObject({ provenance: z.enum(PROVENANCE_KINDS), text: z.string(), source: z.string().nullable() })),
+    sources: z.array(capturedInputSchema),
+  })),
+  references: z.array(z.never()),
+  parameters: z.strictObject({}),
+});
+const quantitySchema = z.strictObject({ unit: z.enum(BILLED_UNITS), amount: z.number().min(0) });
+/** The actual cost, set once at settlement (JOB-LIFECYCLE §4): the provider's reported quantities, priced; unknown when nothing was reported. */
+export const actualCostSchema = z.discriminatedUnion("form", [
+  z.strictObject({ form: z.literal("reported"), currency: z.literal("USD"), amountMicros: z.int().min(0), quantities: z.array(quantitySchema) }),
+  z.strictObject({ form: z.literal("unknown"), billed: z.enum(BILLED) }),
+]);
+export type ActualCost = z.infer<typeof actualCostSchema>;
+/** Draft FC6: the guard Verdict over a model's proposal (MODULE §3.1 `guards`). */
+export const verdictSchema = z.discriminatedUnion("pass", [
+  z.strictObject({ pass: z.literal(true), guards: z.array(z.enum(GUARD_IDS)) }),
+  z.strictObject({ pass: z.literal(false), guard: z.enum(GUARD_IDS), reason: z.string().min(1) }),
+]);
+
+/**
+ * Draft FC7: the Generation record as the inspector reads it (VERIFICATION §2.1, build rule R22). The trace fields are required:
+ * Initiation (request and action ids), Effective model and snapshot, versions, ResolvedInputs, captured inputs with frozen
+ * fingerprints, Package, Fit report, Rendered request and digest, estimate, run history per Job, call log, and the outcome
+ * with the actual cost and the outputs once settled.
+ */
+export type Verdict = z.infer<typeof verdictSchema>;
+
+export const generationReadSchema = z.strictObject({
+  generationId: z.uuidv7(),
+  projectId: z.uuidv7(),
+  operation: z.enum(WORKFLOW_OPERATIONS),
+  initiation: initiationRecordSchema,
+  effectiveModel: effectiveModelSchema,
+  versions: compileVersionsSchema,
+  /** The profile snapshot's kind was `fake` (VERIFICATION §3.2 line 6). */
+  testProvider: z.boolean(),
+  resolvedInputs: resolvedInputsSchema,
+  captured: z.array(capturedInputSchema).min(1),
+  package: packageSchema,
+  fit: fitReportSchema,
+  renderedRequest: renderedRequestSchema,
+  digest: z.string(),
+  expectedDigest: z.string().nullable(),
+  estimate: estimateSchema,
+  target: z.strictObject({ output: z.literal("option"), kind: z.string().min(1) }),
+  /** Run history: one entry per Job, kept when Jobs are pruned (JOB-LIFECYCLE §2.1). */
+  runs: z.array(z.strictObject({
+    jobId: z.uuidv7(),
+    run: z.int().min(1),
+    state: z.enum(JOB_STATES),
+    operationRef: z.string().nullable(),
+    failureClass: z.enum(FAILURE_CLASSES).nullable(),
+    billed: z.enum(BILLED).nullable(),
+    reason: z.string().nullable(),
+  })).min(1),
+  /** The call log (GENERATION-PACKAGE §11): ordered calls with role, request digest, raw response, verdict and reported cost. */
+  calls: z.array(z.strictObject({
+    index: z.int().min(1),
+    role: z.enum(CALL_ROLES),
+    jobId: z.uuidv7(),
+    requestDigest: z.string(),
+    operationRef: z.string().nullable(),
+    response: z.string().nullable(),
+    verdict: verdictSchema.nullable(),
+    reportedCost: z.array(quantitySchema).nullable(),
+  })),
+  outcome: z.strictObject({
+    outcome: z.enum(GENERATION_OUTCOMES),
+    reason: z.string().nullable(),
+    actual: actualCostSchema,
+    outputs: z.array(z.strictObject({ kind: z.literal("option"), objectId: z.uuidv7(), sequence: z.int().min(1) })),
+    settledAt: z.iso.datetime(),
+  }).nullable(),
+  createdAt: z.iso.datetime(),
+});
+export type GenerationRead = z.infer<typeof generationReadSchema>;
+
+/** `POST …/source-material/:objectId/treatment-drafts`: the creator's command. `expectedDigest` is the digest the inspector showed, if open. */
+export const draftTreatmentSchema = z.strictObject({ expectedDigest: z.string().min(1).optional() });
+/** Its answer: the Generation (settled on the text fast path, or still in progress), or the preview's blocked and unavailable results, which create nothing. */
+export const draftTreatmentResultSchema = z.discriminatedUnion("result", [
+  z.strictObject({ result: z.literal("generation"), generation: generationReadSchema }),
+  z.strictObject({ result: z.literal("blocked"), effectiveModel: effectiveModelSchema, versions: compileVersionsSchema, fit: fitReportSchema }),
+  z.strictObject({ result: z.literal("unavailable"), operationClass: z.enum(OPERATION_CLASSES), reasons: z.array(selectionReasonSchema) }),
+]);
+export type DraftTreatmentResult = z.infer<typeof draftTreatmentResultSchema>;

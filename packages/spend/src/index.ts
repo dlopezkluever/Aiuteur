@@ -1,4 +1,4 @@
-import type { Estimate, RenderedRequest } from "@aiuteur/contract";
+import type { ActualCost, Billed, Estimate, RenderedRequest } from "@aiuteur/contract";
 import { billedQuantities, type BilledQuantity, type BilledQuantityRule, type Declared, type PriceEntry } from "@aiuteur/providers";
 
 // Draft FC10 `spend.estimate` (BUSINESS-AND-OPERATIONS §4.2, §4.3; MODULE §3.3). Read-only and
@@ -60,4 +60,19 @@ export function estimate(input: EstimateInput): Estimate {
   // Token-priced text is a Range by rule (BUSINESS §4.2; #101 decision 5), even when its bounds coincide.
   const exact = !widened && input.rule.value.rule !== "text-tokens" && basis.quantities.every((q) => q.bounds.min === q.bounds.max);
   return exact ? { form: "point", currency: "USD", amountMicros: max, basis } : { form: "range", currency: "USD", minMicros: min, maxMicros: max, basis };
+}
+
+/**
+ * The actual cost of one run, set once at settlement (JOB-LIFECYCLE §4): the provider's reported quantities priced by the
+ * Offering's entries. Nothing reported, or a unit with no entry, is `unknown` with what is known about billing.
+ */
+export function actual(reported: readonly { readonly unit: BilledQuantity["unit"]; readonly amount: number }[] | null, entries: readonly PriceEntry[], billed: Billed): ActualCost {
+  if (reported === null) return { form: "unknown", billed };
+  let amountMicros = 0;
+  for (const quantity of reported) {
+    const entry = entries.find((e) => e.unit === quantity.unit);
+    if (!entry) return { form: "unknown", billed };
+    amountMicros += Math.ceil((quantity.amount * entry.priceMicros) / entry.per);
+  }
+  return { form: "reported", currency: "USD", amountMicros, quantities: reported.map((q) => ({ unit: q.unit, amount: q.amount })) };
 }

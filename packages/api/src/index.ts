@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { AccountRefusal, type Accounts } from "@aiuteur/accounts";
-import { accountIdSchema, changeRoleSchema, commitOutcomeSchema, idempotencyKeySchema, errorSchema, objectIdSchema, pasteSchema, projectIdSchema, projectSchema, type CommitOutcome, issueInvitationSchema, recoveryCompleteSchema, recoveryCompletedSchema, recoveryRequestSchema, recoveryRequestedSchema, redeemInvitationSchema, redeemedInvitationSchema, ROUTES, treatmentPreviewSchema } from "@aiuteur/contract";
+import { accountIdSchema, changeRoleSchema, chooseOutcomeSchema, draftTreatmentResultSchema, draftTreatmentSchema, generationIdSchema, type Initiation, commitOutcomeSchema, idempotencyKeySchema, errorSchema, objectIdSchema, pasteSchema, projectIdSchema, projectSchema, type CommitOutcome, issueInvitationSchema, recoveryCompleteSchema, recoveryCompletedSchema, recoveryRequestSchema, recoveryRequestedSchema, redeemInvitationSchema, redeemedInvitationSchema, ROUTES, treatmentPreviewSchema } from "@aiuteur/contract";
 import type { Views } from "@aiuteur/views";
 import { IdempotencyKeyReused, type Workflows } from "@aiuteur/workflows";
 
@@ -14,7 +14,17 @@ function outcome(c: Context, result: CommitOutcome) {
   return c.json(commitOutcomeSchema.parse(result), 409);
 }
 
+/**
+ * The only place an Initiation is made (R6): from an authenticated, scoped request, its idempotency key (the client's
+ * action id) and a fresh request id. Nothing else can call `execute`.
+ */
+function initiate(scope: { accountId: string; creatorId: string }, actionId: string, requestId: string, at: number): Initiation {
+  return Object.freeze({ accountId: scope.accountId, creatorId: scope.creatorId, actionId, requestId, at: new Date(at).toISOString() }) as unknown as Initiation;
+}
+
 export function createApi(options: { accounts: Accounts; views: Views; workflows: Workflows; handleAuth(request: Request): Promise<Response>; origin: string;
+  /** Request ids and the request time, for the Initiation (the first link of the trace). */
+  requestId(): string; now(): number;
   /** The caller's network address as the deployment's trusted edge reports it; never read from client-controlled headers here. */
   clientAddress(request: Request): string }) {
   const api = new Hono();
@@ -93,7 +103,29 @@ export function createApi(options: { accounts: Accounts; views: Views; workflows
       if (!parsed.success || !idem.success) return c.json(errorSchema.parse({ code: "invalid-request" }), 400);
       return outcome(c, await options.workflows.paste(scope, project.data, idem.data, parsed.data.text));
     }
+    if (key === "GET /api/studios/:accountId/projects/:projectId/generations/:generationId") {
+      const generation = generationIdSchema.safeParse(c.req.param("generationId") ?? "");
+      return generation.success ? respond(c, await options.views.generation(scope, project.data, generation.data)) : notFound();
+    }
     if (!object.success) return notFound();
+    if (key === "POST /api/studios/:accountId/projects/:projectId/source-material/:objectId/treatment-drafts") {
+      const parsed = draftTreatmentSchema.safeParse(body);
+      const idem = idempotencyKeySchema.safeParse(c.req.header("idempotency-key"));
+      if (!parsed.success || !idem.success) return c.json(errorSchema.parse({ code: "invalid-request" }), 400);
+      const initiation = initiate(scope, idem.data, options.requestId(), options.now());
+      const result = await options.workflows.execute(initiation, "treatment.draft", { projectId: project.data, objectId: object.data, ...parsed.data });
+      if (!result) return notFound();
+      return c.json(draftTreatmentResultSchema.parse(result), result.result === "generation" ? 201 : 422);
+    }
+    if (key === "GET /api/studios/:accountId/projects/:projectId/treatment-options/:objectId") return respond(c, await options.views.treatmentOption(scope, project.data, object.data));
+    if (key === "POST /api/studios/:accountId/projects/:projectId/treatment-options/:objectId/choose") {
+      const idem = idempotencyKeySchema.safeParse(c.req.header("idempotency-key"));
+      if (!idem.success) return c.json(errorSchema.parse({ code: "invalid-request" }), 400);
+      const result = await options.workflows.chooseTreatmentOption(scope, project.data, object.data, idem.data);
+      if (result.result === "Applied") return c.json(chooseOutcomeSchema.parse(result), 201);
+      if (result.result === "Refused") return result.reason === "not-found" ? notFound() : c.json(chooseOutcomeSchema.parse(result), 422);
+      return c.json(chooseOutcomeSchema.parse(result), 409);
+    }
     if (key === "GET /api/studios/:accountId/projects/:projectId/source-material/:objectId") return respond(c, await options.views.sourceMaterial(scope, project.data, object.data));
     if (key === "GET /api/studios/:accountId/projects/:projectId/source-material/:objectId/revisions/:sequence") {
       return Number.isInteger(sequence) && sequence >= 1 ? respond(c, await options.views.sourceMaterialRevision(scope, project.data, object.data, sequence)) : notFound();
