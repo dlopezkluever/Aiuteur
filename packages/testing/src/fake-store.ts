@@ -62,6 +62,8 @@ export class MemoryStore implements Store {
   readonly #locks = new Map<string, Promise<void>>();
   /** Providers whose circuit breaker is open: the operator-scoped row the claim reads (RUNTIME §5.1). */
   readonly #breakers = new Set<string>();
+  /** The claim lock: shared by every Scheduler adapter over this store, so admission counts are exact across them. */
+  #claiming: Promise<unknown> = Promise.resolve();
 
   constructor(scopes: readonly Scope[], clock: Clock) {
     for (const scope of scopes) this.#rows.set(scope.accountId, {
@@ -99,7 +101,6 @@ export class MemoryStore implements Store {
   scheduler(options: { clock: Clock; ids: Ids; leaseMs: number; admission: Admission }): Scheduler {
     const iso = (ms: number) => new Date(ms).toISOString();
     const dueWithin = (job: JobRow, ms: number) => iso(Math.min(ms, job.deadlineAt === null ? Infinity : Date.parse(job.deadlineAt)));
-    let claiming: Promise<unknown> = Promise.resolve();
     const leaseOf = async (lease: Leased, change: (job: JobRow, now: number) => JobRow | null) =>
       this.#locked(lease.accountId, async (state) => {
         const job = state.jobs.get(lease.jobId);
@@ -113,12 +114,13 @@ export class MemoryStore implements Store {
     return {
       enqueue: (wtx, job) => wtx.insertJob(job),
       claim: (max, only) => {
-        // Claims serialise among themselves, as the claim's transaction-scoped lock makes them (RUNTIME §4.3).
-        const run = claiming.then(async () => {
+        // Every claim on this store serialises, from any adapter, as the claim's one transaction-scoped lock makes them (RUNTIME §4.3).
+        const run = this.#claiming.then(async () => {
           const now = options.clock.now();
           const all = () => [...this.#rows.values()].flatMap((state) => [...state.jobs.values()].map((job) => ({ job, accountId: state.account.accountId })));
           const due = (job: JobRow) => job.dueAt !== null && Date.parse(job.dueAt) <= now && job.state !== "waiting" && (only === undefined || job.jobId === only);
-          const gated = (job: JobRow) => job.state === "queued" && job.class === "provider";
+          // Admission gates a queued provider Job before its admission deadline; past it, the Job is claimed only to time out.
+          const gated = (job: JobRow) => job.state === "queued" && job.class === "provider" && (job.deadlineAt === null || Date.parse(job.deadlineAt) > now);
           const inFlight = (job: JobRow) => job.class === "provider" && (job.state === "submitting" || job.state === "running" || job.state === "cancelling"
             || (job.state === "queued" && job.leaseExpiresAt !== null && Date.parse(job.leaseExpiresAt) > now));
           const leased: Leased[] = [];
@@ -133,7 +135,7 @@ export class MemoryStore implements Store {
             });
             if (taken !== null) leased.push({ jobId: jobId as JobId, accountId: accountId as AccountId, work: "step", stateSeen: taken, leaseToken: token });
           };
-          // Work admission does not gate: Jobs already in flight, and local work; oldest due first.
+          // Work admission does not gate: Jobs already in flight, local work and queued Jobs past their deadline; oldest due first.
           const ungated = all().filter(({ job }) => due(job) && !gated(job))
             .sort((a, b) => Date.parse(a.job.dueAt!) - Date.parse(b.job.dueAt!) || (a.job.jobId < b.job.jobId ? -1 : 1));
           for (const { job, accountId } of ungated) {
@@ -156,7 +158,7 @@ export class MemoryStore implements Store {
           }
           return leased;
         });
-        claiming = run.catch(() => undefined);
+        this.#claiming = run.catch(() => undefined);
         return run;
       },
       extend: (lease) => leaseOf(lease, (job, now) => (job.leaseExpiresAt !== null && Date.parse(job.leaseExpiresAt) > now
@@ -290,6 +292,6 @@ export async function fakeSchedulerSubject(setup: { readonly admission: Admissio
   const clock = new ManualClock();
   const store = new MemoryStore([a, b], clock);
   const leaseMs = 60_000;
-  return { store, scheduler: store.scheduler({ clock, ids: { uuid: () => crypto.randomUUID(), ordered: uuidv7, token: () => crypto.randomUUID() }, leaseMs, admission: setup.admission }), clock, leaseMs, a, b,
-    setBreaker: async (provider, open) => store.setBreaker(provider, open) };
+  const make = () => store.scheduler({ clock, ids: { uuid: () => crypto.randomUUID(), ordered: uuidv7, token: () => crypto.randomUUID() }, leaseMs, admission: setup.admission });
+  return { store, scheduler: make(), clock, leaseMs, a, b, setBreaker: async (provider, open) => store.setBreaker(provider, open), another: async () => make() };
 }

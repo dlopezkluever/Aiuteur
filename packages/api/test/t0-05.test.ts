@@ -12,6 +12,8 @@ import { sourceMaterialKind, treatmentOptionKind } from "@aiuteur/story";
 import { createWorkflows, REGISTRY } from "@aiuteur/workflows";
 import { canonicalJson, sha256, type SubmitInput } from "@aiuteur/providers";
 import { describeSchedulerConformance, FakeMailer, FAKE_TEXT_PROFILE, GP_S_COMMANDS, GP_S_PROPOSALS, ManualClock, syntheticCatalogue, TEST_PRICE_POLICY, uuidv7, type RecordedProposal } from "@aiuteur/testing";
+import { createDispatch } from "@aiuteur/generation";
+import { createJobs } from "@aiuteur/jobs";
 import { createApi } from "@aiuteur/api";
 import { freshDatabase, snapshot, testExecution } from "./database.ts";
 
@@ -42,14 +44,14 @@ beforeAll(async () => {
 afterAll(async () => { for (const close of closers) await close(); await store?.close(); await adapter?.close(); await database?.close(); });
 
 /** One composition root: a fake text transport with its own recorded proposals, optionally a spy and a faulty Store for workflows. */
-async function world(proposals: readonly RecordedProposal[], options: { beforeSubmit?: (input: SubmitInput) => Promise<void>; workflowStore?: Store } = {}) {
-  const run = await testExecution(database, clock, ids, proposals, options.beforeSubmit);
+async function world(proposals: readonly RecordedProposal[], options: { beforeSubmit?: (input: SubmitInput) => Promise<void>; workflowStore?: Store; providerCap?: number } = {}) {
+  const run = await testExecution(database, clock, ids, proposals, options.beforeSubmit, options.providerCap);
   closers.push(run.close);
   const workflows = createWorkflows({ store: options.workflowStore ?? store, history: createHistory([sourceMaterialKind, treatmentOptionKind]), clock, ids, catalogue: syntheticCatalogue(), pricePolicy: TEST_PRICE_POLICY, execution: run.execution });
   const api = createApi({ accounts, views: createViews(store), workflows, handleAuth: adapter.handle, origin, requestId: ids.uuid, now: () => clock.now(), clientAddress: () => "203.0.113.5" });
   const call = (method: "GET" | "POST", path: string, cookie: string, body?: unknown, key: string = ids.uuid()) =>
     api.request(`${origin}${path}`, { method, headers: { origin, "content-type": "application/json", "x-aiuteur-command": "1", "idempotency-key": key, cookie }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
-  return { api, call, transport: run.transport, workflows };
+  return { api, call, transport: run.transport, workflows, execution: run.execution };
 }
 type World = Awaited<ReturnType<typeof world>>;
 
@@ -84,8 +86,12 @@ describeSchedulerConformance("Postgres, migrated database", async ({ admission }
   // Its own virtual clock, so moving time for leases touches no session in the other tests.
   const virtual = new ManualClock(Date.now());
   const leaseMs = 60_000;
-  const scheduler = await createPostgresScheduler(database.url("scheduler"), { clock: virtual, ids, leaseMs, admission });
-  closers.push(scheduler.close);
+  const make = async () => {
+    const made = await createPostgresScheduler(database.url("scheduler"), { clock: virtual, ids, leaseMs, admission });
+    closers.push(made.close);
+    return made;
+  };
+  const scheduler = await make();
   const w = await world([]);
   const scope = async (): Promise<Scope> => {
     const c = await creator(w);
@@ -98,7 +104,7 @@ describeSchedulerConformance("Postgres, migrated database", async ({ admission }
   const setBreaker = async (provider: string, open: boolean) => {
     await database.inspect.query("INSERT INTO operator.breaker (provider, open, opened_at, updated_at) VALUES ($1, $2, CASE WHEN $2 THEN now() END, now()) ON CONFLICT (provider) DO UPDATE SET open = EXCLUDED.open, opened_at = EXCLUDED.opened_at, updated_at = EXCLUDED.updated_at", [provider, open]);
   };
-  return { store, scheduler, clock: virtual, leaseMs, a: await scope(), b: await scope(), setBreaker };
+  return { store, scheduler, clock: virtual, leaseMs, a: await scope(), b: await scope(), setBreaker, another: make };
 });
 
 it("demo: Draft Treatment on the fake returns an Option; choose it; the stored Rendered request equals the fake's wire capture", async () => {
@@ -221,6 +227,30 @@ describe("VC5 operation harness", () => {
       await w.call("GET", `${c.source}/treatment-preview`, c.cookie);
       expect(await snapshot(database.inspect)).toStrictEqual(after);
     }
+  });
+
+  it("JOB-LIFECYCLE §2: a queued Job that admission never let in times out with queue_timeout through the same claim and dispatch, sending nothing", async () => {
+    // No provider capacity: the fast path's own claim is not admitted, so the Generation stays in progress.
+    const w = await world([synthetic(1, "One passage.")], { providerCap: 0 });
+    const c = await pasted(w);
+    const created = generationOf((await draft(w, c)).body);
+    expect(created.outcome).toBeNull();
+    expect(created.runs).toEqual([expect.objectContaining({ state: "queued" })]);
+    const jobs = createJobs({ scheduler: w.execution.scheduler, clock });
+    const dispatch = createDispatch({ store, history: createHistory([sourceMaterialKind, treatmentOptionKind]), jobs, catalogue: syntheticCatalogue(), transportFor: w.execution.transportFor, credential: w.execution.credential, environment: "local", clock, ids });
+    const jobId = created.runs[0]!.jobId as never;
+    expect(await jobs.claim(1, jobId)).toEqual([]);
+    clock.advance(60 * 60_000);
+    const [lease] = await jobs.claim(1, jobId);
+    expect(lease).toMatchObject({ stateSeen: "queued" });
+    const subject = await accounts.authenticate(new Headers({ cookie: c.cookie }));
+    const scope = (await accounts.resolveScope(subject!))!;
+    expect(await dispatch(scope, lease!, REGISTRY["treatment.draft"])).toEqual({ result: "settled", generationId: created.generationId });
+    const settled = generationReadSchema.parse(await (await w.call("GET", `${c.base}/generations/${created.generationId}`, c.cookie)).json());
+    expect(settled.outcome).toMatchObject({ outcome: "failed", reason: "queue_timeout", outputs: [] });
+    expect(settled.runs).toEqual([expect.objectContaining({ state: "failed", failureClass: "transient-unbilled", billed: "no", reason: "queue_timeout" })]);
+    expect(settled.calls).toEqual([]);
+    expect(w.transport.control.sentWireBodies()).toHaveLength(0);
   });
 
   it("an inspector digest that no longer matches is refused by the gate and sends nothing", async () => {

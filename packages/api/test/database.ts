@@ -39,9 +39,9 @@ export async function snapshot(pool: Pool) {
 }
 
 /** The composition-root wiring of `execute` for tests: the Postgres Scheduler and a text fake replaying recorded proposals. */
-export async function testExecution(database: { url(role?: string): string }, clock: Clock, ids: Ids, proposals: readonly RecordedProposal[] = [], beforeSubmit?: (input: SubmitInput) => Promise<void>) {
+export async function testExecution(database: { url(role?: string): string }, clock: Clock, ids: Ids, proposals: readonly RecordedProposal[] = [], beforeSubmit?: (input: SubmitInput) => Promise<void>, providerCap = 1_000) {
   // Explicit test caps (S8 values are configuration; no production default exists).
-  const scheduler = await createPostgresScheduler(database.url("scheduler"), { clock, ids, leaseMs: 60_000, admission: { accountInFlight: 100, providerInFlight: { [FAKE_TEXT_PROFILE.adapterId]: 1_000 } } });
+  const scheduler = await createPostgresScheduler(database.url("scheduler"), { clock, ids, leaseMs: 60_000, admission: { accountInFlight: 100, providerInFlight: { [FAKE_TEXT_PROFILE.adapterId]: providerCap } } });
   const options = { profile: FAKE_TEXT_PROFILE, clock, webhookSecret: "synthetic-webhook-secret", proposals };
   const transport = beforeSubmit ? new SpyTransport({ ...options, beforeSubmit }) : new FakeTransport(options);
   const execution: Execution = {

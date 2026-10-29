@@ -210,7 +210,8 @@ GRANT USAGE ON SCHEMA operator TO backup;
 GRANT SELECT ON operator.breaker TO backup;
 
 -- One claim (RUNTIME §4.2, §4.3), serialised by one transaction-scoped lock so the counts it reads are exact. First,
--- due work that admission does not gate: Jobs already in flight (expired lease, deadline) and local work, oldest
+-- due work that admission does not gate: Jobs already in flight (expired lease, deadline), local work, and queued Jobs
+-- past their admission deadline, which are claimed only to be failed with `queue_timeout`, never submitted; oldest
 -- due first. Then admission, one Job at a time: a due `queued` provider Job is claimable only if its provider's
 -- breaker is not open and its provider's and its Account's in-flight counts are below their caps (a provider with
 -- no cap in `provider_caps` admits nothing). Among claimable Jobs, the least-loaded Account first, then the oldest
@@ -232,7 +233,7 @@ BEGIN
     WITH due AS (
       SELECT j.job_id FROM accounts.job j
       WHERE j.due_at <= at_time AND j.state NOT IN ('waiting', 'succeeded', 'failed', 'cancelled')
-        AND (j.state <> 'queued' OR j.class = 'local')
+        AND (j.state <> 'queued' OR j.class = 'local' OR j.deadline_at <= at_time)
         AND (only_job IS NULL OR j.job_id = only_job)
       ORDER BY j.due_at, j.job_id
       LIMIT max_jobs
@@ -247,6 +248,7 @@ BEGIN
   WHILE claimed < max_jobs LOOP
     SELECT j.job_id INTO picked FROM accounts.job j
     WHERE j.due_at <= at_time AND j.state = 'queued' AND j.class = 'provider'
+      AND (j.deadline_at IS NULL OR j.deadline_at > at_time)
       AND (only_job IS NULL OR j.job_id = only_job)
       AND NOT EXISTS (SELECT 1 FROM operator.breaker b WHERE b.provider = j.provider AND b.open)
       AND (SELECT count(*) FROM accounts.job f WHERE f.class = 'provider' AND f.provider = j.provider

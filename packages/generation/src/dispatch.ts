@@ -47,7 +47,7 @@ export function createDispatch(options: DispatchOptions) {
   const { store, history, jobs, catalogue, clock, ids } = options;
   const iso = () => new Date(clock.now()).toISOString();
 
-  async function settleFailed(wtx: WriteTx, lease: Leased, generationId: GenerationId, projectId: ProjectId, run: number, from: "submitting", failure: { failureClass: FailureClass; billed: Billed; reason: string; operationRef: string | null }, cost: ReturnType<typeof actual>) {
+  async function settleFailed(wtx: WriteTx, lease: Leased, generationId: GenerationId, projectId: ProjectId, run: number, from: "queued" | "submitting", failure: { failureClass: FailureClass; billed: Billed; reason: string; operationRef: string | null }, cost: ReturnType<typeof actual>) {
     await jobs.settle(wtx, lease, from, "failed", failure, async () => {
       await wtx.insertRun({ generationId, jobId: lease.jobId, projectId, run, state: "failed", ...failure, createdAt: iso() });
       await wtx.insertSettlement({ generationId, projectId, outcome: "failed", reason: failure.reason, actual: cost, outputs: [], settledAt: iso() });
@@ -62,9 +62,15 @@ export function createDispatch(options: DispatchOptions) {
       const job = await wtx.job(lease.jobId);
       const generation = job && await wtx.generation(job.generationId);
       if (!job || !generation) throw new LeaseLost(lease.jobId);
+      // Past the admission deadline: fail with the deadline's reason, never submit (RUNTIME §4.2 tick; JOB-LIFECYCLE §2).
+      if (job.state === "queued" && job.deadlineAt !== null && Date.parse(job.deadlineAt) <= clock.now()) {
+        await settleFailed(wtx, lease, generation.generationId, generation.projectId, job.run, "queued", { failureClass: "transient-unbilled", billed: "no", reason: "queue_timeout", operationRef: null }, { form: "unknown", billed: "no" });
+        return { expired: generation.generationId } as const;
+      }
       if (!await jobs.transition(wtx, lease, "queued", "submitting")) throw new LeaseLost(lease.jobId);
       return { job, generation };
     });
+    if ("expired" in record) return { result: "settled", generationId: record.expired };
     const { job, generation } = record;
     const generationId = generation.generationId;
     const request = renderedRequestSchema.parse(generation.renderedRequest);

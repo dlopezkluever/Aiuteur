@@ -14,6 +14,8 @@ export interface SchedulerSubject {
   readonly b: Scope;
   /** Test seam: opens or closes a provider's circuit breaker (the shared operator row; its S7 write path is not built yet). */
   setBreaker(provider: string, open: boolean): Promise<void>;
+  /** Another Scheduler adapter over the same store, with the same configuration: a second claimer process. */
+  another(): Promise<Scheduler>;
 }
 /** Each test gets its own provider name, so counts in a shared database see only its own Jobs. */
 export type SchedulerSubjectFactory = (setup: { readonly admission: Admission }) => Promise<SchedulerSubject>;
@@ -214,6 +216,37 @@ export function describeSchedulerConformance(name: string, factory: SchedulerSub
       const local = await seed(s, s.a, { provider: null });
       const queued = await seed(s, s.a);
       expect(mine(await s.scheduler.claim(10), [local, queued]).map((lease) => lease.jobId)).toEqual([local]);
+    });
+
+    it("§4.2 a queued Job past its admission deadline is claimed despite full caps and an open breaker, to be timed out", async () => {
+      const s = await subject({ provider: 1, account: 1 });
+      // The provider's and the Account's one slot are held by a submitting Job that is not due.
+      const holder = await seed(s, s.a, { state: "submitting", dueInMs: 36_000_000 });
+      const expiring = await seed(s, s.a, { deadlineMs: 1_000 });
+      await s.setBreaker(provider, true);
+      expect(mine(await s.scheduler.claim(10), [holder, expiring])).toEqual([]);
+      s.clock.advance(1_000);
+      const [lease] = mine(await s.scheduler.claim(10), [holder, expiring]);
+      expect(lease).toMatchObject({ jobId: expiring, stateSeen: "queued" });
+      // The claim takes nothing else: an ordinary queued Job of the same provider is still not admitted.
+      const ordinary = await seed(s, s.b);
+      expect(await s.scheduler.claim(1, ordinary)).toEqual([]);
+      await s.setBreaker(provider, false);
+    });
+
+    it("§4.3 two Scheduler adapters over one store share the claim: concurrent claims never exceed a provider or an Account cap", async () => {
+      const p = await subject({ provider: 1 });
+      const second = await p.another();
+      // Each claimer goes for a different Job, as two web instances each claiming their own fast-path Job do.
+      const byProvider = [await seed(p, p.a), await seed(p, p.b)];
+      const providerTicks = await Promise.all([p.scheduler.claim(1, byProvider[0]), second.claim(1, byProvider[1])]);
+      expect(providerTicks.map((tick) => mine(tick, byProvider).length)).toSatisfy((counts: number[]) => counts[0]! + counts[1]! === 1);
+
+      const q = await subject({ account: 1 });
+      const other = await q.another();
+      const byAccount = [await seed(q, q.a), await seed(q, q.a)];
+      const accountTicks = await Promise.all([q.scheduler.claim(1, byAccount[0]), other.claim(1, byAccount[1])]);
+      expect(accountTicks.map((tick) => mine(tick, byAccount).length)).toSatisfy((counts: number[]) => counts[0]! + counts[1]! === 1);
     });
   });
 }
