@@ -294,11 +294,11 @@ describe("VC5 operation harness", () => {
 
   it("an adversarial proposal (empty) is REJECTED by G1: no Option, the raw output stays on the call log", async () => {
     const raw = "  \n\n\t \n";
-    const w = await world([synthetic(1, raw)]);
+    const w = await world([synthetic(1, raw), synthetic(2, raw)]);
     const c = await pasted(w);
     const generation = generationOf((await draft(w, c)).body);
     expect(generation.outcome).toMatchObject({ outcome: "failed", reason: "rejected:G1:empty", outputs: [] });
-    expect(generation.calls).toEqual([expect.objectContaining({ index: 1, role: "draft", response: raw, verdict: { pass: false, guard: "G1", reason: "empty" } })]);
+    expect(generation.calls).toEqual([expect.objectContaining({ index: 1, role: "draft", response: raw, verdict: { pass: false, guard: "G1", reason: "empty" } }), expect.objectContaining({ index: 2, role: "repair", response: raw })]);
     expect(Number((await database.inspect.query(`SELECT count(*) AS n FROM accounts.object WHERE account_id = $1 AND kind = '${treatmentOptionKind.kind}'`, [c.accountId])).rows[0].n)).toBe(0);
   });
 });

@@ -72,9 +72,18 @@ export interface GenerationRow {
   readonly renderedRequest: unknown;
   readonly requestDigest: string;
   readonly expectedDigest: string | null;
+  /** The duplicate guard's key (JOB-LIFECYCLE §4): hash of the operation, target and Rendered request digest. */
+  readonly inputFingerprint: string;
   readonly estimate: unknown;
   readonly target: unknown;
   readonly createdAt: string;
+}
+/** What the committed-spend rule reads of one Generation (BUSINESS §6.3): its approved estimate and, once settled, its actual cost. */
+export interface SpendFact {
+  readonly generationId: GenerationId;
+  readonly createdAt: string;
+  readonly estimate: unknown;
+  readonly actual: unknown | null;
 }
 /** The one mutable state machine (JOB-LIFECYCLE §2–§3). Times are ISO instants from the injected Clock. */
 export interface JobRow {
@@ -120,6 +129,8 @@ export interface CallRow {
   readonly role: CallRole;
   readonly jobId: JobId;
   readonly requestDigest: string;
+  /** The exact request of a call that is not the Generation's own (the repair call); null for the draft. */
+  readonly renderedRequest: unknown | null;
   readonly operationRef: string | null;
   readonly response: string | null;
   readonly verdict: unknown;
@@ -179,6 +190,10 @@ export interface ReadTx {
   decisions(id: ObjectId): Promise<DecisionRow[]>;
   /** The most recent Decision of this type on any object of this kind in the project, or null. */
   latestDecision(project: ProjectId, type: DecisionType, kind: string): Promise<DecisionRow | null>;
+  /** Every Generation of the scoped Account created at or after an instant, with its settled actual cost (null while unsettled). */
+  spendFacts(since: string): Promise<SpendFact[]>;
+  /** A Generation of this Account with this input fingerprint that has not settled, or null (JOB-LIFECYCLE §4). */
+  inProgress(inputFingerprint: string): Promise<GenerationId | null>;
   /** The scoped Account's outbox events after a sequence, in order. */
   events(after: number): Promise<StudioEvent[]>;
 }

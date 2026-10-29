@@ -183,6 +183,9 @@ importers:
       '@aiuteur/providers':
         specifier: workspace:*
         version: link:../providers
+      '@aiuteur/spend':
+        specifier: workspace:*
+        version: link:../spend
       '@aiuteur/story':
         specifier: workspace:*
         version: link:../story
@@ -226,6 +229,9 @@ importers:
       '@aiuteur/contract':
         specifier: workspace:*
         version: link:../contract
+      '@aiuteur/guards':
+        specifier: workspace:*
+        version: link:../guards
       '@aiuteur/history':
         specifier: workspace:*
         version: link:../history
@@ -241,6 +247,16 @@ importers:
       '@aiuteur/store':
         specifier: workspace:*
         version: link:../store
+
+  packages/guards:
+    dependencies:
+      '@aiuteur/contract':
+        specifier: workspace:*
+        version: link:../contract
+    devDependencies:
+      '@aiuteur/testing':
+        specifier: workspace:*
+        version: link:../testing
 
   packages/history:
     dependencies:
@@ -395,6 +411,9 @@ importers:
       '@aiuteur/generation':
         specifier: workspace:*
         version: link:../generation
+      '@aiuteur/guards':
+        specifier: workspace:*
+        version: link:../guards
       '@aiuteur/history':
         specifier: workspace:*
         version: link:../history

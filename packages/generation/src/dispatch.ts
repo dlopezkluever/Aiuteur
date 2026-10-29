@@ -1,15 +1,20 @@
-import { renderedRequestSchema, type Billed, type Environment, type FailureClass, type GenerationId, type ObjectId, type ProjectId, type Verdict } from "@aiuteur/contract";
-import { requestDigest } from "@aiuteur/compiler";
+import { renderedRequestSchema, resolvedInputsSchema, type Billed, type Environment, type FailureClass, type GenerationId, type ObjectId, type ProjectId, type Verdict } from "@aiuteur/contract";
+import { repairRequest, requestDigest, type ResolvedInputs } from "@aiuteur/compiler";
+import { g7Provenance, passed } from "@aiuteur/guards";
 import type { History } from "@aiuteur/history";
 import { LeaseLost, type Jobs } from "@aiuteur/jobs";
 import { gate, priceEntries, type Catalogue, type CredentialHandle, type ProviderTransport, type ReportedCost } from "@aiuteur/providers";
 import { actual } from "@aiuteur/spend";
-import type { Clock, Ids, Leased, Scope, Store, WriteTx } from "@aiuteur/store";
+import type { Clock, Ids, Leased, ReadTx, Scope, Store, WriteTx } from "@aiuteur/store";
 
 /** What an operation supplies to settle its output (FC6: `validate` and `attach`); `generation` runs them inside the settling transaction. */
 export interface OperationSettler<P> {
-  /** The guard composition over the raw response (T0-05: G1 schema only). */
-  validate(response: string): { readonly verdict: Verdict; readonly proposal: P | null };
+  /** G1 to G3 over the raw response and the inputs the Generation read: pure. A failing verdict has no proposal. */
+  validate(response: string, inputs: ResolvedInputs): { readonly verdict: Verdict; readonly proposal: P | null };
+  /** The current state of what the Generation read, in the settling transaction (null when it is gone). */
+  current(rtx: ReadTx, scope: Scope, projectId: ProjectId, inputs: ResolvedInputs): Promise<ResolvedInputs | null>;
+  /** G4: is the base the Generation read still current? A changed base is HELD, never applied. */
+  base(inputs: ResolvedInputs, current: ResolvedInputs | null): Verdict;
   /** Pure: the validated proposal as an AttachPlan for `history.commit` (never selects, approves or accepts). */
   attach(proposal: P, generationId: GenerationId, newId: () => string): { readonly kind: string; readonly body: unknown };
 }
@@ -80,12 +85,14 @@ export function createDispatch(options: DispatchOptions) {
     const offering = catalogue.offerings.find((o) => o.profile.offeringId === effective.offeringId);
     const transport = options.transportFor(effective.offeringId);
     const credential = options.credential(scope, effective.offeringId);
-    const verdict = gate({
+    // F3 runs immediately before every send, the repair call included.
+    const evaluate = () => gate({
       operationClass: generation.operationClass, status: offering?.status,
       snapshot: { recorded: effective.profileSnapshotId, catalogue: offering?.profile.snapshotId, transport: transport?.profile.snapshotId ?? "" },
       credential, fit: generation.fitReport as never, digest: { expected: generation.expectedDigest, recorded: generation.requestDigest },
       estimate: generation.estimate as never, estimateConfirmed: false, environment: options.environment, transportKind: transport?.kind ?? "real",
     });
+    const verdict = evaluate();
     if (verdict.result === "refused" || !transport || !credential) {
       const reason = verdict.result === "refused" ? `gate:${verdict.clause}:${verdict.reason}` : "gate:transport:absent";
       await store.write(scope, (wtx) => settleFailed(wtx, lease, generationId, generation.projectId, job.run, "submitting", { failureClass: verdict.result === "refused" ? verdict.failureClass : "platform-configuration", billed: "no", reason, operationRef: null }, { form: "unknown", billed: "no" }));
@@ -113,33 +120,62 @@ export function createDispatch(options: DispatchOptions) {
     const status = sent.status;
     const operationRef = sent.operation;
     const reported: readonly ReportedCost[] | null = status.status === "succeeded" ? status.reportedCost : null;
+    const inputs = resolvedInputsSchema.parse(generation.resolvedInputs) as ResolvedInputs;
+    const first = status.status === "succeeded" ? { text: status.text ?? "", checked: operation.validate(status.text ?? "", inputs) } : null;
+
+    // The one bounded repair (AI-map §5): a G1 to G3 failure gets exactly one more call that names the failure. It is part of this
+    // Generation; if it also fails, or cannot be made, the Generation is REJECTED. A HELD result is never repaired.
+    let repair: { readonly request: ReturnType<typeof repairRequest>; readonly digest: string; readonly operationRef: string; readonly reported: readonly ReportedCost[] | null; readonly text: string; readonly checked: ReturnType<typeof operation.validate> } | null = null;
+    if (first !== null && first.checked.proposal === null && first.checked.verdict.pass === false && evaluate().result !== "refused") {
+      const request2 = repairRequest(request, transport.profile, first.text, first.checked.verdict);
+      const digest2 = requestDigest(request2);
+      const sent2 = await transport.submit({ request: { digest: digest2, request: request2 }, credential, idempotencyKey: `${lease.jobId}:repair` as never, generationId });
+      if (sent2.outcome === "completed" && sent2.status.status === "succeeded") {
+        const text = sent2.status.text ?? "";
+        repair = { request: request2, digest: digest2, operationRef: sent2.operation, reported: sent2.status.reportedCost, text, checked: operation.validate(text, inputs) };
+      }
+    }
+    const all = [reported, repair?.reported ?? null].filter((r): r is readonly ReportedCost[] => r !== null);
+    const reportedAll: readonly ReportedCost[] | null = all.length === 0 ? null : all.flat();
+
     await store.write(scope, async (wtx) => {
-      const call = (response: string | null, v: Verdict | null) => wtx.insertCall({ generationId, index: 1, projectId: generation.projectId, role: "draft", jobId: lease.jobId, requestDigest: generation.requestDigest, operationRef, response, verdict: v, reportedCost: reported, createdAt: iso() });
-      if (status.status === "failed") {
-        await call(null, null);
-        return settleFailed(wtx, lease, generationId, generation.projectId, job.run, "submitting", { failureClass: status.failureClass, billed: status.billed, reason: status.reason, operationRef }, actual(null, prices, status.billed));
+      const call = (index: number, role: "draft" | "repair", digest: string, rendered: unknown, ref: string, response: string | null, v: Verdict | null, cost: readonly ReportedCost[] | null) =>
+        wtx.insertCall({ generationId, index, projectId: generation.projectId, role, jobId: lease.jobId, requestDigest: digest, renderedRequest: rendered, operationRef: ref, response, verdict: v, reportedCost: cost, createdAt: iso() });
+      if (status.status === "failed" || first === null) {
+        await call(1, "draft", generation.requestDigest, null, operationRef, null, null, reported);
+        return settleFailed(wtx, lease, generationId, generation.projectId, job.run, "submitting", { failureClass: status.status === "failed" ? status.failureClass : "unknown", billed: status.status === "failed" ? status.billed : "yes", reason: status.status === "failed" ? status.reason : "rejected", operationRef }, actual(null, prices, status.status === "failed" ? status.billed : "yes"));
       }
-      const response = status.text ?? "";
-      const checked = operation.validate(response);
-      await call(response, checked.verdict);
-      const cost = actual(reported, prices, "yes");
-      if (checked.proposal === null) {
-        // REJECTED: the raw output stays on the call log; no Option exists (AI-map §5).
-        const reason = checked.verdict.pass ? "rejected" : `rejected:${checked.verdict.guard}:${checked.verdict.reason}`;
-        return settleFailed(wtx, lease, generationId, generation.projectId, job.run, "submitting", { failureClass: "unknown", billed: "yes", reason, operationRef }, cost);
-      }
-      const plan = operation.attach(checked.proposal, generationId, () => ids.ordered());
+      const cost = actual(reportedAll, prices, "yes");
+      const last = repair ?? first;
+      const record = async (final: Verdict) => {
+        if (repair) {
+          await call(1, "draft", generation.requestDigest, null, operationRef, first.text, first.checked.verdict, reported);
+          await call(2, "repair", repair.digest, repair.request, repair.operationRef, repair.text, final, repair.reported);
+        } else await call(1, "draft", generation.requestDigest, null, operationRef, first.text, final, reported);
+      };
+      const settleWith = async (state: "succeeded", outputs: readonly { kind: "option"; objectId: ObjectId; sequence: number }[], reason: string | null) =>
+        jobs.settle(wtx, lease, "submitting", state, { operationRef, failureClass: null, billed: "yes", reason }, async () => {
+          await wtx.insertRun({ generationId, jobId: lease.jobId, projectId: generation.projectId, run: job.run, state, operationRef, failureClass: null, billed: "yes", reason, createdAt: iso() });
+          await wtx.insertSettlement({ generationId, projectId: generation.projectId, outcome: state, reason, actual: cost, outputs, settledAt: iso() });
+          await wtx.appendEvent({ type: "generation.settled", generationId, outcome: state, occurredAt: iso() });
+        });
+      const rejected = (verdict: Verdict) => settleFailed(wtx, lease, generationId, generation.projectId, job.run, "submitting",
+        { failureClass: "unknown", billed: "yes", reason: `rejected:${verdict.pass === true ? "" : `${verdict.guard}:${verdict.reason}`}`, operationRef }, cost);
+      // REJECTED: the raw output of every call stays on the call log; no Option exists (AI-map §5).
+      if (last.checked.proposal === null) { await record(last.checked.verdict); return rejected(last.checked.verdict); }
+      // G4 reads the base in this transaction. HELD: the output is retained on the call log with its verdict, and nothing is committed.
+      const base = operation.base(inputs, await operation.current(wtx, scope, generation.projectId, inputs));
+      if (base.pass !== true) { await record(base); return settleWith("succeeded", [], `held:${base.guard}:${base.reason}`); }
+      const plan = operation.attach(last.checked.proposal, generationId, () => ids.ordered());
+      const provenance = g7Provenance(plan.body, generationId);
+      if (!provenance.pass) { await record(provenance); return rejected(provenance); }
+      await record(passed(last.checked.verdict, base, provenance));
       const objectId = ids.ordered() as ObjectId;
       const initiation = generation.initiation as { actionGroup: string };
       const committed = await history.commit(wtx, scope, { kind: plan.kind, projectId: generation.projectId, objectId, base: 0, body: plan.body },
         { actor: "generation", cause: "ai_generation", actionGroup: initiation.actionGroup as never, generationId, at: clock.now(), ids });
       if (committed.result !== "Applied") throw new Error(`attach refused: ${committed.result === "Refused" ? committed.reason : committed.result}`);
-      const outputs = [{ kind: "option", objectId, sequence: committed.revision.sequence }];
-      await jobs.settle(wtx, lease, "submitting", "succeeded", { operationRef, failureClass: null, billed: "yes", reason: null }, async () => {
-        await wtx.insertRun({ generationId, jobId: lease.jobId, projectId: generation.projectId, run: job.run, state: "succeeded", operationRef, failureClass: null, billed: "yes", reason: null, createdAt: iso() });
-        await wtx.insertSettlement({ generationId, projectId: generation.projectId, outcome: "succeeded", reason: null, actual: cost, outputs, settledAt: iso() });
-        await wtx.appendEvent({ type: "generation.settled", generationId, outcome: "succeeded", occurredAt: iso() });
-      });
+      await settleWith("succeeded", [{ kind: "option", objectId, sequence: committed.revision.sequence }], null);
     });
     return { result: "settled", generationId };
   };

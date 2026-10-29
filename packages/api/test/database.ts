@@ -4,6 +4,10 @@ import { createPostgresScheduler, migrateDatabase, type Clock, type Ids } from "
 import { FAKE_TEXT_PROFILE, FakeTransport, SpyTransport, testCredential, type RecordedProposal } from "@aiuteur/testing";
 import type { SubmitInput } from "@aiuteur/providers";
 import type { Execution } from "@aiuteur/workflows";
+import type { Caps } from "@aiuteur/spend";
+
+/** Explicit test values: no limit unless a test sets one. Production defaults are parked configuration (BUSINESS §9). */
+export const NO_CAPS: Caps = { creator: { dailyMicros: null, monthlyMicros: null, perActionMicros: null }, ceiling: { dailyMicros: null, monthlyMicros: null } };
 
 /** Only databases created here are ever destroyed. Missing Postgres is a failure. */
 export async function freshDatabase() {
@@ -39,7 +43,7 @@ export async function snapshot(pool: Pool) {
 }
 
 /** The composition-root wiring of `execute` for tests: the Postgres Scheduler and a text fake replaying recorded proposals. */
-export async function testExecution(database: { url(role?: string): string }, clock: Clock, ids: Ids, proposals: readonly RecordedProposal[] = [], beforeSubmit?: (input: SubmitInput) => Promise<void>, providerCap = 1_000) {
+export async function testExecution(database: { url(role?: string): string }, clock: Clock, ids: Ids, proposals: readonly RecordedProposal[] = [], beforeSubmit?: (input: SubmitInput) => Promise<void>, providerCap = 1_000, caps: Caps = NO_CAPS) {
   // Explicit test caps (S8 values are configuration; no production default exists).
   const scheduler = await createPostgresScheduler(database.url("scheduler"), { clock, ids, leaseMs: 60_000, admission: { accountInFlight: 100, providerInFlight: { [FAKE_TEXT_PROFILE.adapterId]: providerCap } } });
   const options = { profile: FAKE_TEXT_PROFILE, clock, webhookSecret: "synthetic-webhook-secret", proposals };
@@ -49,6 +53,7 @@ export async function testExecution(database: { url(role?: string): string }, cl
     transportFor: (offeringId) => (offeringId === transport.profile.offeringId ? transport : undefined),
     credential: () => testCredential(),
     environment: "local",
+    caps: () => caps,
   };
   return { execution, transport, close: () => scheduler.close() };
 }

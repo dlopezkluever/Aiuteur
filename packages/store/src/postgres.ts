@@ -49,7 +49,7 @@ function readTx(client: PoolClient): ReadTx {
         generationId: generationIdSchema.parse(row.generation_id), projectId: projectIdSchema.parse(row.project_id), operation: z.enum(WORKFLOW_OPERATIONS).parse(row.operation),
         operationClass: z.enum(OPERATION_CLASSES).parse(row.operation_class), initiation: row.initiation, effectiveModel: row.effective_model, versions: row.versions,
         testProvider: row.test_provider, resolvedInputs: row.resolved_inputs, captured: row.captured, package: row.package, fitReport: row.fit_report,
-        renderedRequest: row.rendered_request, requestDigest: row.request_digest, expectedDigest: row.expected_digest, estimate: row.estimate, target: row.target, createdAt: row.created_at.toISOString(),
+        renderedRequest: row.rendered_request, requestDigest: row.request_digest, expectedDigest: row.expected_digest, inputFingerprint: row.input_fingerprint, estimate: row.estimate, target: row.target, createdAt: row.created_at.toISOString(),
       } : null;
     },
     async job(id: JobId) {
@@ -71,7 +71,7 @@ function readTx(client: PoolClient): ReadTx {
       const { rows } = await client.query<accounts_generation_call>("SELECT * FROM accounts.generation_call WHERE generation_id = $1 ORDER BY index", [generation]);
       return rows.map((row): CallRow => ({
         generationId: generationIdSchema.parse(row.generation_id), index: row.index, projectId: projectIdSchema.parse(row.project_id), role: z.enum(CALL_ROLES).parse(row.role), jobId: row.job_id as JobId,
-        requestDigest: row.request_digest, operationRef: row.operation_ref, response: row.response, verdict: row.verdict, reportedCost: row.reported_cost, createdAt: row.created_at.toISOString(),
+        requestDigest: row.request_digest, renderedRequest: row.rendered_request, operationRef: row.operation_ref, response: row.response, verdict: row.verdict, reportedCost: row.reported_cost, createdAt: row.created_at.toISOString(),
       }));
     },
     async settlement(generation: GenerationId) {
@@ -91,6 +91,16 @@ function readTx(client: PoolClient): ReadTx {
       const { rows } = await client.query<accounts_decision>(
         "SELECT d.* FROM accounts.decision d JOIN accounts.object o ON o.object_id = d.object_id WHERE d.project_id = $1 AND d.type = $2 AND o.kind = $3 ORDER BY d.created_at DESC, d.action_group DESC LIMIT 1", [project, type, kind]);
       return rows[0] ? decisionRow(rows[0]) : null;
+    },
+    async spendFacts(since: string) {
+      const { rows } = await client.query<{ generation_id: string; created_at: Date; estimate: unknown; actual: unknown }>(
+        "SELECT g.generation_id, g.created_at, g.estimate, s.actual FROM accounts.generation g LEFT JOIN accounts.generation_settlement s ON s.generation_id = g.generation_id WHERE g.created_at >= $1 ORDER BY g.created_at, g.generation_id", [since]);
+      return rows.map((row) => ({ generationId: generationIdSchema.parse(row.generation_id), createdAt: row.created_at.toISOString(), estimate: row.estimate, actual: row.actual ?? null }));
+    },
+    async inProgress(inputFingerprint: string) {
+      const { rows } = await client.query<{ generation_id: string }>(
+        "SELECT g.generation_id FROM accounts.generation g WHERE g.input_fingerprint = $1 AND NOT EXISTS (SELECT 1 FROM accounts.generation_settlement s WHERE s.generation_id = g.generation_id) ORDER BY g.created_at LIMIT 1", [inputFingerprint]);
+      return rows[0] ? generationIdSchema.parse(rows[0].generation_id) : null;
     },
     async events(after: number) {
       const { rows } = await client.query<accounts_event>("SELECT * FROM accounts.event WHERE sequence > $1 ORDER BY sequence", [after]);
@@ -198,10 +208,10 @@ export async function createPostgresStore(connectionString: string): Promise<Sto
     },
     async insertGeneration(row: GenerationRow) {
       await client.query(
-        `INSERT INTO accounts.generation (generation_id, account_id, project_id, operation, operation_class, initiation, effective_model, versions, test_provider, resolved_inputs, captured, package, fit_report, rendered_request, request_digest, expected_digest, estimate, target, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8::jsonb, $9, $10::jsonb, $11::jsonb, $12::jsonb, $13::jsonb, $14::jsonb, $15, $16, $17::jsonb, $18::jsonb, $19)`,
+        `INSERT INTO accounts.generation (generation_id, account_id, project_id, operation, operation_class, initiation, effective_model, versions, test_provider, resolved_inputs, captured, package, fit_report, rendered_request, request_digest, expected_digest, input_fingerprint, estimate, target, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8::jsonb, $9, $10::jsonb, $11::jsonb, $12::jsonb, $13::jsonb, $14::jsonb, $15, $16, $17, $18::jsonb, $19::jsonb, $20)`,
         [row.generationId, scope.accountId, row.projectId, row.operation, row.operationClass, JSON.stringify(row.initiation), JSON.stringify(row.effectiveModel), JSON.stringify(row.versions), row.testProvider,
-          JSON.stringify(row.resolvedInputs), JSON.stringify(row.captured), JSON.stringify(row.package), JSON.stringify(row.fitReport), JSON.stringify(row.renderedRequest), row.requestDigest, row.expectedDigest,
+          JSON.stringify(row.resolvedInputs), JSON.stringify(row.captured), JSON.stringify(row.package), JSON.stringify(row.fitReport), JSON.stringify(row.renderedRequest), row.requestDigest, row.expectedDigest, row.inputFingerprint,
           JSON.stringify(row.estimate), JSON.stringify(row.target), row.createdAt]);
     },
     async insertJob(row: JobRow) {
@@ -221,8 +231,8 @@ export async function createPostgresStore(connectionString: string): Promise<Sto
         [row.generationId, row.jobId, scope.accountId, row.projectId, row.run, row.state, row.operationRef, row.failureClass, row.billed, row.reason, row.createdAt]);
     },
     async insertCall(row: CallRow) {
-      await client.query("INSERT INTO accounts.generation_call (generation_id, index, account_id, project_id, role, job_id, request_digest, operation_ref, response, verdict, reported_cost, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11::jsonb, $12)",
-        [row.generationId, row.index, scope.accountId, row.projectId, row.role, row.jobId, row.requestDigest, row.operationRef, row.response, JSON.stringify(row.verdict), JSON.stringify(row.reportedCost), row.createdAt]);
+      await client.query("INSERT INTO accounts.generation_call (generation_id, index, account_id, project_id, role, job_id, request_digest, rendered_request, operation_ref, response, verdict, reported_cost, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $11::jsonb, $12::jsonb, $13)",
+        [row.generationId, row.index, scope.accountId, row.projectId, row.role, row.jobId, row.requestDigest, row.renderedRequest === null ? null : JSON.stringify(row.renderedRequest), row.operationRef, row.response, JSON.stringify(row.verdict), JSON.stringify(row.reportedCost), row.createdAt]);
     },
     async insertSettlement(row: SettlementRow) {
       await client.query("INSERT INTO accounts.generation_settlement (generation_id, account_id, project_id, outcome, reason, actual, outputs, settled_at) VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8)",

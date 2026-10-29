@@ -1,9 +1,9 @@
-import type { ActualCost, Billed, Estimate, RenderedRequest } from "@aiuteur/contract";
+import { actualCostSchema, estimateSchema, type ActualCost, type Billed, type Estimate, type RenderedRequest } from "@aiuteur/contract";
 import { billedQuantities, type BilledQuantity, type BilledQuantityRule, type Declared, type PriceEntry } from "@aiuteur/providers";
 
 // Draft FC10 `spend.estimate` (BUSINESS-AND-OPERATIONS §4.2, §4.3; MODULE §3.3). Read-only and
 // computed from the Rendered request itself, so the price and the request cannot describe
-// different things. No admission, caps, confirmation or spend record (`spend.admit` is #102's).
+// different things. `admit` (T0-06) is the creation-time spend check; there is no balance, ledger or reservation.
 
 /** Staleness of published prices (BUSINESS §4.3): tunable configuration, not architecture. */
 export interface PricePolicy {
@@ -75,4 +75,64 @@ export function actual(reported: readonly { readonly unit: BilledQuantity["unit"
     amountMicros += Math.ceil((quantity.amount * entry.priceMicros) / entry.per);
   }
   return { form: "reported", currency: "USD", amountMicros, quantities: reported.map((q) => ({ unit: q.unit, amount: q.amount })) };
+}
+
+/** Creator caps and the hidden operator ceiling, in micro-units per account calendar period. Configuration with no default (BUSINESS §9); null means no limit. */
+export interface Caps {
+  readonly creator: { readonly dailyMicros: number | null; readonly monthlyMicros: number | null; readonly perActionMicros: number | null };
+  /** Applies to operator-paid spend only, which is all spend until BYOK (BUSINESS §6.2). */
+  readonly ceiling: { readonly dailyMicros: number | null; readonly monthlyMicros: number | null };
+}
+
+/** What the committed-spend rule reads of one Generation. */
+export interface SpendFact { readonly createdAt: string; readonly estimate: unknown; readonly actual: unknown | null }
+
+const upperBound = (estimate: Estimate): number | null => (estimate.form === "point" ? estimate.amountMicros : estimate.form === "range" ? estimate.maxMicros : null);
+
+/**
+ * What one Generation counts toward committed spend (BUSINESS §5.3, §6.3): its approved estimate while unsettled, then its
+ * actual cost; a settled run known not to be billed counts nothing, and one that may have been billed counts its estimate.
+ */
+function committed(fact: SpendFact): number {
+  const upper = upperBound(estimateSchema.parse(fact.estimate)) ?? 0;
+  if (fact.actual === null) return upper;
+  const actual = actualCostSchema.parse(fact.actual);
+  if (actual.form === "reported") return actual.amountMicros;
+  return actual.billed === "no" ? 0 : upper;
+}
+
+/** The start of the UTC calendar day and month containing `now`. Accounts carry no timezone yet, so periods are UTC (spec-level). */
+export function periodStarts(now: number): { readonly day: string; readonly month: string } {
+  const d = new Date(now);
+  return { day: new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())).toISOString(), month: new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)).toISOString() };
+}
+
+export type Admission =
+  | { readonly result: "admitted" }
+  /** A creator cap: the creator's own guard. What is left is shown; the offers are Raise the cap, Trim or Not now, never Start. */
+  | { readonly result: "refused"; readonly reason: "creator-cap"; readonly cap: "daily" | "monthly" | "action"; readonly remainingMicros: number }
+  /** The hidden operator ceiling: a limit on the studio, not on the creator's content. */
+  | { readonly result: "refused"; readonly reason: "studio-limit" }
+  /** An unknown price has no upper bound to test, so it cannot be admitted (BUSINESS §3). */
+  | { readonly result: "refused"; readonly reason: "price-unknown" };
+
+/**
+ * FC10 `spend.admit` (BUSINESS §6.3). Allowed when committed spend for the period plus this action's upper-bound estimate stays
+ * within the creator's cap and the operator ceiling. The caller runs it in the transaction that creates the Generation, under
+ * the Account's write lock, with every Generation of the Account since the month began (`facts`), so concurrent creations
+ * cannot jointly exceed a limit. The ceiling is tested first: raising a creator cap cannot clear it.
+ */
+export function admit(input: { readonly estimate: Estimate; readonly facts: readonly SpendFact[]; readonly now: number; readonly caps: Caps }): Admission {
+  const upper = upperBound(input.estimate);
+  if (upper === null) return { result: "refused", reason: "price-unknown" };
+  const since = periodStarts(input.now);
+  const spent = (from: string) => input.facts.filter((f) => f.createdAt >= from).reduce((sum, f) => sum + committed(f), 0);
+  const day = spent(since.day);
+  const month = spent(since.month);
+  const { ceiling, creator } = input.caps;
+  if ((ceiling.dailyMicros !== null && day + upper > ceiling.dailyMicros) || (ceiling.monthlyMicros !== null && month + upper > ceiling.monthlyMicros)) return { result: "refused", reason: "studio-limit" };
+  if (creator.perActionMicros !== null && upper > creator.perActionMicros) return { result: "refused", reason: "creator-cap", cap: "action", remainingMicros: creator.perActionMicros };
+  if (creator.dailyMicros !== null && day + upper > creator.dailyMicros) return { result: "refused", reason: "creator-cap", cap: "daily", remainingMicros: Math.max(0, creator.dailyMicros - day) };
+  if (creator.monthlyMicros !== null && month + upper > creator.monthlyMicros) return { result: "refused", reason: "creator-cap", cap: "monthly", remainingMicros: Math.max(0, creator.monthlyMicros - month) };
+  return { result: "admitted" };
 }

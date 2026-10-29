@@ -18,6 +18,7 @@
     "@aiuteur/history": "workspace:*",
     "@aiuteur/jobs": "workspace:*",
     "@aiuteur/providers": "workspace:*",
+    "@aiuteur/spend": "workspace:*",
     "@aiuteur/story": "workspace:*",
     "@aiuteur/testing": "workspace:*",
     "@types/pg": "^8.16.0",

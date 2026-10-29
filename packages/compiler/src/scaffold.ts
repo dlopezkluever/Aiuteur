@@ -21,3 +21,12 @@ export const SCAFFOLDS: Readonly<Record<PackageOperation, Scaffold>> = Object.fr
       "keep any line of dialogue it contains exactly as written. Return only the Treatment text.",
   }),
 });
+
+/** The one bounded repair call's wording (AI-RESPONSIBILITY-MAP §5): versioned data, like every scaffold. It names the refusing guard and reason and carries the refused response. */
+export const REPAIR_SCAFFOLD = Object.freeze({
+  version: 1,
+  evidence: "#103 repair call; AI-RESPONSIBILITY-MAP §5, GENERATION-PACKAGE §11",
+  text: (failure: { readonly guard: string; readonly reason: string }, previous: string) =>
+    `Your previous response was refused by check ${failure.guard} (${failure.reason}). Correct that problem and nothing else. ` +
+    `Return only the corrected Treatment text. The refused response follows.\n\n${previous}`,
+});

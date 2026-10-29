@@ -4,7 +4,7 @@ import { resolveSourceMaterial, sourceMaterialKind, sourceMaterialRevision, trea
 import { createDispatch, createRecord, preview, readGeneration } from "@aiuteur/generation";
 import { createJobs } from "@aiuteur/jobs";
 import { priceEntries, select, type Catalogue, type CredentialHandle, type ProviderTransport } from "@aiuteur/providers";
-import type { PricePolicy } from "@aiuteur/spend";
+import type { Caps, PricePolicy } from "@aiuteur/spend";
 import type { Clock, Ids, Scheduler, Scope, Store, WriteTx } from "@aiuteur/store";
 import { REGISTRY } from "./registry.ts";
 
@@ -32,6 +32,8 @@ export interface Execution {
   readonly transportFor: (offeringId: string) => ProviderTransport | undefined;
   readonly credential: (scope: Scope, offeringId: string) => CredentialHandle | null;
   readonly environment: Environment;
+  /** Creator caps and the hidden operator ceiling for the Account (configuration; the spec fixes no production default). */
+  readonly caps: (scope: Scope) => Caps;
 }
 
 /** Use cases. Every creative write goes through `history.commit`; the project row is not creative history. */
@@ -84,8 +86,14 @@ export function createWorkflows(options: { store: Store; history: History; clock
       const made = await record.create(tx, scope, initiation, {
         projectId, operation: operation.id, inputs, effective: selection.effective, profile: selection.profile,
         prices: priceEntries(catalogue, selection.effective.offeringId, operation.operationClass), expectedDigest,
-        target: { output: "option", kind: operation.outputKind }, actionGroup: actionGroupIdSchema.parse(ids.ordered()),
+        target: { output: "option", kind: operation.outputKind }, subject: target, caps: execution.caps(scope), actionGroup: actionGroupIdSchema.parse(ids.ordered()),
       });
+      if (made.result === "already-generating") return made;
+      if (made.result === "refused") {
+        const { admission } = made;
+        if (admission.reason === "creator-cap") return { result: "cap-reached", cap: admission.cap, remainingMicros: admission.remainingMicros };
+        return { result: admission.reason };
+      }
       if (made.result === "blocked") return { result: "blocked", effectiveModel: { ...made.effective, reasons: [...made.effective.reasons] }, versions: made.compiled.versions, fit: made.compiled.fit };
       return made;
     }, (stored) => stored as Created, (result) => result?.result === "created");
