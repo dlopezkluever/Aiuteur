@@ -49,6 +49,9 @@ export const sourceMaterialReadSchema = z.strictObject({
   sequences: z.array(z.int().min(1)),
   sideLine: z.array(sideLineEntrySchema),
 });
+/** `GET …/projects/:projectId/source-material`: everything the Input screen shows, oldest first (T0-08). */
+export const inputReadSchema = z.strictObject({ items: z.array(sourceMaterialReadSchema) });
+export type InputRead = z.infer<typeof inputReadSchema>;
 export const impactSchema = z.strictObject({ version: z.int().min(0), reached: z.array(objectIdSchema) });
 export const commitOutcomeSchema = z.discriminatedUnion("result", [
   z.strictObject({ result: z.literal("Applied"), appended: z.boolean(), revision: sourceMaterialRevisionSchema }),

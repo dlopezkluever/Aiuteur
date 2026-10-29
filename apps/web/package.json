@@ -1,0 +1,29 @@
+{
+  "name": "@aiuteur/web",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/server.ts",
+    "./composition/ci": "./src/composition/ci.ts"
+  },
+  "dependencies": {
+    "@aiuteur/accounts": "workspace:*",
+    "@aiuteur/api": "workspace:*",
+    "@aiuteur/contract": "workspace:*",
+    "@aiuteur/history": "workspace:*",
+    "@aiuteur/store": "workspace:*",
+    "@aiuteur/story": "workspace:*",
+    "@aiuteur/views": "workspace:*",
+    "@aiuteur/workflows": "workspace:*",
+    "@hono/node-server": "^1.19.0"
+  },
+  "devDependencies": {
+    "@aiuteur/client": "workspace:*",
+    "@aiuteur/mail": "workspace:*",
+    "@aiuteur/providers": "workspace:*",
+    "@aiuteur/testing": "workspace:*",
+    "@types/pg": "^8.16.0",
+    "pg": "^8.16.3",
+    "playwright": "^1.56.0"
+  }
+}

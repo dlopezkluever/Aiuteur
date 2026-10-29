@@ -1,6 +1,9 @@
 packages:
   - packages/*
+  - apps/*
   - tools/*
+allowBuilds:
+  esbuild: false
 minimumReleaseAgeExclude:
   - '@better-auth/core@1.7.14'
   - '@better-auth/drizzle-adapter@1.7.14'

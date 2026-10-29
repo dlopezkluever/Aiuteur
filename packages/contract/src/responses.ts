@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { generationReadSchema, treatmentPreviewSchema, draftTreatmentResultSchema } from "./generation.ts";
-import { chooseOutcomeSchema, commitOutcomeSchema, sourceMaterialReadSchema, sourceMaterialRevisionSchema, treatmentOptionReadSchema } from "./history.ts";
+import { chooseOutcomeSchema, commitOutcomeSchema, inputReadSchema, sourceMaterialReadSchema, sourceMaterialRevisionSchema, treatmentOptionReadSchema } from "./history.ts";
 import {
-  invitationSchema, projectListSchema, projectSchema, recoveryCompletedSchema, recoveryRequestedSchema, redeemedInvitationSchema, ROUTES, studioSchema,
+  invitationSchema, projectListSchema, projectSchema, recoveryCompletedSchema, recoveryRequestedSchema, redeemedInvitationSchema, ROUTES, sessionSchema, studioSchema,
 } from "./studio.ts";
 
 type Route = (typeof ROUTES)[number];
@@ -20,9 +20,11 @@ export const ROUTE_RESPONSES = {
   "POST /api/recovery/request": { status: 202, schema: recoveryRequestedSchema },
   "POST /api/recovery/complete": { status: 200, schema: recoveryCompletedSchema },
   "POST /api/operator/invitations": { status: 201, schema: invitationSchema },
+  "GET /api/session": { status: 200, schema: sessionSchema },
   "GET /api/studios/:accountId": { status: 200, schema: studioSchema },
   "GET /api/studios/:accountId/projects": { status: 200, schema: projectListSchema },
   "POST /api/studios/:accountId/projects": { status: 201, schema: projectSchema },
+  "GET /api/studios/:accountId/projects/:projectId/source-material": { status: 200, schema: inputReadSchema },
   "POST /api/studios/:accountId/projects/:projectId/source-material": { status: 201, schema: commitOutcomeSchema },
   "GET /api/studios/:accountId/projects/:projectId/source-material/:objectId": { status: 200, schema: sourceMaterialReadSchema },
   "GET /api/studios/:accountId/projects/:projectId/source-material/:objectId/revisions/:sequence": { status: 200, schema: sourceMaterialRevisionSchema },

@@ -19,6 +19,7 @@ export const REQUIRED_SUITES: readonly string[] = [
   "packages/testing/test/store.conformance.test.ts",
   "packages/testing/test/vc10.test.ts",
   "packages/testing/test/vc6.test.ts",
+  "apps/web/test/e1.test.ts",
   "tools/arch-rules/test/arch-rules.test.ts",
   "tools/arch-rules/test/ei12.test.ts",
   "tools/arch-rules/test/static-rules.test.ts",
