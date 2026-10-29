@@ -2,35 +2,53 @@ import { readdirSync, readFileSync } from "node:fs";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import { TEXT_LAYER_KEYS } from "@aiuteur/contract";
-import { compile, compose, fit, layerText, TEXT_LAYER_CATALOG, type Layer, type Package } from "@aiuteur/compiler";
-import { canonicalJson, count, NEUTRAL_TEXT_DIALECT, sha256, snapshotProfile, unwrap, type ProfileContent } from "@aiuteur/providers";
-import { FAKE_TEXT_PROFILE, FAKE_TEXT_PROFILE_CONTENT } from "@aiuteur/testing";
-import { GP_S_TREATMENT_INPUTS, goldenOf, judge, readGolden, versionKey } from "./golden.ts";
+import { compile, compose, fit, layerText, TEXT_LAYER_CATALOG, type CompileResult, type Layer, type Package } from "@aiuteur/compiler";
+import { canonicalJson, count, loadCatalogue, NEUTRAL_TEXT_DIALECT, select, sha256, snapshotProfile, unwrap, type ProfileContent } from "@aiuteur/providers";
+import { FAKE_TEXT_PROFILE, FAKE_TEXT_PROFILE_CONTENT, SYNTHETIC_CATALOGUE_DATA } from "@aiuteur/testing";
+import { compileBoth, GP_S_PROFILE, GP_S_TREATMENT_INPUTS, goldenOf, judge, readGolden, versionKey } from "./golden.ts";
 
 describe("VC2: golden Rendered request from the first GP-S-shaped ResolvedInputs", () => {
-  it("the compile equals the reviewed golden in full: text and parts, Package, Fit, digest and versions", () => {
+  const scaffoldEdit = (result: CompileResult): CompileResult => {
+    if (result.result !== "fitted") throw new Error("expected a fit");
+    const [first, ...rest] = result.renderedRequest.textParts;
+    if (!first) throw new Error("no text part");
+    const edited = { ...result.renderedRequest, textParts: [{ ...first, text: first.text.replace("Draft one", "Draft no") }, ...rest] };
+    return { ...result, renderedRequest: edited, digest: sha256(canonicalJson(edited)) };
+  };
+  const bump = (result: CompileResult): CompileResult => ({ ...result, versions: { ...result.versions, scaffold: { ...result.versions.scaffold, version: 2 } } });
+
+  it("the compile equals the reviewed golden in full: inputs, profile, text and parts, Package, Fit, digest and versions", () => {
     const golden = readGolden();
-    const actual = goldenOf(compile(GP_S_TREATMENT_INPUTS, FAKE_TEXT_PROFILE), golden.history);
-    expect(judge(golden, actual)).toBe("match");
+    const { replay, actual } = compileBoth(golden);
+    expect(judge(golden, replay, actual)).toBe("match");
+    expect(golden.inputs).toStrictEqual(GP_S_TREATMENT_INPUTS);
+    expect(golden.profile).toStrictEqual(GP_S_PROFILE);
     expect(actual.renderedRequest).toStrictEqual(golden.renderedRequest);
     expect(actual.digest).toBe(sha256(canonicalJson(golden.renderedRequest)));
     expect(golden.history.at(-1)).toStrictEqual({ versions: versionKey(golden.versions), digest: golden.digest });
   });
 
-  it("a changed byte in the Rendered request under unchanged versions fails; a bumped version only marks the golden stale", () => {
+  it("a meaning-changing byte change with unchanged code versions is refused; a version bump only marks the golden stale", () => {
     const golden = readGolden();
-    const compiled = compile(GP_S_TREATMENT_INPUTS, FAKE_TEXT_PROFILE);
-    if (compiled.result !== "fitted") throw new Error("expected a fit");
-    // What a one-byte scaffold edit produces: same versions, one byte different in one text part.
-    const [first, ...rest] = compiled.renderedRequest.textParts;
-    if (!first) throw new Error("no text part");
-    const edited = { ...compiled.renderedRequest, textParts: [{ ...first, text: first.text.replace("Draft one", "Draft  one") }, ...rest] };
-    const changed = { ...compiled, renderedRequest: edited, digest: sha256(canonicalJson(edited)) };
-    expect(judge(golden, goldenOf(changed, golden.history))).toBe("unbumped-change");
-    const bumped = { ...changed, versions: { ...changed.versions, scaffold: { ...changed.versions.scaffold, version: 2 } } };
-    expect(judge(golden, goldenOf(bumped, golden.history))).toBe("stale");
+    const of = (r: CompileResult) => goldenOf(golden.inputs, golden.profile, r, golden.history);
+    const compiled = compile(golden.inputs, snapshotProfile(golden.profile));
+    expect(judge(golden, of(scaffoldEdit(compiled)), of(scaffoldEdit(compiled)))).toBe("unbumped-change");
+    expect(judge(golden, of(bump(scaffoldEdit(compiled))), of(bump(scaffoldEdit(compiled))))).toBe("stale");
     // Reusing a version already recorded with another digest is refused too.
-    expect(judge({ ...golden, history: [...golden.history, { versions: versionKey(golden.versions), digest: "sha256:other" }] }, goldenOf(compiled, golden.history))).toBe("history-conflict");
+    expect(judge({ ...golden, history: [...golden.history, { versions: versionKey(golden.versions), digest: "sha256:other" }] }, of(compiled), of(compiled))).toBe("history-conflict");
+  });
+
+  it("verifier bypass: the same scaffold edit with an unrelated profile change, and no code bump, is still refused", () => {
+    const golden = readGolden();
+    // The fixture's profile changed in a field the request does not read, so its snapshot id changed.
+    const changedProfile: ProfileContent = { ...golden.profile, tier: "renamed-tier" };
+    expect(snapshotProfile(changedProfile).snapshotId).not.toBe(golden.versions.profileSnapshotId);
+    const replay = goldenOf(golden.inputs, golden.profile, scaffoldEdit(compile(golden.inputs, snapshotProfile(golden.profile))), golden.history);
+    const actual = goldenOf(golden.inputs, changedProfile, scaffoldEdit(compile(golden.inputs, snapshotProfile(changedProfile))), golden.history);
+    expect(judge(golden, replay, actual)).toBe("unbumped-change");
+    // Without the scaffold edit, the profile change alone is a fixture change: stale, regenerate and review.
+    const clean = goldenOf(golden.inputs, changedProfile, compile(golden.inputs, snapshotProfile(changedProfile)), golden.history);
+    expect(judge(golden, goldenOf(golden.inputs, golden.profile, compile(golden.inputs, snapshotProfile(golden.profile)), golden.history), clean)).toBe("stale");
   });
 });
 
@@ -185,5 +203,40 @@ describe("P5 and P10: parameters and provider rewrites are sent or reported (GEN
     const result = sent(withControls({ state: "declared-none", evidence }, { state: "unknown" }));
     expect(result.parameters).toStrictEqual({});
     expect(result.report).toStrictEqual([{ name: "maxOutputTokens", outcome: "param-unsupported", requested: "model-maximum", sent: null, reason: "undeclared" }]);
+  });
+});
+
+describe("FC10 snapshots are deeply immutable (PROVIDERS §10.3): the id always names the content used", () => {
+  const maxOutput = (p: { limits: { output: { state: string; value?: { max: number } } } }) => p.limits.output.value?.max;
+  it("A: mutating the source object after snapshotting or loading changes neither the snapshot nor the compile", () => {
+    const source = structuredClone(FAKE_TEXT_PROFILE_CONTENT) as unknown as Record<string, any>;
+    const snapshot = snapshotProfile(source as never);
+    const data = structuredClone(SYNTHETIC_CATALOGUE_DATA);
+    const loaded = loadCatalogue(data);
+    const before = canonicalJson(compile(GP_S_TREATMENT_INPUTS, snapshot));
+    source["limits"].output.value.max = 19;
+    (data.offerings[0]!.profile as unknown as Record<string, any>)["limits"].output.value.max = 19;
+    expect(maxOutput(snapshot)).toBe(2048);
+    expect(maxOutput(loaded.offerings[0]!.profile)).toBe(2048);
+    expect(canonicalJson(compile(GP_S_TREATMENT_INPUTS, snapshot))).toBe(before);
+    expect(snapshot.snapshotId).toBe(snapshotProfile(FAKE_TEXT_PROFILE_CONTENT).snapshotId);
+  });
+
+  it("B: a nested field of a loaded, selected snapshot cannot be changed, so the compile it feeds cannot drift", () => {
+    const selection = select(loadCatalogue(SYNTHETIC_CATALOGUE_DATA), "text.create");
+    if (selection.result !== "selected") throw new Error("not selected");
+    const before = canonicalJson(compile(GP_S_TREATMENT_INPUTS, selection.profile));
+    expect(() => { (selection.profile.limits.output as { value: { max: number } }).value.max = 19; }).toThrow(TypeError);
+    expect(() => { (selection.profile.controls.rewrites as unknown as { state: string }).state = "unknown"; }).toThrow(TypeError);
+    expect(maxOutput(selection.profile)).toBe(2048);
+    expect(canonicalJson(compile(GP_S_TREATMENT_INPUTS, selection.profile))).toBe(before);
+    const { snapshotId, ...content } = selection.profile;
+    expect(sha256(canonicalJson(content))).toBe(snapshotId);
+  });
+
+  it("the Catalogue's ranking and price entries are frozen too", () => {
+    const catalogue = loadCatalogue(SYNTHETIC_CATALOGUE_DATA);
+    expect(() => { (catalogue.priceEntries[0] as { priceMicros: number }).priceMicros = 0; }).toThrow(TypeError);
+    expect(() => { (catalogue.ranking["text.create"] as string[]).push("x"); }).toThrow(TypeError);
   });
 });

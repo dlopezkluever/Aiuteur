@@ -42,7 +42,7 @@ export function syntheticSections(family: ProfileContent["family"]): Omit<Profil
     extension: none,
     audio: {
       native: family === "video" ? { state: "declared", value: "optional", evidence: fakeProfile } : none,
-      dialogueFromText: unknown, lipSyncDocumented: unknown, languages: unknown, drivingAudio: none, voiceReferences: none,
+      dialogueFromText: unknown, lipSyncDocumented: unknown, languages: unknown, drivingAudio: none, voiceReferences: none, speech: none,
       voiceSources: none, voiceSourceRequirement: none, voiceDesign: none, deleteVoice: none, lipSyncSubjects: none, timingOutput: none,
     },
     text: { structuredOutput: family === "text" ? { state: "declared", value: "none", evidence: fakeProfile } : none, imageInput: none },
@@ -63,7 +63,7 @@ export const FAKE_VIDEO_PROFILE: ProfileSnapshot = snapshotProfile({
   family: "video",
   operationClasses: ["video.take"],
   duration: { state: "declared", value: { kind: "set", members: [4, 6, 8], default: 4, auto: false, billed: "set-ceiling" }, evidence: fakeProfile },
-  output: { state: "declared", value: { aspects: ["16:9", "9:16"], resolutions: [720], frameRates: [24] }, evidence: fakeProfile },
+  output: { state: "declared", value: { aspects: ["16:9", "9:16"], resolutions: [720], frameRates: [24], containers: ["mp4"], codecs: ["h264"] }, evidence: fakeProfile },
   limits: mediaLimits,
   cost: {
     billedQuantity: {
@@ -110,7 +110,7 @@ export const FAKE_IMAGE_PROFILE: ProfileSnapshot = snapshotProfile({
   family: "image",
   operationClasses: ["image.frame", "image.entity"],
   duration: none,
-  output: { state: "declared", value: { aspects: ["16:9", "9:16"], resolutions: [1080], frameRates: [] }, evidence: fakeProfile },
+  output: { state: "declared", value: { aspects: ["16:9", "9:16"], resolutions: [1080], frameRates: [], containers: ["png"], codecs: [] }, evidence: fakeProfile },
   limits: mediaLimits,
   cost: {
     billedQuantity: {

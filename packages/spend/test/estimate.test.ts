@@ -43,4 +43,18 @@ describe("spend.estimate: the three forms (BUSINESS-AND-OPERATIONS §4.2)", () =
       estimate({ request: { textParts: [], mediaParts: [], parameters: { count: 1 }, rewrites: [] }, digest: "d", rule: FAKE_IMAGE_PROFILE.cost.billedQuantity, entries, today: day, policy });
     expect(image("2026-11-20")).toMatchObject({ form: "range", minMicros: 36_000, maxMicros: 44_000, basis: { entries: [{ stale: true }] } });
   });
+
+  it("token-priced text with a degenerate output range (2,048..2,048) is still a Range, input and output priced separately", () => {
+    const rule = { state: "declared", value: { rule: "text-tokens", counter: "utf8-bytes", outputMaxParameter: "maxOutputTokens", outputMin: 2048 }, evidence: { kind: "assumed", reviewer: "test", reason: "degenerate" } } as const;
+    const result = text({ rule });
+    // 1,000 input at 3,000,000 per million = 3,000; 2,048 output at 15,000,000 per million = 30,720.
+    expect(result).toMatchObject({ form: "range", minMicros: 33_720, maxMicros: 33_720 });
+    if (result.form !== "range") return;
+    expect(result.minMicros).toBe(result.maxMicros);
+    expect(result.basis.quantities).toStrictEqual([
+      { unit: "input-token", amount: 1000, bounds: { min: 1000, max: 1000 } },
+      { unit: "output-token", amount: 2048, bounds: { min: 2048, max: 2048 } },
+    ]);
+    expect(result.basis.entries.map((e) => [e.unit, e.priceMicros])).toStrictEqual([["input-token", 3_000_000], ["output-token", 15_000_000]]);
+  });
 });

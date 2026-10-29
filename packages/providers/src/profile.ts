@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import {
-  AUTHORISATION_KINDS, BILLED, BILLED_DURATION_BASES, CANCEL_BILLING, COUNTERS, DRIVING_AUDIO_LENGTH_RULES, DRIVING_AUDIO_OWN_AUDIO,
+  AUTHORISATION_KINDS, BILLED, DELIVERY_CONTROLS, SPEECH_LENGTH_UNITS, BILLED_DURATION_BASES, CANCEL_BILLING, COUNTERS, DRIVING_AUDIO_LENGTH_RULES, DRIVING_AUDIO_OWN_AUDIO,
   EXTENSION_OUTPUTS, FAILURE_CLASSES, KNOWN_LIMITATION_CODES, LIMIT_UNITS, LIPSYNC_SUBJECTS, MODEL_FAMILIES, NATIVE_AUDIO_MODES,
   OPERATION_CLASSES, OPERATION_KINDS, PROVIDER_STABILITIES, REFERENCE_BINDINGS, REFERENCE_ROLES, REWRITE_MODES, SEED_GUARANTEES,
   STRUCTURED_OUTPUT_MODES, TIMING_OUTPUTS, VOICE_SOURCES,
@@ -120,6 +120,9 @@ export const profileContentSchema = z.strictObject({
     aspects: z.union([z.array(aspect).min(1), z.literal("follows-input")]),
     resolutions: z.array(z.int().positive()).min(1),
     frameRates: z.array(positive),
+    /** Container and codec expectations (PROVIDERS §4.1 Output), checked at ingest (#70), never transcoded here. */
+    containers: z.array(z.string().min(1)),
+    codecs: z.array(z.string().min(1)),
   })),
   // Audio (PROVIDERS §4.1, §13; VOICE-AND-PERFORMANCE §5). Reserved and unpopulated in T0.
   audio: z.strictObject({
@@ -127,7 +130,13 @@ export const profileContentSchema = z.strictObject({
     dialogueFromText: declared(z.boolean()),
     lipSyncDocumented: declared(z.boolean()),
     languages: declared(z.array(z.string().min(1))),
-    drivingAudio: declared(z.strictObject({ lengthRule: z.enum(DRIVING_AUDIO_LENGTH_RULES), maxSeconds: positive.nullable(), ownAudio: z.enum(DRIVING_AUDIO_OWN_AUDIO) })),
+    /** Driving audio as role `audio.line`: length rule, per-clip and total limits, what happens to the model's own audio (VOICE §5.2). */
+    drivingAudio: declared(z.strictObject({ lengthRule: z.enum(DRIVING_AUDIO_LENGTH_RULES), perClipSeconds: positive.nullable(), totalSeconds: positive.nullable(), ownAudio: z.enum(DRIVING_AUDIO_OWN_AUDIO) })),
+    /** Speech (VOICE §5.2): per-request length with its unit and counter, and delivery controls. Voice sources, languages, timing output and seed are their own fields. */
+    speech: declared(z.strictObject({
+      perRequestLength: z.strictObject({ unit: z.enum(SPEECH_LENGTH_UNITS), counter: z.enum(COUNTERS).nullable(), max: positive }),
+      deliveryControls: z.array(z.enum(DELIVERY_CONTROLS)).min(1),
+    })),
     voiceReferences: declared(z.strictObject({ maxCount: z.int().min(0), perClipSeconds: positive.nullable(), totalSeconds: positive.nullable() })),
     voiceSources: declared(z.array(z.enum(VOICE_SOURCES)).min(1)),
     voiceSourceRequirement: declared(z.enum(AUTHORISATION_KINDS)),
@@ -196,8 +205,22 @@ export function sha256(text: string): string {
   return `sha256:${createHash("sha256").update(text).digest("hex")}`;
 }
 
+/** Freezes a value and everything reachable from it. */
+export function deepFreeze<T>(value: T): T {
+  if (value !== null && typeof value === "object" && !Object.isFrozen(value)) {
+    for (const child of Object.values(value)) deepFreeze(child);
+    Object.freeze(value);
+  }
+  return value;
+}
+
+/**
+ * Snapshots a deep copy of `content`, frozen all the way down, so neither the caller's object nor
+ * any holder of the snapshot can change what its content-addressed id names (PROVIDERS §10.3).
+ */
 export function snapshotProfile(content: ProfileContent): ProfileSnapshot {
-  return Object.freeze({ ...content, snapshotId: sha256(canonicalJson(content)) as ProfileSnapshotId });
+  const copy = structuredClone(content);
+  return deepFreeze({ ...copy, snapshotId: sha256(canonicalJson(copy)) as ProfileSnapshotId });
 }
 
 /** Maps a provider error code through the declared map. Anything not documented is *Unknown, maybe billed*. */

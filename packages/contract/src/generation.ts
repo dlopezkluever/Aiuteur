@@ -54,6 +54,9 @@ export const LIPSYNC_SUBJECTS = ["human", "stylized-humanoid", "any", "unknown"]
 export const TIMING_OUTPUTS = ["none", "word", "character"] as const;
 export const DRIVING_AUDIO_LENGTH_RULES = ["follows-audio", "fixed-set", "range"] as const;
 export const DRIVING_AUDIO_OWN_AUDIO = ["replaced", "mixed", "unknown"] as const;
+/** Speech delivery controls and the unit of a per-request length (VOICE-AND-PERFORMANCE §5.2 Speech). */
+export const DELIVERY_CONTROLS = ["inline-tags", "instruction", "none"] as const;
+export const SPEECH_LENGTH_UNITS = ["characters", "seconds"] as const;
 /** Text-family fields (PROVIDERS §13). */
 export const STRUCTURED_OUTPUT_MODES = ["schema-constrained", "json-mode", "none"] as const;
 

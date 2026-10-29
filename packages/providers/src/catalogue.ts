@@ -4,7 +4,7 @@ import {
   type BilledUnit, type OfferingStatus, type OperationClass, type SelectionReason,
 } from "@aiuteur/contract";
 import { dialectFor } from "./dialect.ts";
-import { profileContentSchema, snapshotProfile, type ProfileContent, type ProfileSnapshot } from "./profile.ts";
+import { deepFreeze, profileContentSchema, snapshotProfile, type ProfileContent, type ProfileSnapshot } from "./profile.ts";
 
 // Draft FC10 catalogue face (PROVIDERS-AND-MODELS §3, §8, §9 F10; MODULE §3.3). Pure.
 // A Catalogue exists only as the result of `loadCatalogue`, so invalid data fails at load,
@@ -127,10 +127,10 @@ export function loadCatalogue(data: unknown): Catalogue {
     seen.add(key);
   }
   if (issues.length > 0) throw new CatalogueInvalid(issues);
-  return Object.freeze({
-    offerings: Object.freeze(offerings.map((o) => Object.freeze({ status: o.status, profile: snapshotProfile(o.profile) }))),
-    ranking: Object.freeze(ranking),
-    priceEntries: Object.freeze(priceEntries),
+  return deepFreeze({
+    offerings: offerings.map((o) => ({ status: o.status, profile: snapshotProfile(o.profile) })),
+    ranking: structuredClone(ranking),
+    priceEntries: structuredClone(priceEntries),
   }) as unknown as Catalogue;
 }
 

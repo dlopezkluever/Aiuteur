@@ -76,11 +76,12 @@ describe("EI3 and FC10: the profile shape is broader than what T0 executes", () 
       Object.assign(text(d), { offeringId: "audio-shape", modelId: "audio-shape-model", family: "audio", operationClasses: ["audio.speech", "audio.voice"], cost: { billedQuantity: { state: "unknown" }, actualCostReported: { state: "unknown" } } });
       text(d)["audio"] = {
         native: { state: "declared-none", evidence }, dialogueFromText: { state: "declared", value: true, evidence }, lipSyncDocumented: { state: "declared", value: false, evidence },
-        languages: { state: "declared", value: ["en"], evidence }, drivingAudio: { state: "declared-none", evidence },
+        languages: { state: "declared", value: ["en"], evidence }, drivingAudio: { state: "declared", value: { lengthRule: "follows-audio", perClipSeconds: 15, totalSeconds: 60, ownAudio: "replaced" }, evidence },
         voiceReferences: { state: "declared", value: { maxCount: 3, perClipSeconds: 30, totalSeconds: 90 }, evidence },
         voiceSources: { state: "declared", value: ["stock", "cloned"], evidence }, voiceSourceRequirement: { state: "declared", value: "speaker-verification", evidence },
         voiceDesign: { state: "declared", value: true, evidence }, deleteVoice: { state: "declared", value: true, evidence },
         lipSyncSubjects: { state: "declared", value: ["human"], evidence }, timingOutput: { state: "declared", value: "word", evidence },
+        speech: { state: "declared", value: { perRequestLength: { unit: "characters", counter: "unicode-code-points", max: 5000 }, deliveryControls: ["instruction"] }, evidence },
       };
       d.priceEntries.splice(0, 2);
       (d.ranking as Record<string, string[]>)["text.create"] = ["fake-text-preview-model", "fake-text-undocumented-model"];
@@ -95,6 +96,34 @@ describe("EI3 and FC10: the profile shape is broader than what T0 executes", () 
     const suspended = loadCatalogue(edited((d) => { d.offerings[0]!.status = "suspended"; }));
     expect(suspended.offerings[0]?.profile.snapshotId).toBe(loadCatalogue(SYNTHETIC_CATALOGUE_DATA).offerings[0]?.profile.snapshotId);
     expect(Object.isFrozen(suspended.offerings[0]?.profile)).toBe(true);
+  });
+});
+
+describe("FC10 and EI3: required fields are representable (PROVIDERS §4.1 Output; VOICE-AND-PERFORMANCE §5.2)", () => {
+  const evidence = synthetic;
+  it("output container and codec expectations load", () => {
+    const loaded = loadCatalogue(edited((d) => { Object.assign(video(d)["output"].value, { containers: ["mp4", "mov"], codecs: ["h264", "aac"] }); }));
+    expect(loaded.offerings[3]?.profile.output).toMatchObject({ value: { containers: ["mp4", "mov"], codecs: ["h264", "aac"] } });
+  });
+  it("driving audio with per-clip and total limits loads", () => {
+    const loaded = loadCatalogue(edited((d) => { video(d)["audio"].drivingAudio = { state: "declared", value: { lengthRule: "follows-audio", perClipSeconds: 15, totalSeconds: 60, ownAudio: "replaced" }, evidence }; }));
+    expect(loaded.offerings[3]?.profile.audio.drivingAudio).toMatchObject({ value: { perClipSeconds: 15, totalSeconds: 60 } });
+  });
+  it("speech per-request length with its unit and counter, and delivery controls, load", () => {
+    const loaded = loadCatalogue(edited((d) => {
+      Object.assign(text(d), { offeringId: "audio-shape", modelId: "audio-shape-model", family: "audio", operationClasses: ["audio.speech"], cost: { billedQuantity: { state: "unknown" }, actualCostReported: { state: "unknown" } } });
+      text(d)["audio"].speech = { state: "declared", value: { perRequestLength: { unit: "characters", counter: "unicode-code-points", max: 5000 }, deliveryControls: ["inline-tags", "instruction"] }, evidence };
+      d.priceEntries.splice(0, 2);
+      (d.ranking as Record<string, string[]>)["text.create"] = ["fake-text-preview-model", "fake-text-undocumented-model"];
+    }));
+    expect(loaded.offerings[0]?.profile.audio.speech).toMatchObject({ value: { perRequestLength: { unit: "characters", max: 5000 }, deliveryControls: ["inline-tags", "instruction"] } });
+  });
+  it.each<[string, (d: Data & Record<string, unknown>) => void, RegExp]>([
+    ["a delivery control outside the closed set", (d) => { text(d)["audio"].speech = { state: "declared", value: { perRequestLength: { unit: "seconds", counter: null, max: 30 }, deliveryControls: ["whisper"] }, evidence }; }, /speech/],
+    ["a negative driving-audio total", (d) => { video(d)["audio"].drivingAudio = { state: "declared", value: { lengthRule: "range", perClipSeconds: 10, totalSeconds: -1, ownAudio: "mixed" }, evidence }; }, /drivingAudio/],
+    ["output containers missing from a declared output", (d) => { delete video(d)["output"].value.containers; }, /output/],
+  ])("still refused at load: %s", (_name, change, issue) => {
+    expect(refusal(edited(change)).join("\n")).toMatch(issue);
   });
 });
 

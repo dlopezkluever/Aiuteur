@@ -57,6 +57,7 @@ export function estimate(input: EstimateInput): Estimate {
     min = Math.floor((min * (1000 - input.policy.driftPermille)) / 1000);
     max = Math.ceil((max * (1000 + input.policy.driftPermille)) / 1000);
   }
-  const exact = !widened && basis.quantities.every((q) => q.bounds.min === q.bounds.max);
+  // Token-priced text is a Range by rule (BUSINESS §4.2; #101 decision 5), even when its bounds coincide.
+  const exact = !widened && input.rule.value.rule !== "text-tokens" && basis.quantities.every((q) => q.bounds.min === q.bounds.max);
   return exact ? { form: "point", currency: "USD", amountMicros: max, basis } : { form: "range", currency: "USD", minMicros: min, maxMicros: max, basis };
 }
