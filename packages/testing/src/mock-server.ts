@@ -32,6 +32,8 @@ export function sample(schema: Json): unknown {
       if (format === "date-time") return "2026-01-01T00:00:00.000Z";
       if (format === "date") return "2026-01-01";
       if (format === "email") return "mock@example.test";
+      if (format === "uri") return "https://mock.test/x";
+      if (schema["pattern"] === "^[0-9a-f]{64}$") return "0".repeat(64);
       return "x".repeat(Math.max(Number(schema["minLength"] ?? 1), 1));
     }
     default: return {};

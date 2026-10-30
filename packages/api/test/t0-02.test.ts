@@ -42,7 +42,7 @@ beforeAll(async () => {
   adapter = await createBetterAuth({ connectionString: database.url("identity"), baseURL: origin, secret: "synthetic-test-only-secret-with-more-than-32-characters", clock, ids, idleSessionSeconds: 3600, absoluteSessionSeconds: 86400 });
   store = await createPostgresStore(database.url("app"));
   accounts = createAccounts({ ...adapter, clock, ids, invitationTtlMs: 60_000, operatorEmails: [], mailer, limits, recoveryTtlMs: 600_000, recoveryPage: `${origin}/recover`, onMailFailure: (error) => mailFailures.push(error) });
-  api = createApi({ accounts, views: createViews(store), workflows: createWorkflows({ store, history: createHistory([sourceMaterialKind]), clock, ids, catalogue: syntheticCatalogue(), pricePolicy: TEST_PRICE_POLICY, execution: run.execution }), handleAuth: adapter.handle, origin, requestId: ids.uuid, now: () => clock.now(), clientAddress: (request) => request.headers.get("x-test-address") ?? "203.0.113.250" });
+  api = createApi({ accounts, views: createViews(store), workflows: createWorkflows({ store, history: createHistory([sourceMaterialKind]), clock, ids, catalogue: syntheticCatalogue(), pricePolicy: TEST_PRICE_POLICY, execution: run.execution, media: run.media }), handleAuth: adapter.handle, origin, requestId: ids.uuid, now: () => clock.now(), clientAddress: (request) => request.headers.get("x-test-address") ?? "203.0.113.250" });
 });
 afterAll(async () => { await run?.close(); await store?.close(); await adapter?.close(); await database?.close(); });
 

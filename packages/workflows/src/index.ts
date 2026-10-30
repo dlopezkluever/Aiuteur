@@ -7,6 +7,10 @@ import { priceEntries, select, type Catalogue, type CredentialHandle, type Provi
 import type { PricePolicy } from "@aiuteur/spend";
 import type { Clock, Ids, Scheduler, Scope, Store, WriteTx } from "@aiuteur/store";
 import { REGISTRY } from "./registry.ts";
+import type { Media } from "@aiuteur/media";
+import { characterKind, readCharacter } from "@aiuteur/world";
+import { presenceResolves, shotKind, type ShotBody } from "@aiuteur/production";
+import { entityOutcomeSchema, referenceOutcomeSchema, type EntityOutcome, type MediaLink, type ReferenceOutcome, type Upload } from "@aiuteur/contract";
 
 export { REGISTRY } from "./registry.ts";
 export type { AnyOperationRecord, OperationRecord } from "./operation.ts";
@@ -35,8 +39,15 @@ export interface Execution {
 }
 
 /** Use cases. Every creative write goes through `history.commit`; the project row is not creative history. */
-export function createWorkflows(options: { store: Store; history: History; clock: Clock; ids: Ids; catalogue: Catalogue; pricePolicy: PricePolicy; execution: Execution }) {
-  const { store, history, clock, ids, catalogue, pricePolicy, execution } = options;
+/** A write-gate result on a `world` or `production` object, as the wire answer. */
+function toEntityOutcome(result: CommitResult): EntityOutcome {
+  if (result.result === "Applied") return { result: "Applied", appended: result.appended, objectId: result.revision.objectId, sequence: result.revision.sequence };
+  if (result.result === "NeedsConfirmation") return { result: "NeedsConfirmation", impact: { version: result.impact.version, reached: [...result.impact.reached] } };
+  return result;
+}
+
+export function createWorkflows(options: { store: Store; history: History; clock: Clock; ids: Ids; catalogue: Catalogue; pricePolicy: PricePolicy; execution: Execution; media: Media }) {
+  const { store, history, clock, ids, catalogue, pricePolicy, execution, media } = options;
   const jobs = createJobs({ scheduler: execution.scheduler, clock });
   const record = createRecord({ history, jobs, clock, ids, pricePolicy });
   const dispatch = createDispatch({ store, history, jobs, catalogue, transportFor: execution.transportFor, credential: execution.credential, environment: execution.environment, clock, ids });
@@ -98,8 +109,56 @@ export function createWorkflows(options: { store: Store; history: History; clock
     if (!generation) throw new Error("created Generation is not readable");
     return { result: "generation", generation };
   }
+  const entity = (stored: unknown) => entityOutcomeSchema.parse(stored);
   return {
     execute,
+    /** A staging key and the signed PUT for one upload into this project (`media.access` purpose `upload`); null when the Scope has no such project. */
+    requestUpload: (scope: Scope, projectId: ProjectId): Promise<Upload | null> => store.read(scope, (tx) => media.upload(tx, scope, projectId)),
+    /** A Character added by hand (ENTITIES §2.2a): its first Revision. */
+    async createCharacter(scope: Scope, projectId: ProjectId, key: string, name: string): Promise<EntityOutcome> {
+      return once(scope, "character.create", key, { projectId, name }, async (tx) =>
+        toEntityOutcome(await history.commit(tx, scope, { kind: characterKind.kind, projectId, objectId: objectIdSchema.parse(ids.ordered()), base: 0, body: { name } }, context("creator_edit"))), entity);
+    },
+    /**
+     * Upload a Character's reference image: `media.put` verifies, hashes, probes and promotes the staged bytes, then the
+     * Media row and the upload Attempt on the identity-image Slot commit in ONE transaction, so committed Media always has
+     * a referrer (PERSISTENCE §7.1). A refused upload records nothing.
+     */
+    async attachReference(scope: Scope, projectId: ProjectId, objectId: ObjectId, key: string, uploadId: string): Promise<ReferenceOutcome> {
+      return once<ReferenceOutcome>(scope, "character.reference", key, { projectId, objectId, uploadId }, async (tx) => {
+        // The subject first, so a refused subject touches no bytes and records no Media.
+        if (!await readCharacter(tx, scope, projectId, objectId)) return { result: "Refused", reason: "not-found" };
+        const put = await media.put(tx, scope, projectId, { kind: "upload", uploadId });
+        if (put.result === "refused") return { result: "Refused", reason: put.reason };
+        const attached = await history.upload(tx, scope, { projectId, objectId, kind: characterKind.kind, media: put.ref.hash, body: {} }, context("import"));
+        // Only Applied may commit: a Media row without its referrer must not survive (the throw rolls the transaction back).
+        if (attached.result !== "Applied") throw new Error(`reference upload not applied: ${attached.result}`);
+        return { result: "Applied", reference: { attemptId: attached.attempt.attemptId, media: put.media, createdAt: attached.attempt.createdAt } };
+      }, (stored) => referenceOutcomeSchema.parse(stored));
+    },
+    /** `media.access` for the reference a Character shows, purpose `view`; null when the Scope has no such Character or it has none. */
+    referenceLink: (scope: Scope, projectId: ProjectId, objectId: ObjectId): Promise<MediaLink | null> => store.read(scope, async (tx) => {
+      const character = await readCharacter(tx, scope, projectId, objectId);
+      return character?.reference?.media ? media.access(tx, scope, { projectId, hash: character.reference.media }, "view") : null;
+    }),
+    /** A Shot made by hand with explicit Presences; each must name a Character of this project. */
+    async createShot(scope: Scope, projectId: ProjectId, key: string, action: string, presence: ShotBody["presence"]): Promise<EntityOutcome> {
+      return once(scope, "shot.create", key, { projectId, action, presence }, async (tx) => {
+        if (!await tx.project(projectId) || !await presenceResolves(tx, scope, projectId, presence)) return { result: "Refused", reason: "not-found" } as const;
+        return toEntityOutcome(await history.commit(tx, scope, { kind: shotKind.kind, projectId, objectId: objectIdSchema.parse(ids.ordered()), base: 0, body: { action, presence } }, context("creator_edit")));
+      }, entity);
+    },
+    /** Change who is present on a Shot, on the Revision the client last read: a stale base is kept aside (StaleBase). */
+    async changePresence(scope: Scope, projectId: ProjectId, objectId: ObjectId, key: string, base: number, presence: ShotBody["presence"]): Promise<EntityOutcome> {
+      return once(scope, "shot.presence", key, { projectId, objectId, base, presence }, async (tx) => {
+        if (!await presenceResolves(tx, scope, projectId, presence)) return { result: "Refused", reason: "not-found" } as const;
+        const body = (current: unknown) => {
+          const head = shotKind.parse(current);
+          return head && { action: head.action, presence };
+        };
+        return toEntityOutcome(await history.commit(tx, scope, { kind: shotKind.kind, projectId, objectId, base, body }, context("creator_edit")));
+      }, entity);
+    },
     /** Choose a Treatment Option: one creator Decision through the write gate (STORY-DOCUMENTS §2.3; DOMAIN-MODEL §2). */
     async chooseTreatmentOption(scope: Scope, projectId: ProjectId, objectId: ObjectId, key: string): Promise<ChooseOutcome> {
       return once<ChooseOutcome>(scope, "treatment-option.choose", key, { projectId, objectId }, async (tx) => {

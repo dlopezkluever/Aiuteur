@@ -17,3 +17,6 @@ export * from "./conformance/history.ts";
 export * from "./conformance/scheduler.ts";
 export * from "./uuidv7.ts";
 export * from "./mock-server.ts";
+export * from "./fake-blob-store.ts";
+export * from "./conformance/blob-store.ts";
+export * from "./images.ts";

@@ -2,14 +2,19 @@ import type { RecordedProposal } from "./proposals.ts";
 
 // GP-S, the seed golden project (VERIFICATION-AND-OBSERVABILITY §5.1; BUILD-SEQUENCE §7), authored as the sequence of
 // creator commands that make it, replayed through `api` → `workflows` → `history.commit`, so it can only hold states
-// the product can reach. It grows append-only per slice; T0-05 begins it with the T0a leg: paste, draft, choose.
+// the product can reach. It grows append-only per slice; T0-05 begins it with the T0a leg: paste, draft, choose; T0-12
+// appends the T0b hand step: a Character with an uploaded reference and a hand-made Shot with its Presence.
 // Ids are not part of a command: each step names earlier results by step label.
 
 export type GpSCommand =
   | { readonly step: "project"; readonly command: "project.create" }
   | { readonly step: "source"; readonly command: "source-material.paste"; readonly text: string }
   | { readonly step: "draft"; readonly command: "treatment.draft"; readonly source: "source" }
-  | { readonly step: "choose"; readonly command: "treatment-option.choose"; readonly option: "draft" };
+  | { readonly step: "choose"; readonly command: "treatment-option.choose"; readonly option: "draft" }
+  // T0-12 (T0b, the hand step): one Character with an uploaded reference image, one hand-made Shot with its Presence.
+  | { readonly step: "character"; readonly command: "character.create"; readonly name: string }
+  | { readonly step: "reference"; readonly command: "character.reference"; readonly character: "character"; readonly image: { readonly width: number; readonly height: number; readonly format: "png" } }
+  | { readonly step: "shot"; readonly command: "shot.create"; readonly action: string; readonly presence: readonly "character"[] };
 
 export const GP_S_SOURCE_TEXT =
   "Mara runs the night ferry between two islands that no longer speak to each other. One winter a passenger boards " +
@@ -20,6 +25,9 @@ export const GP_S_COMMANDS: readonly GpSCommand[] = Object.freeze([
   { step: "source", command: "source-material.paste", text: GP_S_SOURCE_TEXT },
   { step: "draft", command: "treatment.draft", source: "source" },
   { step: "choose", command: "treatment-option.choose", option: "draft" },
+  { step: "character", command: "character.create", name: "Mara" },
+  { step: "reference", command: "character.reference", character: "character", image: { width: 64, height: 48, format: "png" } },
+  { step: "shot", command: "shot.create", action: "Mara holds the letter up to the storm lamp.", presence: ["character"] },
 ]);
 
 /** The model output GP-S replays, in scenario-step order (one per model call). */

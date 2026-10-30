@@ -10,6 +10,8 @@
     "@aiuteur/history": "workspace:*",
     "@aiuteur/story": "workspace:*",
     "@aiuteur/store": "workspace:*",
-    "@aiuteur/generation": "workspace:*"
+    "@aiuteur/generation": "workspace:*",
+    "@aiuteur/world": "workspace:*",
+    "@aiuteur/production": "workspace:*"
   }
 }

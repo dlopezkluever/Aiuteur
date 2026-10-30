@@ -110,7 +110,7 @@ async function commit(kinds: ReadonlyMap<string, KindDeclaration>, wtx: WriteTx,
   const at = new Date(ctx.at).toISOString();
   const keep = async (origin: AttemptRow["origin"]) => {
     const attemptId = ctx.ids.ordered();
-    await wtx.insertAttempt({ attemptId, objectId: change.objectId, projectId: change.projectId, basedOn: change.base, origin, generationId: ctx.generationId ?? null, body, createdAt: at });
+    await wtx.insertAttempt({ attemptId, objectId: change.objectId, projectId: change.projectId, basedOn: change.base, origin, generationId: ctx.generationId ?? null, media: null, body, createdAt: at });
     return attemptId;
   };
 
@@ -195,6 +195,45 @@ async function decide(wtx: WriteTx, scope: Scope, change: DecisionChange, ctx: C
   return { result: "Applied", decision };
 }
 
+/** An upload competing for an object's Slot (DOMAIN-MODEL §1): its bytes are a Media of the same project, already ingested by `media`. */
+export interface UploadChange {
+  readonly projectId: ProjectId;
+  readonly objectId: ObjectId;
+  /** The owning object's kind; an upload onto an object of another kind is refused. */
+  readonly kind: string;
+  /** The content hash of the Media, as `media` recorded it in this transaction. */
+  readonly media: string;
+  readonly body: unknown;
+}
+export type UploadResult =
+  | { readonly result: "Applied"; readonly attempt: AttemptRow }
+  | NeedsConfirmation
+  | { readonly result: "Refused"; readonly reason: RefusalReason };
+
+/**
+ * Appends one creator upload Attempt (FC3 Draft, T0-12). An Attempt never changes the object's Revisions; it accumulates
+ * beside them. Scope, project, kind and the Media's project are checked under the write lock; a locked object without the
+ * current edit session answers NeedsConfirmation and appends nothing (MODULE §5.1 step 2).
+ */
+async function upload(wtx: WriteTx, scope: Scope, change: UploadChange, ctx: CommitContext): Promise<UploadResult> {
+  if (ctx.actor !== "creator" || ctx.generationId !== undefined) return { result: "Refused", reason: "missing-provenance" };
+  const object = await wtx.object(change.objectId);
+  if (!object || object.projectId !== change.projectId) return { result: "Refused", reason: "not-found" };
+  if (object.kind !== change.kind) return { result: "Refused", reason: "kind-mismatch" };
+  if (!await wtx.media(change.projectId, change.media)) return { result: "Refused", reason: "not-found" };
+  const lock = await wtx.lockState(change.objectId);
+  const grant = ctx.editSession;
+  if (lock.locked && !(grant && grant.objectId === change.objectId && grant.creatorId === scope.creatorId && grant.impactVersion === lock.version)) {
+    return { result: "NeedsConfirmation", impact: { version: lock.version, reached: [] } };
+  }
+  const attempt: AttemptRow = {
+    attemptId: ctx.ids.ordered(), objectId: change.objectId, projectId: change.projectId, basedOn: (await wtx.head(change.objectId))?.sequence ?? 0,
+    origin: "upload", generationId: null, media: change.media, body: change.body, createdAt: new Date(ctx.at).toISOString(),
+  };
+  await wtx.insertAttempt(attempt);
+  return { result: "Applied", attempt };
+}
+
 export interface ObjectRead {
   readonly kind: string;
   readonly projectId: ProjectId;
@@ -237,6 +276,7 @@ export function createHistory(declarations: readonly KindDeclaration<any>[]) {
     commit: (wtx: WriteTx, scope: Scope, change: Change, ctx: CommitContext) => commit(kinds, wtx, scope, change, ctx),
     capture,
     decide,
+    upload,
     read,
     derive,
   };

@@ -15,6 +15,7 @@ export interface accounts_attempt {
   "generation_id": string | null;
   "body": unknown;
   "created_at": Date;
+  "media_hash": string | null;
 }
 
 export interface accounts_capture {
@@ -152,6 +153,19 @@ export interface accounts_lock {
   "project_id": string;
   "locked": boolean;
   "actor": string;
+  "created_at": Date;
+}
+
+export interface accounts_media {
+  "account_id": string;
+  "project_id": string;
+  "hash": string;
+  "size": number;
+  "content_type": string;
+  "width": number;
+  "height": number;
+  "key": string;
+  "origin": string;
   "created_at": Date;
 }
 

@@ -1,0 +1,15 @@
+{
+  "name": "@aiuteur/production",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@aiuteur/contract": "workspace:*",
+    "@aiuteur/history": "workspace:*",
+    "@aiuteur/store": "workspace:*",
+    "@aiuteur/world": "workspace:*",
+    "zod": "^4.3.6"
+  }
+}

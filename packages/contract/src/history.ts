@@ -12,11 +12,12 @@ export type ActorKind = (typeof ACTOR_KINDS)[number];
 /** STORY-DOCUMENTS §4. */
 export const REVISION_CAUSES = ["creator_edit", "ai_generation", "ai_targeted_rewrite", "sync", "import", "restore"] as const;
 export type RevisionCause = (typeof REVISION_CAUSES)[number];
-export const ATTEMPT_ORIGINS = ["stale-base", "held"] as const;
+/** `upload`: a creator-supplied artifact for a Slot, its bytes a Media (PERSISTENCE §3 `attempt`; T0-12). */
+export const ATTEMPT_ORIGINS = ["stale-base", "held", "upload"] as const;
 /** Causes whose content a Generation made (STORY-DOCUMENTS §4); MODULE §5.1 refuses them without a Generation. */
 export const AI_CAUSES: readonly RevisionCause[] = ["ai_generation", "ai_targeted_rewrite", "sync"];
 /** Writes that carry a client-supplied idempotency key (STORY-DOCUMENTS §4). */
-export const IDEMPOTENT_OPERATIONS = ["source-material.paste", "source-material.change-role", "treatment-option.choose", "treatment.draft"] as const;
+export const IDEMPOTENT_OPERATIONS = ["source-material.paste", "source-material.change-role", "treatment-option.choose", "treatment.draft", "character.create", "character.reference", "shot.create", "shot.presence"] as const;
 export type IdempotentOperation = (typeof IDEMPOTENT_OPERATIONS)[number];
 // Opaque to the server: chosen by the client for one intended action, never interpreted.
 export const idempotencyKeySchema = z.string().regex(/^[A-Za-z0-9._~-]{1,128}$/);
