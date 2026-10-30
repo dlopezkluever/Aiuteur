@@ -152,6 +152,9 @@ function checkFile(path: string, text: string, resolveFrom: (path: string, speci
       const source = node["source"] as AstNode | undefined;
       if (node.type === "ImportExpression" && source?.type === "Literal" && typeof source["value"] === "string") {
         specifiers.push({ value: source["value"], start: node.start });
+      } else if (client && node.type === "ImportExpression") {
+        // R3 fails closed: a client import whose target is not a plain string cannot be shown to stay inside contract.
+        report("R3", node.start, "client dynamic import() with a computed specifier cannot be proven to import only contract");
       }
     });
     for (const { value, start } of specifiers) {
