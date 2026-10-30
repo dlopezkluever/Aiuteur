@@ -21,7 +21,17 @@ export async function serve(options: { fetch(request: Request): Response | Promi
       response.headers.forEach((value, name) => { if (name !== "set-cookie") plain[name] = value; });
       if (setCookies.length > 0) plain["set-cookie"] = setCookies;
       outgoing.writeHead(response.status, plain);
-      outgoing.end(Buffer.from(await response.arrayBuffer()));
+      if (response.body && response.headers.get("content-type")?.startsWith("text/event-stream")) {
+        // A progress stream is written as it is produced and ends when the client goes away.
+        const reader = response.body.getReader();
+        outgoing.on("close", () => { void reader.cancel().catch(() => undefined); });
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (!outgoing.write(value)) await new Promise<void>((resolve) => outgoing.once("drain", resolve));
+        }
+        outgoing.end();
+      } else outgoing.end(Buffer.from(await response.arrayBuffer()));
     } catch (error) {
       options.onError(error);
       if (!outgoing.headersSent) outgoing.writeHead(500, { "content-type": "application/json" });

@@ -3,14 +3,20 @@ import type { ProcessRole } from "@aiuteur/observability";
 
 /**
  * Deployment configuration, read once at the composition root from the host's environment values and passed down
- * (build rule R24). A host secret file holds the values per environment; this module only parses them. A problem names
- * the variable, never its value.
+ * (build rule R24). Each process role has its own host secret file and its own parser: a role is refused a variable that
+ * belongs to another role, so one compromised process never holds the other's secrets (RUNTIME-PLATFORM §5, OPERATIONAL-BASELINE §5).
+ * A problem names the variable, never its value.
  */
-export interface RuntimeConfig {
+interface Common {
   readonly environment: Environment;
-  readonly role: ProcessRole;
   /** `sha256:` and 64 hex digits: the image this process runs, as the deploy script recorded it. */
   readonly release: string;
+  readonly errorSinkDsn: string;
+  /** The `scheduler` identity: web uses it for the fast-path claim and the liveness read, the worker for its tick. */
+  readonly schedulerUrl: string;
+}
+export interface WebConfig extends Common {
+  readonly role: "web";
   readonly port: number;
   readonly origin: string;
   /** Header the trusted edge sets to the caller's address, or null to use the socket address. */
@@ -19,14 +25,21 @@ export interface RuntimeConfig {
   readonly authSecret: string;
   readonly operatorEmails: readonly string[];
   readonly smtp: { readonly host: string; readonly port: number; readonly from: string; readonly security: "tls" | "starttls" | "none"; readonly auth?: { user: string; pass: string } };
-  /** R2 object storage (RUNTIME-PLATFORM §0). Validated here; the BlobStore adapter that uses it belongs to the media tickets. */
-  readonly r2: { readonly endpoint: string; readonly bucket: string; readonly accessKeyId: string; readonly secretAccessKey: string };
-  readonly errorSinkDsn: string;
-  /** The external heartbeat's ping URL, which the worker requests after every healthy tick. */
-  readonly heartbeatUrl: string | null;
-  /** Every value that must never appear in a log line or an error event. */
+  /** `/healthz/deep` is red when the worker's last tick is older than this (no default: the operator chooses). */
+  readonly workerStaleAfterMs: number;
+  /** `/healthz/deep` is red when the oldest overdue due time is older than this (RUNTIME-PLATFORM §7). */
+  readonly overdueAfterMs: number;
   readonly secretValues: readonly string[];
 }
+export interface WorkerConfig extends Common {
+  readonly role: "worker";
+  /** R2 object storage (RUNTIME-PLATFORM §4.1: `media.put` is the worker's). Validated here; the BlobStore adapter that uses it belongs to the media tickets. */
+  readonly r2: { readonly endpoint: string; readonly bucket: string; readonly accessKeyId: string; readonly secretAccessKey: string };
+  /** The external heartbeat's ping URL, which the worker requests after every healthy tick. */
+  readonly heartbeatUrl: string;
+  readonly secretValues: readonly string[];
+}
+export type RuntimeConfig = WebConfig | WorkerConfig;
 
 export class ConfigInvalid extends Error {
   readonly problems: readonly string[];
@@ -35,10 +48,12 @@ export class ConfigInvalid extends Error {
 
 type Env = Readonly<Record<string, string | undefined>>;
 const DIGEST = /^sha256:[0-9a-f]{64}$/;
-/** The owner DSN exists only in the pipeline's migration step (OPERATIONAL-BASELINE §5). */
-const FORBIDDEN_IN_PROCESS = ["MIGRATION_DATABASE_URL", "OWNER_DATABASE_URL"];
+/** Present in no running process, whatever its role: the owner DSN and the role passwords exist only in the migration step; the Postgres password only in the database container; the smoke login only in the smoke. */
+const NEVER_IN_A_PROCESS = [/^MIGRATION_DATABASE_URL$/, /^OWNER_DATABASE_URL$/, /^POSTGRES_/, /^ROLE_PASSWORD_/, /^SMOKE_/];
+const WEB_ONLY = [/^AUTH_SECRET$/, /^SMTP_/, /^DATABASE_URL_APP$/, /^DATABASE_URL_IDENTITY$/, /^OPERATOR_EMAILS$/, /^PUBLIC_ORIGIN$/, /^WORKER_STALE_AFTER_MS$/, /^OVERDUE_AFTER_MS$/, /^CLIENT_ADDRESS_HEADER$/];
+const WORKER_ONLY = [/^R2_/, /^HEARTBEAT_/];
 
-export function readConfig(env: Env, role: ProcessRole): RuntimeConfig {
+function reader(env: Env, role: ProcessRole) {
   const problems: string[] = [];
   const text = (name: string): string => {
     const value = env[name];
@@ -51,47 +66,72 @@ export function readConfig(env: Env, role: ProcessRole): RuntimeConfig {
     if (value !== "") { try { if (!protocols.includes(new URL(value).protocol)) problems.push(`${name} must use ${protocols.join(" or ")}`); } catch { problems.push(`${name} must be a URL`); } }
     return value;
   };
-  const integer = (name: string, fallback?: number): number => {
+  /** A runtime database URL names exactly the least-privilege role it is for. A superuser, or another role, is refused before any connection. */
+  const database = (name: string, expected: "app" | "identity" | "scheduler"): string => {
+    const value = url(name, ["postgres:", "postgresql:"]);
+    if (value !== "") { try { if (decodeURIComponent(new URL(value).username) !== expected) problems.push(`${name} must connect as the ${expected} role`); } catch { /* reported as not a URL */ } }
+    return value;
+  };
+  const integer = (name: string, min: number, max: number, fallback?: number): number => {
     const raw = optional(name);
     if (raw === undefined) { if (fallback === undefined) problems.push(`${name} is required`); return fallback ?? 0; }
     const value = Number(raw);
-    if (!Number.isInteger(value) || value < 0 || value > 65_535) problems.push(`${name} must be a port number`);
+    if (!Number.isInteger(value) || value < min || value > max) problems.push(`${name} must be an integer from ${min} to ${max}`);
     return value;
   };
-
   // R24: the deployment declares its environment; this root serves staging only. Production's root is a later ticket.
   if (env["AIUTEUR_ENVIRONMENT"] !== "staging") problems.push("AIUTEUR_ENVIRONMENT must be staging");
-  for (const name of FORBIDDEN_IN_PROCESS) if (env[name] !== undefined) problems.push(`${name} must not be present in a running process`);
+  const foreign = role === "web" ? WORKER_ONLY : WEB_ONLY;
+  for (const name of Object.keys(env)) {
+    if (env[name] === undefined) continue;
+    if ([...NEVER_IN_A_PROCESS, ...foreign].some((pattern) => pattern.test(name))) problems.push(`${name} must not be present in the ${role} process`);
+  }
   const release = text("RELEASE_DIGEST");
   if (release !== "" && !DIGEST.test(release)) problems.push("RELEASE_DIGEST must be sha256: and 64 hex digits");
+  return { problems, text, optional, url, database, integer, release };
+}
 
-  const databases = { app: url("DATABASE_URL_APP", ["postgres:", "postgresql:"]), identity: url("DATABASE_URL_IDENTITY", ["postgres:", "postgresql:"]), scheduler: url("DATABASE_URL_SCHEDULER", ["postgres:", "postgresql:"]) };
-  const authSecret = text("AUTH_SECRET");
-  if (authSecret !== "" && authSecret.length < 32) problems.push("AUTH_SECRET must be at least 32 characters");
-  const origin = url("PUBLIC_ORIGIN", ["https:"]);
-  const security = optional("SMTP_SECURITY") ?? "starttls";
-  if (security !== "tls" && security !== "starttls" && security !== "none") problems.push("SMTP_SECURITY must be tls, starttls or none");
-  const smtpUser = optional("SMTP_USER");
-  const smtpPass = optional("SMTP_PASS");
-  if ((smtpUser === undefined) !== (smtpPass === undefined)) problems.push("SMTP_USER and SMTP_PASS are set together");
-  const r2Account = text("R2_ACCOUNT_ID");
-  if (r2Account !== "" && !/^[0-9a-f]{32}$/.test(r2Account)) problems.push("R2_ACCOUNT_ID must be 32 hex digits");
-  const r2 = { endpoint: `https://${r2Account}.r2.cloudflarestorage.com`, bucket: text("R2_BUCKET"), accessKeyId: text("R2_ACCESS_KEY_ID"), secretAccessKey: text("R2_SECRET_ACCESS_KEY") };
-  const errorSinkDsn = url("ERROR_SINK_DSN", ["https:"]);
-  const heartbeatUrl = role === "worker" ? url("HEARTBEAT_PING_URL", ["https:"]) : (optional("HEARTBEAT_PING_URL") ?? null);
-  const header = optional("CLIENT_ADDRESS_HEADER")?.toLowerCase() ?? null;
-  if (header !== null && !/^[a-z][a-z0-9-]*$/.test(header)) problems.push("CLIENT_ADDRESS_HEADER must be a header name");
-  const port = integer("PORT", 8080);
-  const smtpPort = integer("SMTP_PORT", security === "tls" ? 465 : 587);
-  const smtpHost = text("SMTP_HOST");
-  const smtpFrom = text("SMTP_FROM");
-  const operatorEmails = (optional("OPERATOR_EMAILS") ?? "").split(",").map((email) => email.trim()).filter(Boolean);
-  if (problems.length > 0) throw new ConfigInvalid(problems);
-
+export function readWebConfig(env: Env): WebConfig {
+  const r = reader(env, "web");
+  const databases = { app: r.database("DATABASE_URL_APP", "app"), identity: r.database("DATABASE_URL_IDENTITY", "identity"), scheduler: r.database("DATABASE_URL_SCHEDULER", "scheduler") };
+  const authSecret = r.text("AUTH_SECRET");
+  if (authSecret !== "" && authSecret.length < 32) r.problems.push("AUTH_SECRET must be at least 32 characters");
+  const origin = r.url("PUBLIC_ORIGIN", ["https:"]);
+  const security = r.optional("SMTP_SECURITY") ?? "starttls";
+  if (security !== "tls" && security !== "starttls" && security !== "none") r.problems.push("SMTP_SECURITY must be tls, starttls or none");
+  const smtpUser = r.optional("SMTP_USER");
+  const smtpPass = r.optional("SMTP_PASS");
+  if ((smtpUser === undefined) !== (smtpPass === undefined)) r.problems.push("SMTP_USER and SMTP_PASS are set together");
+  const errorSinkDsn = r.url("ERROR_SINK_DSN", ["https:"]);
+  const header = r.optional("CLIENT_ADDRESS_HEADER")?.toLowerCase() ?? null;
+  if (header !== null && !/^[a-z][a-z0-9-]*$/.test(header)) r.problems.push("CLIENT_ADDRESS_HEADER must be a header name");
+  const port = r.integer("PORT", 0, 65_535, 8080);
+  const smtpPort = r.integer("SMTP_PORT", 1, 65_535, security === "tls" ? 465 : 587);
+  const smtpHost = r.text("SMTP_HOST");
+  const smtpFrom = r.text("SMTP_FROM");
+  const workerStaleAfterMs = r.integer("WORKER_STALE_AFTER_MS", 1, 86_400_000);
+  const overdueAfterMs = r.integer("OVERDUE_AFTER_MS", 1, 86_400_000);
+  const operatorEmails = (r.optional("OPERATOR_EMAILS") ?? "").split(",").map((email) => email.trim()).filter(Boolean);
+  if (r.problems.length > 0) throw new ConfigInvalid(r.problems);
   return {
-    environment: "staging", role, release, port, origin, clientAddressHeader: header, databases, authSecret, operatorEmails,
+    environment: "staging", role: "web", release: r.release, port, origin, clientAddressHeader: header, databases, schedulerUrl: databases.scheduler, authSecret, operatorEmails,
     smtp: { host: smtpHost, port: smtpPort, from: smtpFrom, security: security as "tls" | "starttls" | "none", ...(smtpUser !== undefined && smtpPass !== undefined ? { auth: { user: smtpUser, pass: smtpPass } } : {}) },
-    r2, errorSinkDsn, heartbeatUrl,
-    secretValues: [authSecret, smtpPass, r2.accessKeyId, r2.secretAccessKey, errorSinkDsn, heartbeatUrl ?? undefined, ...Object.values(databases)].filter((value): value is string => value !== undefined && value !== ""),
+    errorSinkDsn, workerStaleAfterMs, overdueAfterMs,
+    secretValues: [authSecret, smtpPass, errorSinkDsn, ...Object.values(databases)].filter((value): value is string => value !== undefined && value !== ""),
+  };
+}
+
+export function readWorkerConfig(env: Env): WorkerConfig {
+  const r = reader(env, "worker");
+  const schedulerUrl = r.database("DATABASE_URL_SCHEDULER", "scheduler");
+  const r2Account = r.text("R2_ACCOUNT_ID");
+  if (r2Account !== "" && !/^[0-9a-f]{32}$/.test(r2Account)) r.problems.push("R2_ACCOUNT_ID must be 32 hex digits");
+  const r2 = { endpoint: `https://${r2Account}.r2.cloudflarestorage.com`, bucket: r.text("R2_BUCKET"), accessKeyId: r.text("R2_ACCESS_KEY_ID"), secretAccessKey: r.text("R2_SECRET_ACCESS_KEY") };
+  const errorSinkDsn = r.url("ERROR_SINK_DSN", ["https:"]);
+  const heartbeatUrl = r.url("HEARTBEAT_PING_URL", ["https:"]);
+  if (r.problems.length > 0) throw new ConfigInvalid(r.problems);
+  return {
+    environment: "staging", role: "worker", release: r.release, schedulerUrl, r2, errorSinkDsn, heartbeatUrl,
+    secretValues: [r2.accessKeyId, r2.secretAccessKey, errorSinkDsn, heartbeatUrl, schedulerUrl].filter((value) => value !== ""),
   };
 }

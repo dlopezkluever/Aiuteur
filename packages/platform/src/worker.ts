@@ -2,7 +2,7 @@ import type { ErrorSink, Logger } from "@aiuteur/observability";
 import type { Heartbeat } from "./heartbeat.ts";
 
 export interface WorkerLoop {
-  /** Resolves true when the database answered; throws when it did not. */
+  /** Records the worker's proof of life in the database; throws when it cannot. */
   check(): Promise<void>;
   heartbeat: Heartbeat;
   logger: Logger;

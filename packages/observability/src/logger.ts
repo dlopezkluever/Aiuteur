@@ -1,5 +1,5 @@
 import { admitFields, type Deployment, type LogFields } from "./fields.ts";
-import type { SecretRegistry } from "./secrets.ts";
+import { REDACTED, type SecretRegistry } from "./secrets.ts";
 
 /** Static message keys. A key is chosen from this list, so no runtime text can become a log message. */
 export const LOG_KEYS = [
@@ -28,12 +28,16 @@ export interface LoggerOptions extends Deployment {
 export function createLogger(options: LoggerOptions): Logger {
   const emit = (level: LogLevel, key: LogKey, input: LogFields | undefined) => {
     const { fields, dropped } = admitFields(input);
-    const line = JSON.stringify({
+    // Each value is scrubbed before serialising, so a registered secret of any length is replaced and the line stays valid JSON.
+    const safe = Object.fromEntries(Object.entries(fields).map(([name, value]) => {
+      const text = String(value);
+      return [name, options.secrets.scrub(text) === text ? value : REDACTED];
+    }));
+    options.write(`${JSON.stringify({
       time: new Date(options.clock.now()).toISOString(), level, key,
       environment: options.environment, role: options.role, release: options.release,
-      ...fields, ...(dropped > 0 ? { dropped } : {}),
-    });
-    options.write(`${options.secrets.scrub(line)}\n`);
+      ...safe, ...(dropped > 0 ? { dropped } : {}),
+    })}\n`);
   };
   return { info: (key, fields) => emit("info", key, fields), warn: (key, fields) => emit("warn", key, fields), error: (key, fields) => emit("error", key, fields) };
 }

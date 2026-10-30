@@ -1,16 +1,16 @@
 # The staging VPS: web, worker, Postgres and the TLS edge (RUNTIME-PLATFORM §0). Both process roles run the same image,
 # named by digest in IMAGE_REF (`<repository>@sha256:<64 hex>`); deploy.sh sets it and never a tag.
-# Host secrets live in ENV_FILE (/etc/aiuteur/staging.env, root-owned, mode 0600) and never in this repository.
+# Each service reads only its own host secret file (deploy/env/*.example): web.env, worker.env, postgres.env. The migration step's
+# owner.env and the smoke login are never given to a long-running service. Postgres demands a password from every peer: there is
+# no trust path, and web and worker connect as the non-superuser app, identity and scheduler roles.
 services:
   postgres:
     image: postgres:15
     restart: unless-stopped
+    env_file: ${POSTGRES_ENV_FILE:?set by deploy.sh}
     environment:
       POSTGRES_USER: postgres
       POSTGRES_DB: aiuteur
-      # The runtime roles have no passwords (migration 1-roles.sql), so this server must stay unreachable from outside the
-      # compose network: no ports are published for it.
-      POSTGRES_HOST_AUTH_METHOD: trust
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -23,7 +23,7 @@ services:
     image: ${IMAGE_REF:?set by deploy.sh}
     command: ["node", "packages/platform/scripts/web.ts"]
     restart: unless-stopped
-    env_file: ${ENV_FILE:?set by deploy.sh}
+    env_file: ${WEB_ENV_FILE:?set by deploy.sh}
     environment:
       AIUTEUR_ENVIRONMENT: staging
       RELEASE_DIGEST: ${RELEASE_DIGEST:?set by deploy.sh}
@@ -42,7 +42,7 @@ services:
     command: ["node", "packages/platform/scripts/worker.ts"]
     restart: unless-stopped
     stop_grace_period: 120s
-    env_file: ${ENV_FILE:?set by deploy.sh}
+    env_file: ${WORKER_ENV_FILE:?set by deploy.sh}
     environment:
       AIUTEUR_ENVIRONMENT: staging
       RELEASE_DIGEST: ${RELEASE_DIGEST:?set by deploy.sh}
@@ -54,7 +54,7 @@ services:
     restart: unless-stopped
     ports: ["80:80", "443:443"]
     environment:
-      PUBLIC_HOST: ${PUBLIC_HOST:?set in the host env file (read by compose through --env-file)}
+      PUBLIC_HOST: ${PUBLIC_HOST:?set in compose.env}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data

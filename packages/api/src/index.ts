@@ -27,9 +27,15 @@ export function createApi(options: { accounts: Accounts; views: Views; workflows
   requestId(): string; now(): number;
   /** The caller's network address as the deployment's trusted edge reports it; never read from client-controlled headers here. */
   clientAddress(request: Request): string;
-  /** An exception that is not one of our own refusals, for the ErrorSink. The caller still gets a neutral 500. */
-  onUnexpectedError?(error: unknown): void }) {
+  /**
+   * An exception that is not one of our own refusals, with the request's correlation id, for the ErrorSink. Best effort:
+   * a reporter that throws or rejects changes nothing, and the caller still gets the neutral 500.
+   */
+  onUnexpectedError?(error: unknown, request: { requestId: string }): void | Promise<void> }) {
   const api = new Hono();
+  // One correlation id per request, minted on first use: the Initiation and any error report carry the same one.
+  const requestIds = new WeakMap<Request, string>();
+  const requestIdOf = (c: Context) => requestIds.get(c.req.raw) ?? (requestIds.set(c.req.raw, options.requestId()), requestIds.get(c.req.raw)!);
   api.notFound((c) => c.json(errorSchema.parse({ code: "not-found" }), 404));
   api.onError((error, c) => {
     if (error instanceof IdempotencyKeyReused) return c.json(errorSchema.parse({ code: "idempotency-key-reused" }), 422);
@@ -37,7 +43,7 @@ export function createApi(options: { accounts: Accounts; views: Views; workflows
       if (error.code === "rate-limited") return c.json(errorSchema.parse({ code: error.code }), 429, { "retry-after": String(error.retryAfterSeconds ?? 1) });
       return c.json(errorSchema.parse({ code: error.code }), error.code === "unauthenticated" ? 401 : 403);
     }
-    options.onUnexpectedError?.(error);
+    try { void Promise.resolve(options.onUnexpectedError?.(error, { requestId: requestIdOf(c) })).catch(() => undefined); } catch { /* reporting must not change the answer */ }
     return c.json(errorSchema.parse({ code: "internal-error" }), 500);
   });
   for (const route of ROUTES) api.on(route.method, route.path, async (c) => {
@@ -115,7 +121,7 @@ export function createApi(options: { accounts: Accounts; views: Views; workflows
       const parsed = draftTreatmentSchema.safeParse(body);
       const idem = idempotencyKeySchema.safeParse(c.req.header("idempotency-key"));
       if (!parsed.success || !idem.success) return c.json(errorSchema.parse({ code: "invalid-request" }), 400);
-      const initiation = initiate(scope, idem.data, options.requestId(), options.now());
+      const initiation = initiate(scope, idem.data, requestIdOf(c), options.now());
       const result = await options.workflows.execute(initiation, "treatment.draft", { projectId: project.data, objectId: object.data, ...parsed.data });
       if (!result) return notFound();
       return c.json(draftTreatmentResultSchema.parse(result), result.result === "generation" ? 201 : 422);

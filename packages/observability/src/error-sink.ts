@@ -33,7 +33,10 @@ export interface ScrubbedEvent {
 }
 
 const CLASS_SHAPE = /^[A-Za-z][A-Za-z0-9_]{0,63}$/;
-const FUNCTION_SHAPE = /^[\w$.<>[\] ]{1,100}$/;
+/** A function name is an identifier path (`Class.method`, `Object.<anonymous>`); a name with a space or punctuation is free text and is dropped. */
+const FUNCTION_SHAPE = /^(?:[A-Za-z_$][\w$]{0,63}|<anonymous>)(?:\.(?:[A-Za-z_$][\w$]{0,63}|<anonymous>)){0,4}$/;
+/** A file is a code path: no spaces, no query string. */
+const FILE_SHAPE = /^[A-Za-z0-9_@./:\\-]{1,300}$/;
 const FRAME = /^\s*at (?:(.+?) \()?(.+?):(\d+):(\d+)\)?\s*$/;
 const MAX_FRAMES = 50;
 
@@ -43,9 +46,11 @@ function framesOf(error: unknown, secrets: SecretRegistry): Frame[] {
   for (const line of stack.split("\n")) {
     const match = FRAME.exec(line);
     if (!match || frames.length >= MAX_FRAMES) continue;
-    const [, name, file, row, column] = match;
-    // The file is a code path. A function name that is not a plain identifier is dropped, not forwarded.
-    frames.push({ function: name !== undefined && FUNCTION_SHAPE.test(name) ? name : null, file: secrets.scrub(file ?? ""), line: Number(row), column: Number(column) });
+    const [, rawName, file, row, column] = match;
+    const name = rawName?.replace(/^(?:async |new )+/, "");
+    // Both strings are bounded shapes. Anything else is dropped, not forwarded, so a stack cannot carry free text.
+    const kept = (value: string | undefined, shape: RegExp) => (value !== undefined && shape.test(value) && secrets.scrub(value) === value ? value : null);
+    frames.push({ function: kept(name, FUNCTION_SHAPE), file: kept(file, FILE_SHAPE) ?? "unknown", line: Number(row), column: Number(column) });
   }
   return frames;
 }
@@ -54,10 +59,11 @@ export function scrubError(error: unknown, context: ErrorContext | undefined, de
   const name = error instanceof Error ? error.constructor.name : "";
   const { fields } = admitFields(context);
   const tags: Record<string, string> = {};
-  for (const key of ID_FIELDS) { const value = fields[key]; if (typeof value === "string") tags[key] = value; }
+  const clean = (value: string) => secrets.scrub(value);
+  for (const key of ID_FIELDS) { const value = fields[key]; if (typeof value === "string") tags[key] = clean(value); }
   return {
     errorClass: CLASS_SHAPE.test(name) ? name : error instanceof Error ? "Error" : "NonError",
-    code: typeof fields["code"] === "string" ? fields["code"] : null,
+    code: typeof fields["code"] === "string" ? clean(fields["code"]) : null,
     frames: framesOf(error, secrets),
     release: deployment.release, role: deployment.role, environment: deployment.environment,
     tags,

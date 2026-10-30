@@ -40,6 +40,29 @@ export function describeErrorSinkConformance(name: string, subject: () => Promis
       expect(text).not.toContain("authorization");
     });
 
+    it("carries no free text through stack frames, and no secret through an id tag", async () => {
+      const { sink, wire, events } = await subject();
+      const error = new Error("x");
+      error.stack = [
+        "Error: x",
+        `    at ${PROMPT} (/app/src/ok.ts:1:2)`,
+        `    at Mara.reads the letter (/app/src/ok.ts:3:4)`,
+        `    at fine.method (/app/${PROMPT}.ts:5:6)`,
+        `    at async Real.name (/app/src/real.ts:7:8)`,
+        `    at ${KEY} (/app/src/key.ts:9:1)`,
+      ].join("\n");
+      sink.capture(error, { jobId: KEY, accountId: "acc_1" });
+      await sink.flush(2_000);
+      const text = (await wire()).join("\n");
+      expect(text).not.toContain(PROMPT);
+      expect(text).not.toContain("Mara.reads");
+      expect(text).not.toContain(KEY);
+      const [event] = await events();
+      expect(event?.tags).toEqual({ accountId: "acc_1", jobId: "[scrubbed]" });
+      // Bounded identifiers and code paths survive, so the stack still groups and correlates.
+      expect(event?.frames.map((f) => [f.function, f.file])).toEqual([[null, "/app/src/ok.ts"], [null, "/app/src/ok.ts"], ["fine.method", "unknown"], ["Real.name", "/app/src/real.ts"], [null, "/app/src/key.ts"]]);
+    });
+
     it("reports a thrown non-Error as a neutral class and never throws to the caller", async () => {
       const { sink, events } = await subject();
       expect(() => sink.capture(undefined)).not.toThrow();

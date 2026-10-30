@@ -89,7 +89,21 @@ describe("typed logger and scrubber", () => {
     expect(JSON.parse(out[0] ?? "").requestId).toBe("[scrubbed]");
   });
 
-  it("does not register short values, so ordinary text is not mangled", () => {
-    expect(createSecretRegistry(["abc"]).scrub("abc abc")).toBe("abc abc");
+  it("scrubs a registered secret however short, alone or inside a longer value, and the line stays valid JSON", () => {
+    const out: string[] = [];
+    const short = createLogger({ ...deployment, write: (line) => out.push(line), clock: { now: () => 0 }, secrets: createSecretRegistry(["abc", undefined, ""]) });
+    short.info("web.request-failed", { requestId: "abc" });
+    short.info("web.request-failed", { requestId: "xx-abc-yy", jobId: "job-1", code: "abc-failed" });
+    for (const line of out) { expect(line).not.toContain("abc"); JSON.parse(line); }
+    expect(JSON.parse(out[1] ?? "")).toMatchObject({ requestId: "[scrubbed]", code: "[scrubbed]", jobId: "job-1" });
+  });
+
+  it("the hosted sink scrubs a short registered secret from every tag too", async () => {
+    const secrets = createSecretRegistry(["abc"]);
+    const bodies: string[] = [];
+    const sink = createHostedErrorSink({ ...deployment, dsn: "http://k@127.0.0.1:9/1", secrets, fetch: async (_url, init) => { bodies.push(String(init?.body)); return new Response("{}"); } });
+    sink.capture(new Error("x"), { requestId: "req-abc-1", code: "abc-failed" });
+    await sink.flush(2_000);
+    expect(bodies.join("")).not.toContain("abc");
   });
 });

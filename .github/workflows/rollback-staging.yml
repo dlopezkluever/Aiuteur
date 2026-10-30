@@ -1,7 +1,8 @@
 name: rollback-staging
 
 # T0-10 (issue #107): restore a prior image digest on staging. Nothing is rebuilt or retagged: the host pulls the digest and
-# swaps to it. Leave `digest` empty to restore the previous digest the host recorded.
+# swaps to it. Only a digest this host has already run and confirmed (state/deployed) is accepted; any other is refused.
+# Leave `digest` empty to restore the previous digest the host recorded.
 on:
   workflow_dispatch:
     inputs:
