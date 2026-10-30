@@ -33,6 +33,17 @@ export async function write(key: Extract<RouteKey, `POST ${string}source-materia
   return parsed.success ? { ok: true, value: parsed.data } : failure(response);
 }
 
+/**
+ * A command whose every gate result is a body to read (Applied, StaleBase, Refused…), whatever its status. A transport
+ * failure or an error body is a failure; the body is parsed with the route's own response schema.
+ */
+export async function command<K extends RouteKey>(key: K, params: Record<string, string>, body: unknown, idempotencyKey: string): Promise<Answer<(typeof ROUTE_RESPONSES)[K]["schema"]["_output"]>> {
+  const [, template] = key.split(" ") as [string, string];
+  const response = await fetch(fill(template, params), { method: "POST", credentials: "same-origin", headers: { ...COMMAND, "idempotency-key": idempotencyKey }, body: JSON.stringify(body) });
+  const parsed = ROUTE_RESPONSES[key].schema.safeParse(await response.clone().json().catch(() => null));
+  return parsed.success ? { ok: true, value: parsed.data } : failure(response);
+}
+
 /** Better Auth's own routes are forwarded as they are (not contract-owned bodies). */
 export async function authPost(path: "/api/auth/sign-in/email" | "/api/auth/sign-out", body: unknown): Promise<{ ok: boolean; status: number }> {
   const response = await fetch(path, { method: "POST", credentials: "same-origin", headers: COMMAND, body: JSON.stringify(body) });

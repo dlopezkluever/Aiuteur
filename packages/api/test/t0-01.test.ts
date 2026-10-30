@@ -9,11 +9,13 @@ import { Pool } from "pg";
 import { afterAll, beforeAll, expect, it } from "vitest";
 import { TOTP, Secret } from "otpauth";
 import { createAccounts, createBetterAuth } from "@aiuteur/accounts";
-import { IDEMPOTENT_OPERATIONS, ACTOR_KINDS, ATTEMPT_ORIGINS, REVISION_CAUSES, accountIdSchema, commitOutcomeSchema, creatorIdSchema, projectSchema, sourceMaterialReadSchema, sessionSchema, inputReadSchema, type ObjectId, studioSchema, projectListSchema, invitationSchema, redeemedInvitationSchema, ROUTES, eventSchema, AUDIT_ACTIONS } from "@aiuteur/contract";
+import { entityOutcomeSchema, IDEMPOTENT_OPERATIONS, ACTOR_KINDS, ATTEMPT_ORIGINS, REVISION_CAUSES, accountIdSchema, commitOutcomeSchema, creatorIdSchema, projectSchema, sourceMaterialReadSchema, sessionSchema, inputReadSchema, type ObjectId, studioSchema, projectListSchema, invitationSchema, redeemedInvitationSchema, ROUTES, eventSchema, AUDIT_ACTIONS } from "@aiuteur/contract";
 import { createPostgresStore, migrateDatabase, schemaCatalogue, type Scope } from "@aiuteur/store";
 import { createViews } from "@aiuteur/views";
 import { createHistory } from "@aiuteur/history";
 import { sourceMaterialKind } from "@aiuteur/story";
+import { characterKind } from "@aiuteur/world";
+import { shotKind } from "@aiuteur/production";
 import { createWorkflows } from "@aiuteur/workflows";
 import { describeHistoryConformance, describeStoreConformance, storeIgnoringScope, FakeMailer, ManualClock, uuidv7, syntheticCatalogue, TEST_PRICE_POLICY } from "@aiuteur/testing";
 import { createApi } from "@aiuteur/api";
@@ -38,7 +40,7 @@ beforeAll(async () => {
   const generous = { max: 1_000_000, windowMs: 60_000 };
   const limit = { address: generous, email: generous };
   accounts = createAccounts({ ...adapter, clock, ids, invitationTtlMs: 60_000, operatorEmails: ["operator@example.test"], mailer: new FakeMailer(), limits: { signIn: limit, recovery: limit, redemption: limit }, recoveryTtlMs: 600_000, recoveryPage: `${origin}/recover`, onMailFailure: (error) => { throw error; } });
-  api = contracted(createApi({ accounts, views: createViews(store), workflows: createWorkflows({ store, history: createHistory([sourceMaterialKind]), clock, ids, catalogue: syntheticCatalogue(), pricePolicy: TEST_PRICE_POLICY, execution: run.execution }), handleAuth: adapter.handle, origin, requestId: ids.uuid, now: () => clock.now(), clientAddress: () => "203.0.113.1" }));
+  api = contracted(createApi({ accounts, views: createViews(store), workflows: createWorkflows({ store, history: createHistory([sourceMaterialKind, characterKind, shotKind]), clock, ids, catalogue: syntheticCatalogue(), pricePolicy: TEST_PRICE_POLICY, execution: run.execution, media: run.media }), handleAuth: adapter.handle, origin, requestId: ids.uuid, now: () => clock.now(), clientAddress: () => "203.0.113.1" }));
 });
 afterAll(async () => { await run?.close(); await store?.close(); await adapter?.close(); await database?.close(); });
 
@@ -130,14 +132,22 @@ const bodies: Record<string, unknown> = {
   "POST /api/studios/:accountId/projects/:projectId/source-material/:objectId/role": { base: 1, role: "supporting" },
   "POST /api/studios/:accountId/projects/:projectId/source-material/:objectId/treatment-drafts": {},
   "POST /api/studios/:accountId/projects/:projectId/treatment-options/:objectId/choose": {},
+  "POST /api/studios/:accountId/projects/:projectId/uploads": {},
+  "POST /api/studios/:accountId/projects/:projectId/characters": { name: "probe" },
+  "POST /api/studios/:accountId/projects/:projectId/characters/:objectId/reference": { uploadId: "01890000-0000-7000-8000-000000000001" },
+  "POST /api/studios/:accountId/projects/:projectId/shots": { action: "probe", presence: [] },
+  "POST /api/studios/:accountId/projects/:projectId/shots/:objectId/presence": { base: 1, presence: [] },
 };
-async function assertG1(target: ReturnType<typeof createApi>, owner: { accountId: string; project: string; object: string }, intruder: { accountId: string; cookie: string }) {
+type Owned = { accountId: string; project: string; object: string; character: string; shot: string };
+async function assertG1(target: ReturnType<typeof createApi>, owner: Owned, intruder: { accountId: string; cookie: string }) {
   const send = (method: string, path: string, body: unknown) => target.request(`${origin}${path}`, {
     method, headers: { origin, "content-type": "application/json", "x-aiuteur-command": "1", "idempotency-key": randomUUID(), cookie: intruder.cookie }, ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
-  const fill = (path: string, named: { accountId: string; project: string; object: string }) =>
-    path.replace(":accountId", named.accountId).replace(":projectId", named.project).replace(":objectId", named.object).replace(":sequence", "1");
-  const absent = { accountId: ids.uuid(), project: ids.ordered(), object: ids.ordered() };
+  // Each :objectId is an object of the kind the route names, so a refusal is isolation, not a kind mismatch.
+  const fill = (path: string, named: Owned) =>
+    path.replace(":accountId", named.accountId).replace(":projectId", named.project).replace(":sequence", "1")
+      .replace(":objectId", path.includes("/characters/") ? named.character : path.includes("/shots/") ? named.shot : named.object);
+  const absent = { accountId: ids.uuid(), project: ids.ordered(), object: ids.ordered(), character: ids.ordered(), shot: ids.ordered() };
   for (const route of ROUTES.filter((route) => route.access === "scope")) {
     const key = `${route.method} ${route.path}`;
     const body = route.method === "POST" ? (route.path.includes(":projectId") ? bodies[key] : {}) : undefined;
@@ -162,7 +172,11 @@ it("G1: every scoped operation, with its real method, refuses another Account ex
   const project = projectSchema.parse(await created.json()).projectId;
   const pasted = commitOutcomeSchema.parse(await (await request(`/api/studios/${a.accountId}/projects/${project}/source-material`, { text: "private" }, a.cookie)).json());
   if (pasted.result !== "Applied") throw new Error("not applied");
-  const owner = { accountId: a.accountId, project, object: pasted.revision.objectId };
+  const character = entityOutcomeSchema.parse(await (await request(`/api/studios/${a.accountId}/projects/${project}/characters`, { name: "Mara" }, a.cookie)).json());
+  if (character.result !== "Applied") throw new Error("not applied");
+  const shot = entityOutcomeSchema.parse(await (await request(`/api/studios/${a.accountId}/projects/${project}/shots`, { action: "Mara at the rail", presence: [{ entity: character.objectId, look: "base" }] }, a.cookie)).json());
+  if (shot.result !== "Applied") throw new Error("not applied");
+  const owner = { accountId: a.accountId, project, object: pasted.revision.objectId, character: character.objectId, shot: shot.objectId };
   await assertG1(api, owner, { accountId: b.accountId, cookie: b.cookie });
   // Nothing of A's changed: no extra project, Revision or side-line entry.
   const projects = projectListSchema.parse(await (await request(`/api/studios/${a.accountId}/projects`, undefined, a.cookie)).json());
@@ -173,14 +187,14 @@ it("G1: every scoped operation, with its real method, refuses another Account ex
 
   // Negative control: one operation that stops enforcing isolation makes G1 fail.
   // Fault injected at the Store port (R19, R20): reads run as Account A whoever asks.
-  const leaky = createApi({ accounts, views: createViews(storeIgnoringScope(store, a.scope)), workflows: createWorkflows({ store, history: createHistory([sourceMaterialKind]), clock, ids, catalogue: syntheticCatalogue(), pricePolicy: TEST_PRICE_POLICY, execution: run.execution }),
+  const leaky = createApi({ accounts, views: createViews(storeIgnoringScope(store, a.scope)), workflows: createWorkflows({ store, history: createHistory([sourceMaterialKind, characterKind, shotKind]), clock, ids, catalogue: syntheticCatalogue(), pricePolicy: TEST_PRICE_POLICY, execution: run.execution, media: run.media }),
     handleAuth: adapter.handle, origin, requestId: ids.uuid, now: () => clock.now(), clientAddress: () => "203.0.113.1" });
   await expect(assertG1(leaky, owner, { accountId: b.accountId, cookie: b.cookie })).rejects.toThrow(/G1/);
 
   // Negative control for the Draft Treatment preview (#101): only the preview's read ignores the Scope,
   // so every other operation stays isolated and G1 must fail on the preview route itself.
   const leakyRead: typeof store = { ...store, read: storeIgnoringScope(store, a.scope).read };
-  const leakyPreview = createApi({ accounts, views: createViews(store), workflows: createWorkflows({ store: leakyRead, history: createHistory([sourceMaterialKind]), clock, ids, catalogue: syntheticCatalogue(), pricePolicy: TEST_PRICE_POLICY, execution: run.execution }),
+  const leakyPreview = createApi({ accounts, views: createViews(store), workflows: createWorkflows({ store: leakyRead, history: createHistory([sourceMaterialKind, characterKind, shotKind]), clock, ids, catalogue: syntheticCatalogue(), pricePolicy: TEST_PRICE_POLICY, execution: run.execution, media: run.media }),
     handleAuth: adapter.handle, origin, requestId: ids.uuid, now: () => clock.now(), clientAddress: () => "203.0.113.1" });
   await expect(assertG1(leakyPreview, owner, { accountId: b.accountId, cookie: b.cookie })).rejects.toThrow(/G1 GET \/api\/studios\/:accountId\/projects\/:projectId\/source-material\/:objectId\/treatment-preview/);
 });
@@ -389,7 +403,9 @@ it("D1/D3: the fresh migration chain equals the snapshot, generated rows and voc
       await owner.query("INSERT INTO accounts.object VALUES ($1, $2, $3, 'k', now())", [object, c.accountId, project.projectId]);
       const gen = column === "origin" || value === "generation" ? uuidv7() : null;
       const result = column === "origin"
-        ? owner.query("INSERT INTO accounts.attempt (attempt_id, object_id, account_id, project_id, based_on, origin, generation_id, body, created_at) VALUES ($1, $2, $3, $4, 0, $5, $6, '{}', now())", [uuidv7(), object, c.accountId, project.projectId, value, gen])
+        // An upload Attempt must hold a Media of its project (7-media.sql), so that origin gets one.
+        ? (value === "upload" ? owner.query("INSERT INTO accounts.media VALUES ($1::uuid, $2::uuid, repeat('b', 64), 1, 'image/png', 1, 1, 'a/' || $1::text || '/p/' || $2::text || '/m/' || repeat('b', 64), 'upload', now())", [c.accountId, project.projectId]) : Promise.resolve())
+          .then(() => owner.query("INSERT INTO accounts.attempt (attempt_id, object_id, account_id, project_id, based_on, origin, generation_id, media_hash, body, created_at) VALUES ($1, $2, $3, $4, 0, $5, $6, $7, '{}', now())", [uuidv7(), object, c.accountId, project.projectId, value, gen, value === "upload" ? "b".repeat(64) : null]))
         : owner.query("INSERT INTO accounts.revision (object_id, sequence, account_id, project_id, parent, cause, actor_kind, action_group, generation_id, schema_version, body, body_hash, fingerprints, created_at) VALUES ($1, 1, $2, $3, 0, $4, $5, $6, $7, 1, '{}', 'h', '{}', now())", [object, c.accountId, project.projectId, column === "cause" ? value : "import", column === "actor_kind" ? value : "creator", uuidv7(), gen]);
       const outcome = await result.then(() => "ok", (error: { code?: string }) => error.code);
       await owner.query("ROLLBACK");
@@ -416,7 +432,7 @@ it("D4/G7: catalogue classification, forced policies, composite tenant keys, rol
     SELECT n.nspname || '.' || c.relname AS name, pg_get_userbyid(c.relowner) AS owner,
       c.relrowsecurity AS rls, c.relforcerowsecurity AS force FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
     WHERE c.relkind = 'r' AND n.nspname NOT LIKE 'pg_%' AND n.nspname <> 'information_schema' ORDER BY 1`);
-  expect(tables.map((table) => table.name)).toEqual(["accounts.account", "accounts.attempt", "accounts.capture", "accounts.decision", "accounts.event", "accounts.event_counter", "accounts.generation", "accounts.generation_call", "accounts.generation_run", "accounts.generation_settlement", "accounts.idempotency", "accounts.job", "accounts.lock", "accounts.object", "accounts.project", "accounts.revision", "accounts.settings", "auth.account", "auth.audit_event", "auth.invitation", "auth.rate_limit", "auth.recovery", "auth.session", "auth.subject_map", "auth.twoFactor", "auth.user", "auth.verification", "operator.breaker", "public.migrations"]);
+  expect(tables.map((table) => table.name)).toEqual(["accounts.account", "accounts.attempt", "accounts.capture", "accounts.decision", "accounts.event", "accounts.event_counter", "accounts.generation", "accounts.generation_call", "accounts.generation_run", "accounts.generation_settlement", "accounts.idempotency", "accounts.job", "accounts.lock", "accounts.media", "accounts.object", "accounts.project", "accounts.revision", "accounts.settings", "auth.account", "auth.audit_event", "auth.invitation", "auth.rate_limit", "auth.recovery", "auth.session", "auth.subject_map", "auth.twoFactor", "auth.user", "auth.verification", "operator.breaker", "public.migrations"]);
   for (const table of tables) {
     expect(table.owner).toBe("owner");
     if (table.name.startsWith("accounts.")) expect(table).toMatchObject({ rls: true, force: true });
@@ -434,7 +450,7 @@ it("D4/G7: catalogue classification, forced policies, composite tenant keys, rol
   const policies = await database.inspect.query("SELECT tablename, policyname, roles::text[] AS roles, qual = with_check AS checked FROM pg_policies WHERE schemaname = 'accounts' ORDER BY tablename, policyname");
   // Every Account table has exactly the tenant policy; the Job table also has the claim policy, for the owner the
   // claim functions run as, so the Scheduler sees every Account's Jobs only inside those functions (RUNTIME §5).
-  expect(policies.rows).toEqual(["account", "attempt", "capture", "decision", "event", "event_counter", "generation", "generation_call", "generation_run", "generation_settlement", "idempotency", "job", "lock", "object", "project", "revision", "settings"]
+  expect(policies.rows).toEqual(["account", "attempt", "capture", "decision", "event", "event_counter", "generation", "generation_call", "generation_run", "generation_settlement", "idempotency", "job", "lock", "media", "object", "project", "revision", "settings"]
     .flatMap((tablename) => [{ tablename, policyname: "account_scope", roles: ["public"], checked: true }, ...(tablename === "job" ? [{ tablename, policyname: "scheduler_claim", roles: ["owner"], checked: true }] : [])]));
   const constraints = await database.inspect.query<{ definition: string }>("SELECT pg_get_constraintdef(oid) AS definition FROM pg_constraint WHERE conrelid = 'accounts.settings'::regclass ORDER BY conname");
   expect(constraints.rows.map((row) => row.definition)).toContain("PRIMARY KEY (account_id, key)");

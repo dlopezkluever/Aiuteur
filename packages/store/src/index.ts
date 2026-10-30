@@ -1,4 +1,4 @@
-import type { Account, AccountId, ActionGroupId, Billed, CallRole, DecisionType, FailureClass, GenerationOutcome, IdempotentOperation, GenerationId, ActorKind, AttemptOrigin, JobClass, JobId, JobState, OperationClass, RevisionCause, CreatorId, ObjectId, Project, ProjectId, Settings, StudioEvent, WorkflowOperation } from "@aiuteur/contract";
+import type { Account, AccountId, ActionGroupId, Billed, CallRole, DecisionType, FailureClass, GenerationOutcome, IdempotentOperation, GenerationId, ActorKind, AttemptOrigin, JobClass, MediaOrigin, JobId, JobState, OperationClass, RevisionCause, CreatorId, ObjectId, Project, ProjectId, Settings, StudioEvent, WorkflowOperation } from "@aiuteur/contract";
 
 /** FC5 Draft: obtained by accounts.resolveScope, never from client input. */
 export interface Scope {
@@ -48,7 +48,25 @@ export interface AttemptRow {
   readonly basedOn: number;
   readonly origin: AttemptOrigin;
   readonly generationId: GenerationId | null;
+  /** The content hash of the Media an `upload` Attempt holds, in the same project; null for every other origin. */
+  readonly media: string | null;
   readonly body: unknown;
+  readonly createdAt: string;
+}
+/**
+ * Committed Media (PERSISTENCE §7.1): immutable, content-addressed inside one project, probe facts frozen at ingest.
+ * Inserted only by `media`, in the same transaction as its first referrer.
+ */
+export interface MediaRow {
+  readonly projectId: ProjectId;
+  readonly hash: string;
+  readonly size: number;
+  readonly contentType: string;
+  readonly width: number;
+  readonly height: number;
+  /** The storage key, built by `media` from the Scope (R17); `media.access` signs this, never a key from a client. */
+  readonly key: string;
+  readonly origin: MediaOrigin;
   readonly createdAt: string;
 }
 /** Latest lock Decision of an object; `version` counts its lock Decisions. */
@@ -170,6 +188,8 @@ export interface ReadTx {
   revision(id: ObjectId, sequence: number): Promise<RevisionRow | null>;
   sequences(id: ObjectId): Promise<number[]>;
   attempts(id: ObjectId): Promise<AttemptRow[]>;
+  /** One project's Media by content hash, or null. */
+  media(project: ProjectId, hash: string): Promise<MediaRow | null>;
   lockState(id: ObjectId): Promise<LockState>;
   generation(id: GenerationId): Promise<GenerationRow | null>;
   job(id: JobId): Promise<JobRow | null>;
@@ -205,6 +225,8 @@ export interface WriteTx extends ReadTx {
   insertObject(row: ObjectRow & { createdAt: string }): Promise<void>;
   appendRevision(row: RevisionRow): Promise<void>;
   insertAttempt(row: AttemptRow): Promise<void>;
+  /** For `media` only: the Media row, in the transaction that inserts its first referrer. */
+  insertMedia(row: MediaRow): Promise<void>;
   /** For `history` only (R1): capture edges and Decisions. */
   insertCapture(row: CaptureRow): Promise<void>;
   appendDecision(row: DecisionRow): Promise<void>;
@@ -223,6 +245,44 @@ export interface Store {
   read<T>(scope: Scope, run: (tx: ReadTx) => Promise<T>): Promise<T>;
   write<T>(scope: Scope, run: (tx: WriteTx) => Promise<T>): Promise<T>;
 }
+/** Facts the object store keeps about one object. */
+export interface BlobHead { readonly size: number; readonly contentType: string | null }
+/** A short-lived signed URL for one key; `response` headers are fixed into the signature where the method is GET. */
+export interface SignRequest {
+  readonly method: "GET" | "PUT";
+  readonly expiresInSeconds: number;
+  readonly response?: { readonly contentType: string; readonly cacheControl: string; readonly disposition?: string };
+}
+/**
+ * FC5 Draft: the `BlobStore` port (PERSISTENCE §7; MODULE §3.5). S3-shaped and private: there is no public object and no
+ * permanent URL. Every call takes a Scope (R2), and a key outside `a/<the Scope's Account>/` is refused before the store is
+ * touched, so a key from another Account cannot be read, written, copied or signed (ADR 0021; G5). `delete` refuses every
+ * key that is not staging, rendition or export (R16); committed Media under `m/` is deleted only by `media.purgeProject`.
+ * Only `media` holds a BlobStore (R16, R17).
+ */
+export interface BlobStore {
+  put(scope: Scope, key: string, bytes: Uint8Array, contentType: string): Promise<void>;
+  head(scope: Scope, key: string): Promise<BlobHead | null>;
+  get(scope: Scope, key: string): Promise<Uint8Array | null>;
+  /** Server-side copy inside the Account's prefix. */
+  copy(scope: Scope, from: string, to: string): Promise<void>;
+  delete(scope: Scope, key: string): Promise<void>;
+  sign(scope: Scope, key: string, request: SignRequest): Promise<string>;
+}
+/** Thrown by a BlobStore for a key it must not touch for this Scope or operation. */
+export class BlobKeyRefused extends Error {
+  readonly operation: string;
+  constructor(operation: string) { super(`blob key refused for ${operation}`); this.operation = operation; }
+}
+/** Whether `key` lies inside the Scope's Account prefix; the one guard every adapter applies first. */
+export function ownsKey(scope: Scope, key: string): boolean {
+  return key.startsWith(`a/${scope.accountId}/`) && !key.split("/").some((part) => part === "" || part === "." || part === "..");
+}
+/** Whether `key` is staging, rendition or export: the only prefixes `BlobStore.delete` accepts (R16). */
+export function deletableKey(key: string): boolean {
+  return /^a\/[^/]+\/p\/[^/]+\/[trx]\//.test(key);
+}
+
 /** What one claim leases: ids, the state seen at claim and the fencing token; never content (RUNTIME §4.2, §5). */
 export interface Leased {
   readonly jobId: JobId;

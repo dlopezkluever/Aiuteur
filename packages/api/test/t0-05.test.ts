@@ -4,14 +4,16 @@ import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createAccounts, createBetterAuth } from "@aiuteur/accounts";
-import { blockSchema, chooseOutcomeSchema, commitOutcomeSchema, draftTreatmentResultSchema, generationReadSchema, projectSchema, redeemedInvitationSchema, treatmentOptionReadSchema, treatmentPreviewSchema, WORKFLOW_OPERATIONS, type GenerationRead, type WorkflowOperation } from "@aiuteur/contract";
+import { characterReadSchema, entityOutcomeSchema, referenceOutcomeSchema, shotReadSchema, uploadSchema, blockSchema, chooseOutcomeSchema, commitOutcomeSchema, draftTreatmentResultSchema, generationReadSchema, projectSchema, redeemedInvitationSchema, treatmentOptionReadSchema, treatmentPreviewSchema, WORKFLOW_OPERATIONS, type GenerationRead, type WorkflowOperation } from "@aiuteur/contract";
 import { createPostgresScheduler, createPostgresStore, fakeGenerationCount, type Scope, type Store, type WriteTx } from "@aiuteur/store";
 import { createViews } from "@aiuteur/views";
 import { createHistory } from "@aiuteur/history";
 import { sourceMaterialKind, treatmentOptionKind } from "@aiuteur/story";
+import { characterKind } from "@aiuteur/world";
+import { shotKind } from "@aiuteur/production";
 import { createWorkflows, REGISTRY } from "@aiuteur/workflows";
 import { canonicalJson, sha256, type SubmitInput } from "@aiuteur/providers";
-import { describeSchedulerConformance, FakeMailer, FAKE_TEXT_PROFILE, GP_S_COMMANDS, GP_S_PROPOSALS, ManualClock, syntheticCatalogue, TEST_PRICE_POLICY, uuidv7, type RecordedProposal } from "@aiuteur/testing";
+import { describeSchedulerConformance, FakeMailer, FAKE_TEXT_PROFILE, GP_S_COMMANDS, GP_S_PROPOSALS, ManualClock, syntheticImage, syntheticCatalogue, TEST_PRICE_POLICY, uuidv7, type RecordedProposal } from "@aiuteur/testing";
 import { createDispatch } from "@aiuteur/generation";
 import { createJobs } from "@aiuteur/jobs";
 import { createApi } from "@aiuteur/api";
@@ -47,11 +49,11 @@ afterAll(async () => { for (const close of closers) await close(); await store?.
 async function world(proposals: readonly RecordedProposal[], options: { beforeSubmit?: (input: SubmitInput) => Promise<void>; workflowStore?: Store; providerCap?: number } = {}) {
   const run = await testExecution(database, clock, ids, proposals, options.beforeSubmit, options.providerCap);
   closers.push(run.close);
-  const workflows = createWorkflows({ store: options.workflowStore ?? store, history: createHistory([sourceMaterialKind, treatmentOptionKind]), clock, ids, catalogue: syntheticCatalogue(), pricePolicy: TEST_PRICE_POLICY, execution: run.execution });
+  const workflows = createWorkflows({ store: options.workflowStore ?? store, history: createHistory([sourceMaterialKind, treatmentOptionKind, characterKind, shotKind]), clock, ids, catalogue: syntheticCatalogue(), pricePolicy: TEST_PRICE_POLICY, execution: run.execution, media: run.media });
   const api = contracted(createApi({ accounts, views: createViews(store), workflows, handleAuth: adapter.handle, origin, requestId: ids.uuid, now: () => clock.now(), clientAddress: () => "203.0.113.5" }));
   const call = (method: "GET" | "POST", path: string, cookie: string, body?: unknown, key: string = ids.uuid()) =>
     api.request(`${origin}${path}`, { method, headers: { origin, "content-type": "application/json", "x-aiuteur-command": "1", "idempotency-key": key, cookie }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
-  return { api, call, transport: run.transport, workflows, execution: run.execution };
+  return { api, call, transport: run.transport, workflows, execution: run.execution, media: run.media };
 }
 type World = Awaited<ReturnType<typeof world>>;
 
@@ -237,7 +239,7 @@ describe("VC5 operation harness", () => {
     expect(created.outcome).toBeNull();
     expect(created.runs).toEqual([expect.objectContaining({ state: "queued" })]);
     const jobs = createJobs({ scheduler: w.execution.scheduler, clock });
-    const dispatch = createDispatch({ store, history: createHistory([sourceMaterialKind, treatmentOptionKind]), jobs, catalogue: syntheticCatalogue(), transportFor: w.execution.transportFor, credential: w.execution.credential, environment: "local", clock, ids });
+    const dispatch = createDispatch({ store, history: createHistory([sourceMaterialKind, treatmentOptionKind, characterKind, shotKind]), jobs, catalogue: syntheticCatalogue(), transportFor: w.execution.transportFor, credential: w.execution.credential, environment: "local", clock, ids });
     const jobId = created.runs[0]!.jobId as never;
     expect(await jobs.claim(1, jobId)).toEqual([]);
     clock.advance(60 * 60_000);
@@ -337,8 +339,36 @@ it("GP-S: the seed project replays as commands through the API and lands a chose
         expect((await w.call("POST", `${c.studio}/projects/${project}/treatment-options/${object}/choose`, c.cookie, {})).status).toBe(201);
         break;
       }
+      case "character.create": {
+        const project = results.get("project")!.project!;
+        const made = entityOutcomeSchema.parse(await (await w.call("POST", `${c.studio}/projects/${project}/characters`, c.cookie, { name: step.name })).json());
+        if (made.result !== "Applied") throw new Error("GP-S character refused");
+        results.set(step.step, { project, object: made.objectId });
+        break;
+      }
+      case "character.reference": {
+        const { project, object } = results.get(step.character)!;
+        const upload = uploadSchema.parse(await (await w.call("POST", `${c.studio}/projects/${project}/uploads`, c.cookie, {})).json());
+        expect((await fetch(upload.link.url, { method: "PUT", body: new Uint8Array(syntheticImage(step.image)), headers: { "content-type": "image/png" } })).status).toBe(200);
+        const attached = referenceOutcomeSchema.parse(await (await w.call("POST", `${c.studio}/projects/${project}/characters/${object}/reference`, c.cookie, { uploadId: upload.uploadId })).json());
+        if (attached.result !== "Applied") throw new Error(`GP-S reference refused: ${JSON.stringify(attached)}`);
+        break;
+      }
+      case "shot.create": {
+        const project = results.get("project")!.project!;
+        const presence = step.presence.map((label) => ({ entity: results.get(label)!.object!, look: "base" as const }));
+        const made = entityOutcomeSchema.parse(await (await w.call("POST", `${c.studio}/projects/${project}/shots`, c.cookie, { action: step.action, presence })).json());
+        if (made.result !== "Applied") throw new Error("GP-S shot refused");
+        results.set(step.step, { project, object: made.objectId });
+        break;
+      }
     }
   }
+  // The T0b hand step landed: the Character shows its reference, and the Shot carries that Character's Presence.
+  const character = characterReadSchema.parse(await (await w.call("GET", `${c.studio}/projects/${results.get("project")!.project}/characters/${results.get("character")!.object}`, c.cookie)).json());
+  expect(character.reference?.media).toMatchObject({ contentType: "image/png", width: 64, height: 48 });
+  const shot = shotReadSchema.parse(await (await w.call("GET", `${c.studio}/projects/${results.get("project")!.project}/shots/${results.get("shot")!.object}`, c.cookie)).json());
+  expect(shot.presence).toEqual([{ entity: character.objectId, look: "base", name: "Mara" }]);
   const { project, object, generation } = results.get("draft")!;
   const option = treatmentOptionReadSchema.parse(await (await w.call("GET", `${c.studio}/projects/${project}/treatment-options/${object}`, c.cookie)).json());
   expect(option.chosen).toBe(true);

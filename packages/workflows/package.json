@@ -15,6 +15,9 @@
     "@aiuteur/store": "workspace:*",
     "@aiuteur/jobs": "workspace:*",
     "@aiuteur/compiler": "workspace:*",
+    "@aiuteur/media": "workspace:*",
+    "@aiuteur/world": "workspace:*",
+    "@aiuteur/production": "workspace:*",
     "zod": "^4.3.6"
   }
 }

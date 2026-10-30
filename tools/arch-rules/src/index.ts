@@ -11,6 +11,9 @@ import { ResolverFactory } from "oxc-resolver";
 //   R20  Module-mocking APIs are banned on repository modules.
 //   EI12 No CORE module imports previs (BUILD-SEQUENCE §5; issue #98).
 //   R3   `client` imports only `contract` (MODULE-ARCHITECTURE §4, R3): nothing of Aiuteur but `packages/contract`.
+//   R16  Only `media` holds a BlobStore (PERSISTENCE-AND-MEDIA §7.6, §10.4 R16, R17): the port, its adapters and its
+//        delete guard are imported only by `media`, `testing/`, the Store package that defines the port, tests and
+//        composition roots. So committed-media deletion and key building cannot happen anywhere else.
 //   R9   Vendor and model names appear only in adapters and Catalogue data (MODULE-ARCHITECTURE §9).
 //   R24  The environment is read only in composition roots and injected; no module branches on
 //        an ambient test flag (VERIFICATION-AND-OBSERVABILITY §3.2 line 3).
@@ -23,7 +26,7 @@ import { ResolverFactory } from "oxc-resolver";
 // evasions; they are not a proof against deliberately obfuscated code.
 
 export interface Violation {
-  readonly rule: "R3" | "R19" | "R20" | "EI12" | "R9" | "R24" | "LOG";
+  readonly rule: "R3" | "R16" | "R19" | "R20" | "EI12" | "R9" | "R24" | "LOG";
   /** Workspace-relative, `/`-separated. */
   readonly path: string;
   readonly line: number;
@@ -36,6 +39,8 @@ const CONTRACT_DIR = "packages/contract/";
 const PROVIDERS_DIR = "packages/providers/";
 const ADAPTERS_DIR = "packages/providers/src/adapters/";
 const TRANSPORT_TYPES = new Set(["ProviderTransport", "RealAdapter", "FakeAdapter"]);
+/** The BlobStore port, its adapters and its delete guard (R16). */
+const BLOB_NAMES = new Set(["BlobStore", "createR2BlobStore", "FakeBlobStore", "deletableKey"]);
 const VITEST_OBJECTS = new Set(["vi", "vitest"]);
 const MOCKING = new Set(["mock", "doMock", "unmock", "doUnmock", "importMock", "importActual", "spyOn"]);
 const JEST_MOCKING = new Set(["mock", "doMock", "unmock", "dontMock", "requireMock", "requireActual", "createMockFromModule", "spyOn"]);
@@ -179,6 +184,20 @@ function checkFile(path: string, text: string, resolveFrom: (path: string, speci
       if (local === undefined) continue;
       const imported = specifier.type === "ImportSpecifier" ? nameOf(specifier["imported"]) : specifier.type === "ImportNamespaceSpecifier" ? "*" : "default";
       if (imported !== undefined) bindings.set(local, { from, name: imported });
+    }
+  }
+  // R16: who may hold a BlobStore. Judged on the imported name and where its module resolves (or names, if unresolved).
+  const mayHoldBlobs = path.startsWith("packages/media/") || path.startsWith(TESTING_DIR) || path.startsWith("packages/store/") || isTestFile(path) || isNonProductionCompositionRoot(path) || isProductionRoot(path);
+  if (!mayHoldBlobs) {
+    for (const node of result.program.body as unknown as AstNode[]) {
+      if (node.type !== "ImportDeclaration") continue;
+      const from = (node["source"] as { value: string }).value;
+      const blobModule = /^@aiuteur\/(store|media|testing)$/.test(from) || ["packages/store/", "packages/media/", TESTING_DIR].some((dir) => into(from, dir));
+      if (!blobModule) continue;
+      for (const specifier of node["specifiers"] as AstNode[]) {
+        const imported = specifier.type === "ImportSpecifier" ? nameOf(specifier["imported"]) : undefined;
+        if (imported !== undefined && BLOB_NAMES.has(imported)) report("R16", specifier.start, `${imported} imported outside media; only media holds a BlobStore`);
+      }
     }
   }
   /** Whether `node` names export `name` of a module resolving into `dir`, directly or through a namespace import. */

@@ -1,8 +1,29 @@
-import { generationReadSchema, inputReadSchema, projectListSchema, sourceMaterialReadSchema, sourceMaterialRevisionSchema, studioSchema, treatmentOptionReadSchema, type AccountId, type GenerationId, type ObjectId, type ProjectId } from "@aiuteur/contract";
+import { characterListSchema, characterReadSchema, shotListSchema, shotReadSchema, type CharacterRead, type ShotRead, generationReadSchema, inputReadSchema, projectListSchema, sourceMaterialReadSchema, sourceMaterialRevisionSchema, studioSchema, treatmentOptionReadSchema, type AccountId, type GenerationId, type ObjectId, type ProjectId } from "@aiuteur/contract";
 import { readGeneration } from "@aiuteur/generation";
 import { read } from "@aiuteur/history";
 import { sourceMaterialKind, sourceMaterialRevision, treatmentOptionKind } from "@aiuteur/story";
-import type { Scope, Store } from "@aiuteur/store";
+import type { ReadTx, Scope, Store } from "@aiuteur/store";
+import { characterKind, readCharacter } from "@aiuteur/world";
+import { readShot, shotKind } from "@aiuteur/production";
+
+/** One Character as the wire read model: name, head and the reference it shows with its frozen Media facts. */
+async function characterRead(tx: ReadTx, scope: Scope, projectId: ProjectId, objectId: ObjectId): Promise<CharacterRead | null> {
+  const found = await readCharacter(tx, scope, projectId, objectId);
+  if (!found) return null;
+  const media = found.reference?.media ? await tx.media(projectId, found.reference.media) : null;
+  if (found.reference && !media) throw new Error("an upload Attempt names no Media of its project");
+  return characterReadSchema.parse({
+    objectId, sequence: found.head.sequence, name: found.body.name, createdAt: found.createdAt,
+    reference: found.reference && media ? { attemptId: found.reference.attemptId, createdAt: found.reference.createdAt, media: { hash: media.hash, size: media.size, contentType: media.contentType, width: media.width, height: media.height } } : null,
+  });
+}
+async function shotRead(tx: ReadTx, scope: Scope, projectId: ProjectId, objectId: ObjectId): Promise<ShotRead | null> {
+  const found = await readShot(tx, scope, projectId, objectId);
+  return found && shotReadSchema.parse({
+    objectId, sequence: found.head.sequence, action: found.action, presence: found.presence, createdAt: found.createdAt,
+    sideLine: found.sideLine.map(({ attempt, presence }) => ({ attemptId: attempt.attemptId, basedOn: attempt.basedOn, presence, createdAt: attempt.createdAt })),
+  });
+}
 
 /** One Source Material object as the wire read model. */
 function sourceMaterialRead(found: NonNullable<Awaited<ReturnType<typeof read>>>) {
@@ -58,6 +79,22 @@ export function createViews(store: Store) {
       const latest = await tx.latestDecision(projectId, "choose", treatmentOptionKind.kind);
       return treatmentOptionReadSchema.parse({ objectId, sequence: found.head.sequence, generationId: found.head.generationId, document, chosen: latest?.objectId === objectId, createdAt: found.head.createdAt });
     }),
+    /** The project's Characters, oldest first; null when this Account has no such project (T0-12). */
+    characters: (scope: Scope, projectId: ProjectId) => store.read(scope, async (tx) => {
+      if (!await tx.project(projectId)) return null;
+      const characters = [];
+      for (const { objectId } of await tx.objects(projectId, characterKind.kind)) characters.push(await characterRead(tx, scope, projectId, objectId));
+      return characterListSchema.parse({ characters });
+    }),
+    character: (scope: Scope, projectId: ProjectId, objectId: ObjectId) => store.read(scope, (tx) => characterRead(tx, scope, projectId, objectId)),
+    /** The project's Shots, oldest first; null when this Account has no such project (T0-12). */
+    shots: (scope: Scope, projectId: ProjectId) => store.read(scope, async (tx) => {
+      if (!await tx.project(projectId)) return null;
+      const shots = [];
+      for (const { objectId } of await tx.objects(projectId, shotKind.kind)) shots.push(await shotRead(tx, scope, projectId, objectId));
+      return shotListSchema.parse({ shots });
+    }),
+    shot: (scope: Scope, projectId: ProjectId, objectId: ObjectId) => store.read(scope, (tx) => shotRead(tx, scope, projectId, objectId)),
     async sourceMaterialRevision(scope: Scope, projectId: ProjectId, objectId: ObjectId, sequence: number) {
       const found = await sourceMaterial(scope, projectId, objectId, sequence);
       return found?.revision ? sourceMaterialRevisionSchema.parse(sourceMaterialRevision(found.revision)) : null;

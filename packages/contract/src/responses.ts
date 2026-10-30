@@ -4,6 +4,8 @@ import { chooseOutcomeSchema, commitOutcomeSchema, inputReadSchema, sourceMateri
 import {
   invitationSchema, projectListSchema, projectSchema, recoveryCompletedSchema, recoveryRequestedSchema, redeemedInvitationSchema, ROUTES, sessionSchema, studioSchema,
 } from "./studio.ts";
+import { mediaLinkSchema, uploadSchema } from "./media.ts";
+import { characterListSchema, characterReadSchema, entityOutcomeSchema, referenceOutcomeSchema, shotListSchema, shotReadSchema } from "./world.ts";
 
 type Route = (typeof ROUTES)[number];
 /** The routes whose bodies this contract owns; `auth` routes are Better Auth's and are forwarded as they are. */
@@ -34,6 +36,16 @@ export const ROUTE_RESPONSES = {
   "GET /api/studios/:accountId/projects/:projectId/generations/:generationId": { status: 200, schema: generationReadSchema },
   "GET /api/studios/:accountId/projects/:projectId/treatment-options/:objectId": { status: 200, schema: treatmentOptionReadSchema },
   "POST /api/studios/:accountId/projects/:projectId/treatment-options/:objectId/choose": { status: 201, schema: chooseOutcomeSchema },
+  "POST /api/studios/:accountId/projects/:projectId/uploads": { status: 201, schema: uploadSchema },
+  "GET /api/studios/:accountId/projects/:projectId/characters": { status: 200, schema: characterListSchema },
+  "POST /api/studios/:accountId/projects/:projectId/characters": { status: 201, schema: entityOutcomeSchema },
+  "GET /api/studios/:accountId/projects/:projectId/characters/:objectId": { status: 200, schema: characterReadSchema },
+  "POST /api/studios/:accountId/projects/:projectId/characters/:objectId/reference": { status: 201, schema: referenceOutcomeSchema },
+  "GET /api/studios/:accountId/projects/:projectId/characters/:objectId/reference/view": { status: 200, schema: mediaLinkSchema },
+  "GET /api/studios/:accountId/projects/:projectId/shots": { status: 200, schema: shotListSchema },
+  "POST /api/studios/:accountId/projects/:projectId/shots": { status: 201, schema: entityOutcomeSchema },
+  "GET /api/studios/:accountId/projects/:projectId/shots/:objectId": { status: 200, schema: shotReadSchema },
+  "POST /api/studios/:accountId/projects/:projectId/shots/:objectId/presence": { status: 200, schema: entityOutcomeSchema },
 } as const satisfies Record<RouteKey, { readonly status: number; readonly schema: z.ZodType }>;
 
 /** The JSON Schema of a route's success body, derived from the response schema (the mock server's only input). */
