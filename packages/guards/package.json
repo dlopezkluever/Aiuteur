@@ -1,0 +1,14 @@
+{
+  "name": "@aiuteur/guards",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@aiuteur/contract": "workspace:*"
+  },
+  "devDependencies": {
+    "@aiuteur/testing": "workspace:*"
+  }
+}

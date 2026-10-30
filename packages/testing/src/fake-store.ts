@@ -49,6 +49,11 @@ function readView(state: AccountState, scope: Scope): ReadTx {
     latestDecision: async (project, type, kind) => copy(state.decisions
       .filter((row) => row.projectId === project && row.type === type && state.objects.get(row.objectId)?.kind === kind)
       .sort((a, b) => (a.createdAt === b.createdAt ? (a.actionGroup < b.actionGroup ? 1 : -1) : a.createdAt < b.createdAt ? 1 : -1))[0] ?? null),
+    spendFacts: async (since) => copy([...state.generations.values()].filter((row) => row.createdAt >= since)
+      .sort((a, b) => (a.createdAt === b.createdAt ? (a.generationId < b.generationId ? -1 : 1) : a.createdAt < b.createdAt ? -1 : 1))
+      .map((row) => ({ generationId: row.generationId, createdAt: row.createdAt, estimate: row.estimate, actual: state.settlements.get(row.generationId)?.actual ?? null, countedMicros: (() => { const own = state.runs.filter((run) => run.generationId === row.generationId); return own.length === 0 || own.some((run) => run.countedMicros === null) ? null : own.reduce((n, run) => n + run.countedMicros!, 0); })() }))),
+    inProgress: async (fingerprint) => [...state.generations.values()].filter((row) => row.inputFingerprint === fingerprint && !state.settlements.has(row.generationId))
+      .sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1))[0]?.generationId ?? null,
     events: async (after) => copy(state.events.filter((event) => event.sequence > after)),
   };
 }

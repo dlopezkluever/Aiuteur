@@ -10,6 +10,8 @@ const UUID_V4 = "11111111-1111-4111-8111-111111111111";
 export function sample(schema: Json): unknown {
   if ("const" in schema) return schema["const"];
   if (Array.isArray(schema["enum"])) return schema["enum"][0];
+  // A refinement the JSON Schema cannot express (an IANA zone) names its valid sample.
+  if (Array.isArray(schema["examples"])) return schema["examples"][0];
   for (const key of ["anyOf", "oneOf"] as const) {
     const options = schema[key];
     // A nullable value is null: the plainest answer, and the one a sibling refinement most often expects.

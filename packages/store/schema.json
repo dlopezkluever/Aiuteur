@@ -578,6 +578,12 @@
           "type": "timestamp with time zone",
           "default": null,
           "nullable": false
+        },
+        {
+          "name": "input_fingerprint",
+          "type": "text",
+          "default": null,
+          "nullable": true
         }
       ],
       "constraints": [
@@ -604,6 +610,8 @@
       ],
       "indexes": [
         "CREATE UNIQUE INDEX generation_account_id_project_id_generation_id_key ON accounts.generation USING btree (account_id, project_id, generation_id)",
+        "CREATE INDEX generation_created ON accounts.generation USING btree (account_id, created_at)",
+        "CREATE INDEX generation_input_fingerprint ON accounts.generation USING btree (account_id, input_fingerprint)",
         "CREATE UNIQUE INDEX generation_pkey ON accounts.generation USING btree (generation_id)"
       ],
       "policies": [
@@ -697,6 +705,12 @@
           "type": "timestamp with time zone",
           "default": null,
           "nullable": false
+        },
+        {
+          "name": "rendered_request",
+          "type": "jsonb",
+          "default": null,
+          "nullable": true
         }
       ],
       "constraints": [
@@ -805,6 +819,12 @@
           "type": "timestamp with time zone",
           "default": null,
           "nullable": false
+        },
+        {
+          "name": "counted_micros",
+          "type": "integer",
+          "default": null,
+          "nullable": true
         }
       ],
       "constraints": [

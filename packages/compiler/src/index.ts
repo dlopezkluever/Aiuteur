@@ -3,7 +3,7 @@ import {
   type CompileVersions, type FitReport, type PackageOperation, type ProvenanceKind, type RenderedRequest, type TextLayerKey,
 } from "@aiuteur/contract";
 import { canonicalJson, count, dialectFor, render, sha256, wrap, type Dialect, type ProfileSnapshot } from "@aiuteur/providers";
-import { SCAFFOLDS } from "./scaffold.ts";
+import { REPAIR_SCAFFOLD, SCAFFOLDS } from "./scaffold.ts";
 
 // Draft FC8 (GENERATION-PACKAGE §3–§10; MODULE §3.3). One compiler, pure: no storage, clock,
 // randomness, network, transport or mutable configuration. Same ResolvedInputs, profile
@@ -11,7 +11,7 @@ import { SCAFFOLDS } from "./scaffold.ts";
 // carries, omits whole layers by tier with a reason, or blocks, and never cuts inside a layer;
 // Render applies the dialect named by the profile. Nothing here names a vendor.
 
-export { SCAFFOLDS } from "./scaffold.ts";
+export { REPAIR_SCAFFOLD, SCAFFOLDS } from "./scaffold.ts";
 export type { RenderedRequest } from "@aiuteur/contract";
 
 /** Bumped when compiler code changes the Rendered request for an unchanged input (VC2). */
@@ -184,4 +184,23 @@ export function compile(inputs: ResolvedInputs, profile: ProfileSnapshot): Compi
     rewrites: fitted.rewrites,
   });
   return { result: "fitted", package: pkg, fit: fitted.report, renderedRequest, digest: requestDigest(renderedRequest), versions };
+}
+
+/**
+ * The Rendered request of the single repair call (AI-map §5): the Generation's own request plus one `repair` part naming the
+ * refusing guard and carrying the refused response, and its own Fit report (the added part counts against the prompt limit).
+ * Pure and deterministic from the stored draft call, so a restart rebuilds the identical request. Prompt text exists only as
+ * compiler output.
+ */
+export function repairRequest(request: RenderedRequest, profile: ProfileSnapshot, previous: string, failure: { readonly guard: string; readonly reason: string }, baseFit: FitReport): { readonly request: RenderedRequest; readonly fit: FitReport } {
+  const text = REPAIR_SCAFFOLD.text(failure, previous);
+  const repaired: RenderedRequest = { ...request, textParts: [...request.textParts, { layerKey: "repair", text: wrap(dialectOf(profile), "repair", text), layerDigest: sha256(text) }] };
+  const limit = profile.limits.prompt;
+  if (limit.state !== "declared") return { request: repaired, fit: baseFit };
+  const { counter, max, margin, unit } = limit.value;
+  const needed = repaired.textParts.reduce((n, part) => n + count(part.text, counter), 0);
+  const room = max - margin;
+  const promptLimit = { state: "declared" as const, unit, counter, counted: needed, limit: room };
+  if (needed <= room) return { request: repaired, fit: { ...baseFit, promptLimit } };
+  return { request: repaired, fit: { ...baseFit, promptLimit, blocked: { reason: "over-limit", needed, limit: room, unit, exits: [{ exit: "another-model", layerKey: null }] } } };
 }

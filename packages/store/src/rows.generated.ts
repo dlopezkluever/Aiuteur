@@ -73,6 +73,7 @@ export interface accounts_generation {
   "estimate": unknown;
   "target": unknown;
   "created_at": Date;
+  "input_fingerprint": string | null;
 }
 
 export interface accounts_generation_call {
@@ -88,6 +89,7 @@ export interface accounts_generation_call {
   "verdict": unknown | null;
   "reported_cost": unknown | null;
   "created_at": Date;
+  "rendered_request": unknown | null;
 }
 
 export interface accounts_generation_run {
@@ -102,6 +104,7 @@ export interface accounts_generation_run {
   "billed": string | null;
   "reason": string | null;
   "created_at": Date;
+  "counted_micros": number | null;
 }
 
 export interface accounts_generation_settlement {

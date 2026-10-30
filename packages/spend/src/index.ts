@@ -1,9 +1,9 @@
-import type { ActualCost, Billed, Estimate, RenderedRequest } from "@aiuteur/contract";
-import { billedQuantities, type BilledQuantity, type BilledQuantityRule, type Declared, type PriceEntry } from "@aiuteur/providers";
+import { actualCostSchema, estimateSchema, type ActualCost, type Billed, type Estimate, type RenderedRequest } from "@aiuteur/contract";
+import { billedQuantities, count, type BilledQuantity, type BilledQuantityRule, type Declared, type PriceEntry } from "@aiuteur/providers";
 
 // Draft FC10 `spend.estimate` (BUSINESS-AND-OPERATIONS §4.2, §4.3; MODULE §3.3). Read-only and
 // computed from the Rendered request itself, so the price and the request cannot describe
-// different things. No admission, caps, confirmation or spend record (`spend.admit` is #102's).
+// different things. `admit` (T0-06) is the creation-time spend check; there is no balance, ledger or reservation.
 
 /** Staleness of published prices (BUSINESS §4.3): tunable configuration, not architecture. */
 export interface PricePolicy {
@@ -63,16 +63,154 @@ export function estimate(input: EstimateInput): Estimate {
 }
 
 /**
- * The actual cost of one run, set once at settlement (JOB-LIFECYCLE §4): the provider's reported quantities priced by the
- * Offering's entries. Nothing reported, or a unit with no entry, is `unknown` with what is known about billing.
+ * The billed quantities of ONE run, derived from that run's own Rendered request and answer (BUSINESS §4.4, "computed"): what
+ * the request fixes exactly, and for token-priced text the output the declared counter finds in the response, within the
+ * request's bounds. Null when the quantity genuinely cannot be known (no declared rule, or a bound that only the provider knows).
  */
-export function actual(reported: readonly { readonly unit: BilledQuantity["unit"]; readonly amount: number }[] | null, entries: readonly PriceEntry[], billed: Billed): ActualCost {
-  if (reported === null) return { form: "unknown", billed };
-  let amountMicros = 0;
-  for (const quantity of reported) {
-    const entry = entries.find((e) => e.unit === quantity.unit);
-    if (!entry) return { form: "unknown", billed };
-    amountMicros += Math.ceil((quantity.amount * entry.priceMicros) / entry.per);
+export function derivedQuantities(rule: Declared<BilledQuantityRule>, request: RenderedRequest, response: string | null): Quantity[] | null {
+  if (rule.state !== "declared") return null;
+  let quantities: BilledQuantity[];
+  try { quantities = billedQuantities(rule.value, request); } catch (error) { if (error instanceof RangeError) return null; throw error; }
+  const out: Quantity[] = [];
+  for (const q of quantities) {
+    if (q.bounds.min === q.bounds.max) out.push({ unit: q.unit, amount: q.bounds.max });
+    else if (rule.value.rule === "text-tokens" && q.unit === "output-token" && response !== null) out.push({ unit: q.unit, amount: Math.min(q.bounds.max, Math.max(q.bounds.min, count(response, rule.value.counter))) });
+    else return null;
   }
-  return { form: "reported", currency: "USD", amountMicros, quantities: reported.map((q) => ({ unit: q.unit, amount: q.amount })) };
+  return out;
+}
+
+/** One run known to have been billed: what the provider reported for it, and what its own request and answer derive. */
+export interface RunQuantities { readonly reported: readonly Quantity[] | null; readonly derived: readonly Quantity[] | null }
+
+/**
+ * The Generation's actual cost, set once at settlement (JOB-LIFECYCLE §4; BUSINESS §4.4), over every run billed `yes`: each run
+ * is priced by its own reported quantities, else its own derived ones, and the costs add (each run once). The form is
+ * `reported` when every run was reported, `computed` otherwise. A run whose quantity cannot be known makes the whole actual
+ * `unknown` (billed yes), which the cap check counts at the Generation's estimate. Runs billed `no` or `maybe` are not in `runs`:
+ * `no` costs nothing and `maybe` is counted by `SpendFact.maybeRuns`, never twice. With no billed run the actual is `unknown`
+ * with what is known about billing.
+ */
+export function settleActual(runs: readonly RunQuantities[], entries: readonly PriceEntry[], billed: Billed): ActualCost {
+  if (runs.length === 0) return { form: "unknown", billed };
+  let amountMicros = 0;
+  const quantities: Quantity[] = [];
+  for (const run of runs) {
+    const used = run.reported ?? run.derived;
+    if (used === null) return { form: "unknown", billed: "yes" };
+    for (const quantity of used) {
+      const entry = entries.find((e) => e.unit === quantity.unit);
+      if (!entry) return { form: "unknown", billed: "yes" };
+      amountMicros += Math.ceil((quantity.amount * entry.priceMicros) / entry.per);
+      quantities.push({ unit: quantity.unit, amount: quantity.amount });
+    }
+  }
+  return { form: runs.every((run) => run.reported !== null) ? "reported" : "computed", currency: "USD", amountMicros, quantities };
+}
+type Quantity = { readonly unit: BilledQuantity["unit"]; readonly amount: number };
+
+/** Creator caps and the hidden operator ceiling, in micro-units per account calendar period. Configuration with no default (BUSINESS §9); null means no limit. */
+export interface Caps {
+  readonly creator: { readonly dailyMicros: number | null; readonly monthlyMicros: number | null; readonly perActionMicros: number | null };
+  /** Applies to operator-paid spend only, which is all spend until BYOK (BUSINESS §6.2). */
+  readonly ceiling: { readonly dailyMicros: number | null; readonly monthlyMicros: number | null };
+}
+
+/** What the committed-spend rule reads of one Generation. */
+export interface SpendFact { readonly createdAt: string; readonly estimate: unknown; readonly actual: unknown | null;
+  /** The sum of its runs' counted amounts (`generation_run.counted_micros`); null when any run predates the column. */
+  readonly countedMicros: number | null;
+}
+
+export const upperBound = (estimate: Estimate): number | null => (estimate.form === "point" ? estimate.amountMicros : estimate.form === "range" ? estimate.maxMicros : null);
+
+/**
+ * What one Generation counts toward committed spend (BUSINESS §5.3, §6.3): its approved estimate while unsettled; once settled,
+ * the sum of what each of its runs counts (`runCounted`, written with the run), so every run is represented exactly once.
+ * Runs written before per-run counts existed fall back to the Generation's actual, or its estimate when that is unavailable.
+ */
+function committed(fact: SpendFact): number {
+  const upper = upperBound(estimateSchema.parse(fact.estimate)) ?? 0;
+  if (fact.actual === null) return upper;
+  if (fact.countedMicros !== null) return fact.countedMicros;
+  const actual = actualCostSchema.parse(fact.actual);
+  return actual.form === "unknown" ? (actual.billed === "no" ? 0 : upper) : actual.amountMicros;
+}
+
+/**
+ * The most one run can bill, from that run's own Rendered request: the upper bound of the canonical `estimate` (so the same
+ * declared rule, price entries and stale-price widening BUSINESS §4.3 applies at admission apply here, once). Null when the
+ * estimate is unknown (no rule, no usable price entry, undetermined quantity).
+ */
+export function upperBoundMicros(input: EstimateInput): number | null {
+  const e = estimate(input);
+  return e.form === "point" ? e.amountMicros : e.form === "range" ? e.maxMicros : null;
+}
+
+/**
+ * What one run counts toward committed spend, once (BUSINESS §5.3): `no` nothing; `yes` its actual, reported else derived
+ * from its own request and answer; `maybe`, or a `yes` whose quantity cannot be known, the run's own upper bound until
+ * reconciled. The upper bound is exposure, never recorded as an actual.
+ */
+export function runCounted(run: { readonly billed: Billed; readonly reported: readonly Quantity[] | null; readonly derived: readonly Quantity[] | null; readonly upperMicros: number }, entries: readonly PriceEntry[]): number {
+  if (run.billed === "no") return 0;
+  if (run.billed === "yes") {
+    const used = run.reported ?? run.derived;
+    if (used !== null) {
+      let total = 0;
+      for (const q of used) {
+        const entry = entries.find((e) => e.unit === q.unit);
+        if (!entry) return run.upperMicros;
+        total += Math.ceil((q.amount * entry.priceMicros) / entry.per);
+      }
+      return total;
+    }
+  }
+  return run.upperMicros;
+}
+
+/** How far back the facts must reach for any Account's current calendar month to be covered, whatever its timezone. */
+export const admissionLookback = (now: number): string => new Date(now - 33 * 86_400_000).toISOString();
+
+/** The Account-local calendar day and month (`yyyy-mm-dd`, `yyyy-mm`) of an instant. */
+function localPeriod(ms: number, timeZone: string): { readonly day: string; readonly month: string } {
+  const day = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(ms));
+  return { day, month: day.slice(0, 7) };
+}
+
+export type Admission =
+  | { readonly result: "admitted" }
+  /** A creator cap: the creator's own guard. What is left is shown; the offers are Raise the cap, Trim or Not now, never Start. */
+  | { readonly result: "refused"; readonly reason: "creator-cap"; readonly cap: "daily" | "monthly" | "action"; readonly remainingMicros: number }
+  /** The hidden operator ceiling: a limit on the studio, not on the creator's content. */
+  | { readonly result: "refused"; readonly reason: "studio-limit" }
+  /** An unknown price has no upper bound to test, so it cannot be admitted (BUSINESS §3). */
+  | { readonly result: "refused"; readonly reason: "price-unknown" };
+
+/**
+ * FC10 `spend.admit` (BUSINESS §6.3). Allowed when committed spend for the period plus this action's upper-bound estimate stays
+ * within the creator's cap and the operator ceiling. The caller runs it in the transaction that creates the Generation, under
+ * the Account's write lock, with every Generation of the Account since the month began (`facts`), so concurrent creations
+ * cannot jointly exceed a limit. Periods are the Account's local calendar day and month. The ceiling is tested first: raising a creator cap cannot clear it.
+ */
+export function admit(input: {
+  readonly estimate: Estimate; readonly facts: readonly SpendFact[]; readonly now: number; readonly caps: Caps;
+  /** The Account's IANA timezone: its calendar day and month are the periods (BUSINESS §6.1). Null only while no limit is configured. */
+  readonly timeZone: string | null;
+}): Admission {
+  const upper = upperBound(input.estimate);
+  if (upper === null) return { result: "refused", reason: "price-unknown" };
+  const { ceiling, creator } = input.caps;
+  const limited = [creator.dailyMicros, creator.monthlyMicros, creator.perActionMicros, ceiling.dailyMicros, ceiling.monthlyMicros].some((limit) => limit !== null);
+  if (limited && input.timeZone === null) throw new Error("the Account's time zone is not configured; its caps have no period");
+  const zone = input.timeZone ?? "UTC";
+  const here = localPeriod(input.now, zone);
+  const facts = input.facts.map((f) => ({ f, at: localPeriod(Date.parse(f.createdAt), zone) }));
+  const day = facts.filter(({ at }) => at.day === here.day).reduce((sum, { f }) => sum + committed(f), 0);
+  const month = facts.filter(({ at }) => at.month === here.month).reduce((sum, { f }) => sum + committed(f), 0);
+  if ((ceiling.dailyMicros !== null && day + upper > ceiling.dailyMicros) || (ceiling.monthlyMicros !== null && month + upper > ceiling.monthlyMicros)) return { result: "refused", reason: "studio-limit" };
+  if (creator.perActionMicros !== null && upper > creator.perActionMicros) return { result: "refused", reason: "creator-cap", cap: "action", remainingMicros: creator.perActionMicros };
+  if (creator.dailyMicros !== null && day + upper > creator.dailyMicros) return { result: "refused", reason: "creator-cap", cap: "daily", remainingMicros: Math.max(0, creator.dailyMicros - day) };
+  if (creator.monthlyMicros !== null && month + upper > creator.monthlyMicros) return { result: "refused", reason: "creator-cap", cap: "monthly", remainingMicros: Math.max(0, creator.monthlyMicros - month) };
+  return { result: "admitted" };
 }

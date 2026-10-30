@@ -117,7 +117,7 @@ export function createApi(options: { accounts: Accounts; views: Views; workflows
       const initiation = initiate(scope, idem.data, options.requestId(), options.now());
       const result = await options.workflows.execute(initiation, "treatment.draft", { projectId: project.data, objectId: object.data, ...parsed.data });
       if (!result) return notFound();
-      return c.json(draftTreatmentResultSchema.parse(result), result.result === "generation" ? 201 : 422);
+      return c.json(draftTreatmentResultSchema.parse(result), result.result === "generation" ? 201 : result.result === "already-generating" ? 409 : 422);
     }
     if (key === "GET /api/studios/:accountId/projects/:projectId/treatment-options/:objectId") return respond(c, await options.views.treatmentOption(scope, project.data, object.data));
     if (key === "POST /api/studios/:accountId/projects/:projectId/treatment-options/:objectId/choose") {

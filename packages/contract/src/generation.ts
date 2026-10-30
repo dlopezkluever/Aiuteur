@@ -211,7 +211,7 @@ export type DispatchGateClause = (typeof DISPATCH_GATE_CLAUSES)[number];
 /** The injected deployment environment (VERIFICATION §3.2 line 3, build rule R24). */
 export const ENVIRONMENTS = ["local", "ci", "staging", "production"] as const;
 export type Environment = (typeof ENVIRONMENTS)[number];
-/** Guards a Verdict can name (AI-RESPONSIBILITY-MAP §3). T0-05 runs G1 (schema) only. */
+/** Guards a Verdict can name (AI-RESPONSIBILITY-MAP §3). Treatment drafting runs G1, G2, G3, G4 and G7 (T0-06). */
 export const GUARD_IDS = ["G1", "G2", "G3", "G4", "G5", "G6", "G7", "G8", "G9", "G10"] as const;
 
 declare const initiationBrand: unique symbol;
@@ -256,13 +256,20 @@ const quantitySchema = z.strictObject({ unit: z.enum(BILLED_UNITS), amount: z.nu
 /** The actual cost, set once at settlement (JOB-LIFECYCLE §4): the provider's reported quantities, priced; unknown when nothing was reported. */
 export const actualCostSchema = z.discriminatedUnion("form", [
   z.strictObject({ form: z.literal("reported"), currency: z.literal("USD"), amountMicros: z.int().min(0), quantities: z.array(quantitySchema) }),
+  /** Computed from the billed quantity and the price entry when the provider reported no cost (BUSINESS §4.4). */
+  z.strictObject({ form: z.literal("computed"), currency: z.literal("USD"), amountMicros: z.int().min(0), quantities: z.array(quantitySchema) }),
   z.strictObject({ form: z.literal("unknown"), billed: z.enum(BILLED) }),
 ]);
 export type ActualCost = z.infer<typeof actualCostSchema>;
-/** Draft FC6: the guard Verdict over a model's proposal (MODULE §3.1 `guards`). */
+/**
+ * Draft FC6: the guard Verdict over a model's proposal (MODULE §3.1 `guards`). `pass: true` names the guards that ran;
+ * `pass: false` is REJECTED (AI-map §5: nothing is committed, the raw output stays on the call log); `pass: "held"` is
+ * HELD (the output is retained for the creator's decision and nothing is committed).
+ */
 export const verdictSchema = z.discriminatedUnion("pass", [
   z.strictObject({ pass: z.literal(true), guards: z.array(z.enum(GUARD_IDS)) }),
   z.strictObject({ pass: z.literal(false), guard: z.enum(GUARD_IDS), reason: z.string().min(1) }),
+  z.strictObject({ pass: z.literal("held"), guard: z.enum(GUARD_IDS), reason: z.string().min(1) }),
 ]);
 
 /**
@@ -289,6 +296,8 @@ export const generationReadSchema = z.strictObject({
   renderedRequest: renderedRequestSchema,
   digest: z.string(),
   expectedDigest: z.string().nullable(),
+  /** The duplicate guard's key: hash(operation, project, target, Rendered request digest) (JOB-LIFECYCLE §4). Null on a Generation written before migration 7 or by the previous image. */
+  inputFingerprint: z.string().min(1).nullable(),
   estimate: estimateSchema,
   target: z.strictObject({ output: z.literal("option"), kind: z.string().min(1) }),
   /** Run history: one entry per Job, kept when Jobs are pruned (JOB-LIFECYCLE §2.1). */
@@ -307,6 +316,8 @@ export const generationReadSchema = z.strictObject({
     role: z.enum(CALL_ROLES),
     jobId: z.uuidv7(),
     requestDigest: z.string(),
+    /** The exact request of a call that is not the Generation's own (the repair call); null for the draft call. */
+    renderedRequest: renderedRequestSchema.nullable(),
     operationRef: z.string().nullable(),
     response: z.string().nullable(),
     verdict: verdictSchema.nullable(),
@@ -330,5 +341,13 @@ export const draftTreatmentResultSchema = z.discriminatedUnion("result", [
   z.strictObject({ result: z.literal("generation"), generation: generationReadSchema }),
   z.strictObject({ result: z.literal("blocked"), effectiveModel: effectiveModelSchema, versions: compileVersionsSchema, fit: fitReportSchema }),
   z.strictObject({ result: z.literal("unavailable"), operationClass: z.enum(OPERATION_CLASSES), reasons: z.array(selectionReasonSchema) }),
+  /** Refused at creation, before any Generation exists (T0-06). A creator cap offers Raise the cap, Trim or Not now, never Start (BUSINESS §6.1). */
+  z.strictObject({ result: z.literal("cap-reached"), cap: z.enum(["daily", "monthly", "action"]), remainingMicros: z.int().min(0) }),
+  /** The hidden operator ceiling: a limit on the studio, not on the creator's content (BUSINESS §6.2). */
+  z.strictObject({ result: z.literal("studio-limit") }),
+  /** An unknown price has no upper bound to admit against (BUSINESS §3). */
+  z.strictObject({ result: z.literal("price-unknown") }),
+  /** An identical request is already in progress (JOB-LIFECYCLE §4). A different action id does not make it a new request. */
+  z.strictObject({ result: z.literal("already-generating"), generationId: z.uuidv7() }),
 ]);
 export type DraftTreatmentResult = z.infer<typeof draftTreatmentResultSchema>;

@@ -8,6 +8,12 @@ import { createViews } from "@aiuteur/views";
 import { createWorkflows, type Execution } from "@aiuteur/workflows";
 import { FAKE_TEXT_PROFILE, FakeMailer, FakeTransport, syntheticCatalogue, TEST_PRICE_POLICY, testCredential, uuidv7 } from "@aiuteur/testing";
 
+/** CI-only: every cap explicitly unlimited, so the browser path is not a second spend-policy test (T0-06's suite owns that). Not a production default; the spec fixes none. */
+const CI_CAPS: ReturnType<Execution["caps"]> = {
+  creator: { dailyMicros: null, monthlyMicros: null, perActionMicros: null },
+  ceiling: { dailyMicros: null, monthlyMicros: null },
+};
+
 /**
  * The CI composition root of `web` (R19: the only place besides tests that wires doubles; R24: where configuration is
  * chosen). Real Postgres under the three runtime roles, the real API, the fake mailer and the fake text provider.
@@ -21,7 +27,7 @@ export async function composeCi(options: { databaseUrl(role?: string): string; o
   const store = await createPostgresStore(options.databaseUrl("app"));
   const scheduler = await createPostgresScheduler(options.databaseUrl("scheduler"), { clock, ids, leaseMs: 60_000, admission: { accountInFlight: 100, providerInFlight: { [FAKE_TEXT_PROFILE.adapterId]: 1_000 } } });
   const transport = new FakeTransport({ profile: FAKE_TEXT_PROFILE, clock, webhookSecret: "synthetic-webhook-secret", proposals: [] });
-  const execution: Execution = { scheduler, transportFor: (offeringId) => (offeringId === transport.profile.offeringId ? transport : undefined), credential: () => testCredential(), environment: "local" };
+  const execution: Execution = { scheduler, transportFor: (offeringId) => (offeringId === transport.profile.offeringId ? transport : undefined), credential: () => testCredential(), environment: "local", caps: () => CI_CAPS };
   const window = 60_000;
   // Generous: one browser, one address. The limits themselves are exercised by T0-02's suite.
   const limit = { address: { max: 1_000, windowMs: window }, email: { max: 1_000, windowMs: window } };

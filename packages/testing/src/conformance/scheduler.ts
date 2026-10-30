@@ -50,7 +50,7 @@ export function describeSchedulerConformance(name: string, factory: SchedulerSub
       await s.store.write(scope, async (tx) => {
         await tx.insertProject({ projectId, createdAt: at });
         await tx.insertGeneration({ generationId, projectId, operation: "treatment.draft", operationClass: "text.create", initiation: {}, effectiveModel: {}, versions: {}, testProvider: true,
-          resolvedInputs: {}, captured: [], package: {}, fitReport: {}, renderedRequest: {}, requestDigest: "sha256:conformance", expectedDigest: null, estimate: {}, target: {}, createdAt: at });
+          resolvedInputs: {}, captured: [], package: {}, fitReport: {}, renderedRequest: {}, requestDigest: "sha256:conformance", expectedDigest: null, inputFingerprint: `conformance:${generationId}`, estimate: {}, target: {}, createdAt: at });
         await s.scheduler.enqueue(tx, { jobId, projectId, generationId, run: 1, class: jobProvider === null ? "local" : "provider", provider: jobProvider, state: jobState,
           dueAt: terminal ? null : new Date(now + (options.dueInMs ?? 0)).toISOString(),
           deadlineAt: (options.deadlineMs ?? null) === null ? null : new Date(now + options.deadlineMs!).toISOString(), leaseToken: null, leaseExpiresAt: null,

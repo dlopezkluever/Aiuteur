@@ -1,4 +1,5 @@
 import { objectIdSchema, projectIdSchema, type ObjectId } from "@aiuteur/contract";
+import { checkTreatment, g4Splice } from "@aiuteur/guards";
 import { planTreatmentOption, resolveSourceMaterial, treatmentOptionKind } from "@aiuteur/story";
 import { z } from "zod";
 import type { OperationRecord } from "../operation.ts";
@@ -6,12 +7,10 @@ import type { OperationRecord } from "../operation.ts";
 const commandSchema = z.strictObject({ projectId: projectIdSchema, objectId: objectIdSchema, expectedDigest: z.string().min(1).optional() });
 type Command = z.infer<typeof commandSchema>;
 
-/** One passage per blank-line-separated block of the response; surrounding whitespace is not content. */
-const passages = (response: string) => response.split(/\r?\n[ \t]*(?:\r?\n[ \t]*)+/).map((p) => p.trim()).filter((p) => p.length > 0);
-
 /**
  * "Draft Treatment" (BUILD T0a): one Treatment Option from the creator's Source Material, on the text fast path. One
- * request, no divergence axis: N options and axes are VS2-2 / #132. Guards beyond G1 (schema) are T0-06's.
+ * request, no divergence axis: N options and axes are VS2-2 / #132. Guards (AI-map §3, §8): G1 schema, G2 reference
+ * integrity, G3 verbatim dialogue and G4 splice over the proposal here; G7 provenance runs on the attach plan in dispatch.
  */
 export const treatmentDraft: OperationRecord<Command, { objectId: ObjectId }, string[]> = {
   id: "treatment.draft",
@@ -26,12 +25,11 @@ export const treatmentDraft: OperationRecord<Command, { objectId: ObjectId }, st
     const sourceMaterial = await resolveSourceMaterial(tx, scope, projectId, target.objectId);
     return sourceMaterial && { operation: "treatment.draft", sourceMaterial, writingStyle: null };
   },
-  // AI-map G1 (schema): the model returns Treatment prose; it must be well-formed text with at least one passage.
-  validate(response) {
-    if (response.includes("\u0000") || !response.isWellFormed()) return { verdict: { pass: false, guard: "G1", reason: "not-well-formed-text" }, proposal: null };
-    const proposal = passages(response);
-    if (proposal.length === 0) return { verdict: { pass: false, guard: "G1", reason: "empty" }, proposal: null };
-    return { verdict: { pass: true, guards: ["G1"] }, proposal };
+  validate(response, inputs) {
+    const checked = checkTreatment(response, inputs.sourceMaterial.text);
+    return { verdict: checked.verdict, proposal: checked.passages, retained: checked.retained };
   },
+  current: (tx, scope, projectId, inputs) => treatmentDraft.resolve(tx, scope, projectId, { objectId: inputs.sourceMaterial.captured.objectId as ObjectId }),
+  base: (inputs, current) => g4Splice(inputs.sourceMaterial.captured, current && current.sourceMaterial.captured),
   attach: (proposal, generationId, newId) => ({ kind: treatmentOptionKind.kind, body: planTreatmentOption(proposal, generationId, newId) }),
 };
