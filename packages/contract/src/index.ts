@@ -2,3 +2,5 @@
 export * from "./studio.ts";
 export * from "./history.ts";
 export * from "./generation.ts";
+export * from "./responses.ts";
+export * from "./vocabulary.ts";

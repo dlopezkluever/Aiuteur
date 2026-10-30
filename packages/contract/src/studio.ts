@@ -66,6 +66,10 @@ export const recoveryCompleteSchema = z.strictObject({
 export type RecoveryComplete = z.infer<typeof recoveryCompleteSchema>;
 export const recoveryCompletedSchema = z.strictObject({ status: z.literal("recovered") });
 
+// T0-08. Who the session is, so a client that has only its cookie (a reload, a new tab) can find its Account.
+export const sessionSchema = z.strictObject({ accountId: accountIdSchema });
+export type Session = z.infer<typeof sessionSchema>;
+
 export const AUDIT_ACTIONS = ["invitation.issued"] as const;
 
 // FC2 route authority. The API and G1/G2 both consume this inventory; there is
@@ -75,9 +79,11 @@ export const ROUTES = [
   { method: "POST", path: "/api/recovery/request", access: "recovery" },
   { method: "POST", path: "/api/recovery/complete", access: "recovery" },
   { method: "POST", path: "/api/operator/invitations", access: "operator" },
+  { method: "GET", path: "/api/session", access: "session" },
   { method: "GET", path: "/api/studios/:accountId", access: "scope" },
   { method: "GET", path: "/api/studios/:accountId/projects", access: "scope" },
   { method: "POST", path: "/api/studios/:accountId/projects", access: "scope" },
+  { method: "GET", path: "/api/studios/:accountId/projects/:projectId/source-material", access: "scope" },
   { method: "POST", path: "/api/studios/:accountId/projects/:projectId/source-material", access: "scope" },
   { method: "GET", path: "/api/studios/:accountId/projects/:projectId/source-material/:objectId", access: "scope" },
   { method: "GET", path: "/api/studios/:accountId/projects/:projectId/source-material/:objectId/revisions/:sequence", access: "scope" },

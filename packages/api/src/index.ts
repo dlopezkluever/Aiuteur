@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { AccountRefusal, type Accounts } from "@aiuteur/accounts";
-import { accountIdSchema, changeRoleSchema, chooseOutcomeSchema, draftTreatmentResultSchema, draftTreatmentSchema, generationIdSchema, type Initiation, commitOutcomeSchema, idempotencyKeySchema, errorSchema, objectIdSchema, pasteSchema, projectIdSchema, projectSchema, type CommitOutcome, issueInvitationSchema, recoveryCompleteSchema, recoveryCompletedSchema, recoveryRequestSchema, recoveryRequestedSchema, redeemInvitationSchema, redeemedInvitationSchema, ROUTES, treatmentPreviewSchema } from "@aiuteur/contract";
+import { accountIdSchema, changeRoleSchema, chooseOutcomeSchema, draftTreatmentResultSchema, draftTreatmentSchema, generationIdSchema, type Initiation, commitOutcomeSchema, idempotencyKeySchema, errorSchema, objectIdSchema, pasteSchema, projectIdSchema, projectSchema, type CommitOutcome, issueInvitationSchema, recoveryCompleteSchema, recoveryCompletedSchema, recoveryRequestSchema, recoveryRequestedSchema, redeemInvitationSchema, redeemedInvitationSchema, ROUTES, sessionSchema, treatmentPreviewSchema } from "@aiuteur/contract";
 import type { Views } from "@aiuteur/views";
 import { IdempotencyKeyReused, type Workflows } from "@aiuteur/workflows";
 
@@ -80,6 +80,7 @@ export function createApi(options: { accounts: Accounts; views: Views; workflows
     if (!subject) throw new AccountRefusal("unauthenticated");
     const scope = await options.accounts.resolveScope(subject);
     if (!scope) throw new AccountRefusal("unauthenticated");
+    if (route.access === "session") return c.json(sessionSchema.parse({ accountId: scope.accountId }));
     if (route.access === "operator") {
       const parsed = issueInvitationSchema.safeParse(body);
       if (!parsed.success) return c.json(errorSchema.parse({ code: "invalid-request" }), 400);
@@ -97,6 +98,7 @@ export function createApi(options: { accounts: Accounts; views: Views; workflows
     if (key === "GET /api/studios/:accountId/projects") return respond(c, await options.views.projects(scope, id.data));
     if (key === "POST /api/studios/:accountId/projects") return c.json(projectSchema.parse(await options.workflows.createProject(scope)), 201);
     if (!project.success) return notFound();
+    if (key === "GET /api/studios/:accountId/projects/:projectId/source-material") return respond(c, await options.views.input(scope, project.data));
     if (key === "POST /api/studios/:accountId/projects/:projectId/source-material") {
       const parsed = pasteSchema.safeParse(body);
       const idem = idempotencyKeySchema.safeParse(c.req.header("idempotency-key"));

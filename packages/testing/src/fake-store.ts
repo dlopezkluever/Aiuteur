@@ -32,6 +32,7 @@ function readView(state: AccountState, scope: Scope): ReadTx {
     projects: async () => copy(state.projects),
     project: async (id) => copy(state.projects.find((project) => project.projectId === id) ?? null),
     object: async (id) => copy(state.objects.get(id) ?? null),
+    objects: async (project, kind) => copy([...state.objects.values()].filter((row) => row.projectId === project && row.kind === kind)),
     head: async (id) => copy(state.revisions.get(id)?.at(-1) ?? null),
     revision: async (id, sequence) => copy(state.revisions.get(id)?.[sequence - 1] ?? null),
     sequences: async (id) => (state.revisions.get(id) ?? []).map((row) => row.sequence),

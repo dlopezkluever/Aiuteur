@@ -119,6 +119,10 @@ function readTx(client: PoolClient): ReadTx {
       const row = rows[0];
       return row ? { objectId: objectIdSchema.parse(row.object_id), projectId: projectIdSchema.parse(row.project_id), kind: row.kind } : null;
     },
+    async objects(project: ProjectId, kind: string) {
+      const { rows } = await client.query<accounts_object>("SELECT object_id, project_id, kind FROM accounts.object WHERE project_id = $1 AND kind = $2 ORDER BY created_at, object_id", [project, kind]);
+      return rows.map((row) => ({ objectId: objectIdSchema.parse(row.object_id), projectId: projectIdSchema.parse(row.project_id), kind: row.kind }));
+    },
     async head(id: ObjectId) {
       const { rows } = await client.query<accounts_revision>("SELECT * FROM accounts.revision WHERE object_id = $1 ORDER BY sequence DESC LIMIT 1", [id]);
       return rows[0] ? revision(rows[0]) : null;

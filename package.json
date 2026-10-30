@@ -10,7 +10,13 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "rules": "vitest run tools/arch-rules",
     "test": "vitest run",
-    "check": "pnpm typecheck && pnpm test"
+    "check": "pnpm typecheck && pnpm test",
+    "secrets": "node tools/verify/scripts/secret-scan.ts",
+    "audit:deps": "pnpm audit --audit-level=high",
+    "generated": "node packages/store/scripts/migrate.ts && node packages/store/scripts/schema.ts --check && node packages/store/scripts/vocabulary.ts --check",
+    "static": "pnpm typecheck && pnpm rules && pnpm secrets && pnpm audit:deps && pnpm generated",
+    "required": "vitest run --reporter=default --reporter=json --outputFile=.vitest-report.json; s=$?; node tools/verify/scripts/require-ran.ts .vitest-report.json && exit $s",
+    "pipeline": "pnpm static && pnpm required"
   },
   "devDependencies": {
     "@types/node": "^24.10.0",

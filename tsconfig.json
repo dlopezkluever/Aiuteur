@@ -1,7 +1,8 @@
 {
   "compilerOptions": {
     "target": "ES2024",
-    "lib": ["ES2024"],
+    "lib": ["ES2024", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "types": ["node"],
@@ -17,5 +18,5 @@
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": ["packages/*/src", "packages/*/test", "packages/*/scripts", "tools/*/src", "tools/*/test", "vitest.config.ts"]
+  "include": ["packages/*/src", "packages/*/test", "packages/*/scripts", "packages/*/vite.config.ts", "apps/*/src", "apps/*/test", "tools/*/src", "tools/*/test", "vitest.config.ts"]
 }

@@ -1,0 +1,62 @@
+name: pipeline
+
+# The first required pipeline (T0-07; VERIFICATION-AND-OBSERVABILITY §9, OPERATIONAL-BASELINE §4.2).
+# One job, one command: `pnpm pipeline` is `pnpm static` then `pnpm required`. Branch protection on `main` requires the
+# check named `verify`. A step that fails, a required suite that did not run, and a skipped test all fail the job.
+on:
+  push:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pipeline-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  verify:
+    name: verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      postgres:
+        # Real PostgreSQL for the Store, Scheduler, VC5, VC7 and VC8 suites. Trust auth: the runtime roles have no password.
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
+    env:
+      # The suites read these; a missing one fails the suite, it never skips it.
+      TEST_POSTGRES_URL: postgres://postgres@127.0.0.1:5432/postgres
+      MIGRATION_DATABASE_URL: postgres://postgres@127.0.0.1:5432/generated_equality
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+          cache: pnpm
+      - name: Install ffmpeg (the fake provider's media checks run it; absent means failure)
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - run: pnpm install --frozen-lockfile
+      - name: Install the browser the VC9 short path drives (absent means failure)
+        run: pnpm --filter @aiuteur/web exec playwright install --with-deps chromium
+      - name: Create the database the generated-code equality check migrates
+        run: psql "$TEST_POSTGRES_URL" -v ON_ERROR_STOP=1 -c "CREATE DATABASE generated_equality"
+      - name: VC1 static (types, R1-R24 rules, console ban, vendor names, secret scan, dependency audit, generated-code equality)
+        run: pnpm static
+      - name: VC2 to VC10 and every existing suite, on real PostgreSQL; a skipped required check fails
+        run: pnpm required

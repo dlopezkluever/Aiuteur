@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { ROUTES, ROUTE_RESPONSES, type RouteKey } from "@aiuteur/contract";
 import { Pool } from "pg";
 import { createPostgresScheduler, migrateDatabase, type Clock, type Ids } from "@aiuteur/store";
 import { FAKE_TEXT_PROFILE, FakeTransport, SpyTransport, testCredential, type RecordedProposal } from "@aiuteur/testing";
@@ -56,4 +57,31 @@ export async function testExecution(database: { url(role?: string): string }, cl
     caps: () => caps,
   };
   return { execution, transport, close: () => scheduler.close() };
+}
+
+/**
+ * VC6, server against the schema: every successful answer of the real API must parse with the response schema that
+ * `ROUTE_RESPONSES` declares for its route. The declaration (which the mock server also uses) and the API are two
+ * independent sides, so a wrong mapping or a drifting handler turns the suite red.
+ */
+export function contracted<A extends { request(input: string, init?: RequestInit): Response | Promise<Response> }>(api: A): A {
+  const owned = ROUTES.filter((route) => route.access !== "auth").map((route) => ({ key: `${route.method} ${route.path}` as RouteKey, method: route.method as string, pattern: new RegExp(`^${route.path.replace(/:[A-Za-z]+/g, "[^/]+")}$`) }));
+  return new Proxy(api, {
+    get(target, property) {
+      if (property !== "request") return Reflect.get(target, property);
+      return async (input: string, init?: RequestInit) => {
+        const response = await target.request(input, init);
+        if (response.status < 300) {
+          const method = (init?.method ?? "GET").toUpperCase();
+          const path = new URL(input).pathname;
+          const route = owned.find((candidate) => candidate.method === method && candidate.pattern.test(path));
+          if (route) {
+            const parsed = ROUTE_RESPONSES[route.key].schema.safeParse(await response.clone().json());
+            if (!parsed.success) throw new Error(`${route.key} answered ${response.status} with a body its declared response schema rejects: ${JSON.stringify(parsed.error.issues.slice(0, 2))}`);
+          }
+        }
+        return response;
+      };
+    },
+  });
 }

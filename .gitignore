@@ -1,2 +1,4 @@
 node_modules/
 .amp/in/
+.vitest-report.json
+dist/

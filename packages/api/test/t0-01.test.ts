@@ -9,7 +9,7 @@ import { Pool } from "pg";
 import { afterAll, beforeAll, expect, it } from "vitest";
 import { TOTP, Secret } from "otpauth";
 import { createAccounts, createBetterAuth } from "@aiuteur/accounts";
-import { IDEMPOTENT_OPERATIONS, ACTOR_KINDS, ATTEMPT_ORIGINS, REVISION_CAUSES, accountIdSchema, commitOutcomeSchema, creatorIdSchema, projectSchema, sourceMaterialReadSchema, type ObjectId, studioSchema, projectListSchema, invitationSchema, redeemedInvitationSchema, ROUTES, eventSchema, AUDIT_ACTIONS } from "@aiuteur/contract";
+import { IDEMPOTENT_OPERATIONS, ACTOR_KINDS, ATTEMPT_ORIGINS, REVISION_CAUSES, accountIdSchema, commitOutcomeSchema, creatorIdSchema, projectSchema, sourceMaterialReadSchema, sessionSchema, inputReadSchema, type ObjectId, studioSchema, projectListSchema, invitationSchema, redeemedInvitationSchema, ROUTES, eventSchema, AUDIT_ACTIONS } from "@aiuteur/contract";
 import { createPostgresStore, migrateDatabase, schemaCatalogue, type Scope } from "@aiuteur/store";
 import { createViews } from "@aiuteur/views";
 import { createHistory } from "@aiuteur/history";
@@ -17,7 +17,7 @@ import { sourceMaterialKind } from "@aiuteur/story";
 import { createWorkflows } from "@aiuteur/workflows";
 import { describeHistoryConformance, describeStoreConformance, storeIgnoringScope, FakeMailer, ManualClock, uuidv7, syntheticCatalogue, TEST_PRICE_POLICY } from "@aiuteur/testing";
 import { createApi } from "@aiuteur/api";
-import { freshDatabase, testExecution } from "./database.ts";
+import { freshDatabase, testExecution, contracted } from "./database.ts";
 
 const origin = "https://aiuteur.test";
 const password = "Paper-crane-lighthouse-98!";
@@ -38,7 +38,7 @@ beforeAll(async () => {
   const generous = { max: 1_000_000, windowMs: 60_000 };
   const limit = { address: generous, email: generous };
   accounts = createAccounts({ ...adapter, clock, ids, invitationTtlMs: 60_000, operatorEmails: ["operator@example.test"], mailer: new FakeMailer(), limits: { signIn: limit, recovery: limit, redemption: limit }, recoveryTtlMs: 600_000, recoveryPage: `${origin}/recover`, onMailFailure: (error) => { throw error; } });
-  api = createApi({ accounts, views: createViews(store), workflows: createWorkflows({ store, history: createHistory([sourceMaterialKind]), clock, ids, catalogue: syntheticCatalogue(), pricePolicy: TEST_PRICE_POLICY, execution: run.execution }), handleAuth: adapter.handle, origin, requestId: ids.uuid, now: () => clock.now(), clientAddress: () => "203.0.113.1" });
+  api = contracted(createApi({ accounts, views: createViews(store), workflows: createWorkflows({ store, history: createHistory([sourceMaterialKind]), clock, ids, catalogue: syntheticCatalogue(), pricePolicy: TEST_PRICE_POLICY, execution: run.execution }), handleAuth: adapter.handle, origin, requestId: ids.uuid, now: () => clock.now(), clientAddress: () => "203.0.113.1" }));
 });
 afterAll(async () => { await run?.close(); await store?.close(); await adapter?.close(); await database?.close(); });
 
@@ -187,7 +187,7 @@ it("G1: every scoped operation, with its real method, refuses another Account ex
 
 it("G2: the actual router equals the short inventory; scoped and operator reads require a mapped session", async () => {
   expect(api.routes.map(({ method, path }) => ({ method, path }))).toEqual(ROUTES.map(({ method, path }) => ({ method, path })));
-  for (const route of ROUTES.filter((route) => route.access === "scope" || route.access === "operator")) {
+  for (const route of ROUTES.filter((route) => route.access === "scope" || route.access === "operator" || route.access === "session")) {
     const response = await request(route.path.replace(":accountId", ids.uuid()), route.method === "POST" ? { email: "someone@example.test" } : undefined);
     expect(response.status).toBe(401);
     expect(await response.json()).toEqual({ code: "unauthenticated" });
@@ -491,4 +491,28 @@ it("real SQL paths default-deny, reset transaction context and refuse cross-Acco
       await expect(client2.query("INSERT INTO accounts.settings VALUES ($1, 'studio', 1, '{}')", [absent])).rejects.toMatchObject({ code: "23503" });
     } finally { await client2.query("ROLLBACK"); client2.release(); }
   } finally { await raw.end(); await identity.end(); }
+});
+
+it("T0-08: a session reads its own Account, and the Input read model lists a project's pasted material oldest first", async () => {
+  const a = await creator();
+  const b = await creator();
+  expect((await request("/api/session")).status).toBe(401);
+  expect(sessionSchema.parse(await (await request("/api/session", undefined, a.cookie)).json())).toEqual({ accountId: a.accountId });
+  expect(sessionSchema.parse(await (await request("/api/session", undefined, b.cookie)).json())).toEqual({ accountId: b.accountId });
+
+  const project = projectSchema.parse(await (await request(`/api/studios/${a.accountId}/projects`, {}, a.cookie)).json()).projectId;
+  const path = `/api/studios/${a.accountId}/projects/${project}/source-material`;
+  expect(inputReadSchema.parse(await (await request(path, undefined, a.cookie)).json())).toEqual({ items: [] });
+  const first = commitOutcomeSchema.parse(await (await request(path, { text: "first" }, a.cookie)).json());
+  const second = commitOutcomeSchema.parse(await (await request(path, { text: "second" }, a.cookie)).json());
+  if (first.result !== "Applied" || second.result !== "Applied") throw new Error("not applied");
+  const listed = inputReadSchema.parse(await (await request(path, undefined, a.cookie)).json());
+  expect(listed.items.map((item) => [item.head.objectId, item.head.text, item.head.sequence])).toEqual([[first.revision.objectId, "first", 1], [second.revision.objectId, "second", 1]]);
+  // The list is the per-object read model, item for item.
+  for (const item of listed.items) {
+    expect(sourceMaterialReadSchema.parse(await (await request(`${path}/${item.head.objectId}`, undefined, a.cookie)).json())).toEqual(item);
+  }
+  // Another project of the same Account lists none of it.
+  const other = projectSchema.parse(await (await request(`/api/studios/${a.accountId}/projects`, {}, a.cookie)).json()).projectId;
+  expect(inputReadSchema.parse(await (await request(`/api/studios/${a.accountId}/projects/${other}/source-material`, undefined, a.cookie)).json())).toEqual({ items: [] });
 });
