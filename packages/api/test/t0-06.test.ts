@@ -117,6 +117,11 @@ const SOURCE = `Mara runs the night ferry. A passenger boards and says, ${LINE}\
 const FIXED = `Mara ferries a stranger who says ${LINE}`;
 const ALTERED = "A stranger boards and says, \u201cDeliver it, or somebody crosses again.\u201d";
 const RESTYLED = "A stranger boards and says, \u2018Deliver it, or nobody crosses again.\u2019";
+const PRICES = priceEntries(syntheticCatalogue(), "fake-text", "text.create");
+const utf8 = (text: string) => Buffer.byteLength(text, "utf8");
+const microsOf = (quantities: readonly { unit: string; amount: number }[]) => quantities.reduce((sum, q) => { const e = PRICES.find((p) => p.unit === q.unit)!; return sum + Math.ceil((q.amount * e.priceMicros) / e.per); }, 0);
+/** The most a run can bill, derived here from the request alone: its input bytes and its declared maximum output. */
+const upperOfRequest = (request: GenerationRead["renderedRequest"]) => microsOf([{ unit: "input-token", amount: request.textParts.reduce((n, part) => n + utf8(part.text), 0) }, { unit: "output-token", amount: Number(request.parameters["maxOutputTokens"]) }]);
 const wire = (w: World) => w.transport.control.sentWireBodies().map((entry) => new TextDecoder().decode(entry.body));
 /** The Source Material moves on while the model works (appended directly: the API keeps originals immutable). */
 const moveOn = (account: () => string) => async () => {
@@ -198,7 +203,7 @@ describe("guards over authored adversarial proposals", () => {
     expect(generation.outcome!.actual).toMatchObject({ form: "reported" }); // the draft's reported cost survives
     const scope = (await accounts.resolveScope((await accounts.authenticate(new Headers({ cookie: c.cookie })))!))!;
     const facts = await store.read(scope, (tx) => tx.spendFacts(new Date(0).toISOString()));
-    expect(facts).toEqual([expect.objectContaining({ generationId: generation.generationId, maybeRuns: 1 })]);
+    expect(facts).toEqual([expect.objectContaining({ generationId: generation.generationId, countedMicros: microsOf(generation.calls[0]!.reportedCost!) + upperOfRequest(generation.calls[1]!.renderedRequest!) })]);
   });
 
   it("a refused repair keeps its provider reason and billing on the run history", async () => {
@@ -388,13 +393,51 @@ describe("a Generation's actual cost covers every run once (BUSINESS §4.4, §5.
     expect(generation.outcome!.actual).toMatchObject({ form: "computed", amountMicros: micros(billed(generation.renderedRequest, GOOD)) });
   });
 
+  it("a repair that FAILS billed yes with no usage counts run 1's reported cost plus the repair's own upper bound, once each; the next admission is exact at both sides of that boundary", async () => {
+    const w = await world([synthetic(1, ALTERED)], { repairOutcome: { outcome: "refused", failureClass: "unknown", billed: "yes", providerReason: "billed then failed" } });
+    const c = await pasted(w, SOURCE);
+    const scope = await scopeOf(c.cookie);
+    await store.write(scope, (tx) => tx.putSettings({ treatmentOptionCount: 3, timeZone: "America/Chicago" }));
+    const generation = generationOf((await draft(w, c)).body);
+    expect(generation.runs.map((run) => [run.run, run.state, run.billed])).toEqual([[1, "succeeded", "yes"], [2, "failed", "yes"]]);
+    expect(generation.calls.map((call) => [call.role, call.reportedCost === null])).toEqual([["draft", false], ["repair", true]]);
+    const run1 = micros(generation.calls[0]!.reportedCost!);
+    const repairUpper = upperOfRequest(generation.calls[1]!.renderedRequest!);
+    const originalUpper = await upperOf(w, c);
+    expect(repairUpper).toBeGreaterThan(originalUpper); // the repair request carries the refused answer too
+    // The Generation's actual is unavailable (the repair's output is only the provider's to say); it is never an invented computed value.
+    expect(generation.outcome!.actual).toEqual({ form: "unknown", billed: "yes" });
+    const committedMicros = run1 + repairUpper;
+    const facts = await store.read(scope, (tx) => tx.spendFacts(new Date(0).toISOString()));
+    expect(facts).toEqual([expect.objectContaining({ generationId: generation.generationId, countedMicros: committedMicros })]);
+
+    const next = originalUpper; // the same inputs again: the first has settled, so this is a deliberate new request
+    const refused = await world([synthetic(1, FIXED)], { caps: { ...NO_CAPS, creator: { dailyMicros: committedMicros + next - 1, monthlyMicros: null, perActionMicros: null } } });
+    expect((await draft(refused, c)).body).toEqual({ result: "cap-reached", cap: "daily", remainingMicros: next - 1 });
+    expect(await rows("generation", c.accountId)).toBe(1);
+    const admitted = await world([synthetic(1, FIXED)], { caps: { ...NO_CAPS, creator: { dailyMicros: committedMicros + next, monthlyMicros: null, perActionMicros: null } } });
+    expect((await draft(admitted, c)).body.result).toBe("generation");
+    // Neither omitting the repair (run 1 alone) nor substituting the original estimate for the whole Generation would refuse at the first boundary.
+    expect(run1 + next).toBeLessThanOrEqual(committedMicros + next - 1);
+    expect(originalUpper + next).toBeLessThanOrEqual(committedMicros + next - 1);
+  });
+
+  it("a repair refused with billed no adds nothing beyond run 1", async () => {
+    const w = await world([synthetic(1, ALTERED)], { repairOutcome: { outcome: "refused", failureClass: "transient-unbilled", billed: "no", providerReason: "rate limited" } });
+    const c = await pasted(w, SOURCE);
+    const generation = generationOf((await draft(w, c)).body);
+    const facts = await store.read(await scopeOf(c.cookie), (tx) => tx.spendFacts(new Date(0).toISOString()));
+    expect(facts[0]).toMatchObject({ countedMicros: micros(generation.calls[0]!.reportedCost!) });
+  });
+
   it("a repair that may have been billed keeps the draft's cost as the actual and its own exposure as a maybe-billed run, counted once each", async () => {
     const w = await world([synthetic(1, ALTERED)], { repairOutcome: { outcome: "unconfirmed" } });
     const c = await pasted(w, SOURCE);
     const generation = generationOf((await draft(w, c)).body);
     expect(generation.outcome!.actual).toMatchObject({ form: "reported", amountMicros: micros(generation.calls[0]!.reportedCost!) });
     const facts = await store.read(await scopeOf(c.cookie), (tx) => tx.spendFacts(new Date(0).toISOString()));
-    expect(facts[0]).toMatchObject({ maybeRuns: 1, actual: { amountMicros: micros(generation.calls[0]!.reportedCost!) } });
+    // Run 1 counts its reported cost once; the maybe-billed repair counts ITS OWN request's upper bound (larger than the original estimate's input), not the Generation's estimate.
+    expect(facts[0]).toMatchObject({ countedMicros: micros(generation.calls[0]!.reportedCost!) + upperOfRequest(generation.calls[1]!.renderedRequest!), actual: { amountMicros: micros(generation.calls[0]!.reportedCost!) } });
   });
 });
 

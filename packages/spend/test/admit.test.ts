@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { priceEntries } from "@aiuteur/providers";
-import { admit, derivedQuantities, settleActual, type Caps, type SpendFact } from "@aiuteur/spend";
+import { admit, derivedQuantities, runCounted, settleActual, upperBoundMicros, type Caps, type SpendFact } from "@aiuteur/spend";
 import { FAKE_TEXT_PROFILE, syntheticCatalogue } from "@aiuteur/testing";
 
 // spend.admit over explicit values (BUSINESS §6.3). No production default exists; every figure here is a test value.
 const point = (amountMicros: number) => ({ form: "point" as const, currency: "USD" as const, amountMicros, basis: { requestDigest: "sha256:x", quantities: [], entries: [] } });
 const caps = (creator: Partial<Caps["creator"]>): Caps => ({ creator: { dailyMicros: null, monthlyMicros: null, perActionMicros: null, ...creator }, ceiling: { dailyMicros: null, monthlyMicros: null } });
-const computed = (createdAt: string, amountMicros: number, maybeRuns = 0): SpendFact => ({ createdAt, estimate: point(100), actual: { form: "computed", currency: "USD", amountMicros, quantities: [] }, maybeRuns });
+const computed = (createdAt: string, amountMicros: number, maybeRuns = 0): SpendFact => ({ createdAt, estimate: point(100), actual: { form: "computed", currency: "USD", amountMicros, quantities: [] }, countedMicros: amountMicros + maybeRuns * 100 });
 const at = (iso: string) => Date.parse(iso);
 
 describe("actual cost: reported, computed, unknown (BUSINESS §4.4)", () => {
@@ -33,6 +33,28 @@ describe("actual cost: reported, computed, unknown (BUSINESS §4.4)", () => {
   });
 });
 
+describe("what each run counts (BUSINESS §5.3)", () => {
+  const entries = priceEntries(syntheticCatalogue(), "fake-text", "text.create");
+  const rule = FAKE_TEXT_PROFILE.cost.billedQuantity;
+  const request = { textParts: [{ layerKey: "source-material", text: "a".repeat(1000), layerDigest: "d" }], mediaParts: [], parameters: { maxOutputTokens: 2048 }, rewrites: [] };
+  const upper = upperBoundMicros(rule, request, entries)!;
+  it("a run's upper bound is its own request at the declared maximum", () => expect(upper).toBe(3_000 + 30_720));
+  it("no counts nothing; maybe counts the run's upper bound; yes counts reported, else derived, else the upper bound", () => {
+    const base = { reported: null, derived: null, upperMicros: upper };
+    expect(runCounted({ ...base, billed: "no" }, entries)).toBe(0);
+    expect(runCounted({ ...base, billed: "maybe" }, entries)).toBe(upper);
+    expect(runCounted({ ...base, billed: "yes" }, entries)).toBe(upper);
+    expect(runCounted({ ...base, billed: "yes", derived: [{ unit: "input-token", amount: 1000 }, { unit: "output-token", amount: 100 }] }, entries)).toBe(3_000 + 1_500);
+    expect(runCounted({ ...base, billed: "yes", reported: [{ unit: "input-token", amount: 1000 }], derived: [{ unit: "input-token", amount: 9000 }] }, entries)).toBe(3_000);
+  });
+  it("a generation without per-run counts (written by the previous image) falls back to its actual, else its estimate", () => {
+    const now = at("2026-06-10T13:00:00Z");
+    const legacy = (actual: unknown): SpendFact => ({ createdAt: "2026-06-10T12:00:00Z", estimate: point(500), actual, countedMicros: null });
+    expect(admit({ estimate: point(100), facts: [legacy({ form: "unknown", billed: "yes" })], now, caps: caps({ dailyMicros: 599 }), timeZone: "UTC" })).toMatchObject({ result: "refused" });
+    expect(admit({ estimate: point(100), facts: [legacy({ form: "unknown", billed: "yes" })], now, caps: caps({ dailyMicros: 600 }), timeZone: "UTC" })).toEqual({ result: "admitted" });
+  });
+});
+
 describe("committed spend", () => {
   it("a settled COMPUTED actual counts toward the next admission, exactly as a reported one does", () => {
     const facts = [computed("2026-06-10T12:00:00Z", 900)];
@@ -44,7 +66,7 @@ describe("committed spend", () => {
     const now = at("2026-06-10T13:00:00Z");
     const maybe = [computed("2026-06-10T12:00:00Z", 900, 1)];
     expect(admit({ estimate: point(100), facts: maybe, now, caps: caps({ dailyMicros: 1_099 }), timeZone: "UTC" })).toMatchObject({ result: "refused" });
-    const unbilled: SpendFact[] = [{ createdAt: "2026-06-10T12:00:00Z", estimate: point(500), actual: { form: "unknown", billed: "no" }, maybeRuns: 0 }];
+    const unbilled: SpendFact[] = [{ createdAt: "2026-06-10T12:00:00Z", estimate: point(500), actual: { form: "unknown", billed: "no" }, countedMicros: 0 }];
     expect(admit({ estimate: point(100), facts: unbilled, now, caps: caps({ dailyMicros: 100 }), timeZone: "UTC" })).toEqual({ result: "admitted" });
   });
 });

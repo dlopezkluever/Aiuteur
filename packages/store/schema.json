@@ -819,6 +819,12 @@
           "type": "timestamp with time zone",
           "default": null,
           "nullable": false
+        },
+        {
+          "name": "counted_micros",
+          "type": "integer",
+          "default": null,
+          "nullable": true
         }
       ],
       "constraints": [

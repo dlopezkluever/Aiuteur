@@ -4,7 +4,7 @@ import { g7Provenance, passed } from "@aiuteur/guards";
 import type { History } from "@aiuteur/history";
 import { LeaseLost, type Jobs } from "@aiuteur/jobs";
 import { gate, priceEntries, type Catalogue, type CredentialHandle, type PriceEntry, type ProviderTransport, type ReportedCost } from "@aiuteur/providers";
-import { derivedQuantities, settleActual, type RunQuantities } from "@aiuteur/spend";
+import { derivedQuantities, runCounted, settleActual, upperBound, upperBoundMicros, type RunQuantities } from "@aiuteur/spend";
 import type { Clock, GenerationRow, Ids, JobRow, Leased, ReadTx, Scope, Store, WriteTx } from "@aiuteur/store";
 
 /** What an operation supplies to settle its output (FC6: `validate` and `attach`); `generation` runs them inside the settling transaction. */
@@ -58,9 +58,9 @@ export function createDispatch(options: DispatchOptions) {
   const { store, history, jobs, catalogue, clock, ids } = options;
   const iso = () => new Date(clock.now()).toISOString();
 
-  async function settleFailed(wtx: WriteTx, lease: Leased, generation: GenerationRow, job: JobRow, from: "queued" | "submitting", failure: Failure, cost: ActualCost, generationReason: string = failure.reason) {
+  async function settleFailed(wtx: WriteTx, lease: Leased, generation: GenerationRow, job: JobRow, from: "queued" | "submitting", failure: Failure, cost: ActualCost, counted: number, generationReason: string = failure.reason) {
     await jobs.settle(wtx, lease, from, "failed", failure, async () => {
-      await wtx.insertRun({ generationId: generation.generationId, jobId: lease.jobId, projectId: generation.projectId, run: job.run, state: "failed", ...failure, createdAt: iso() });
+      await wtx.insertRun({ generationId: generation.generationId, jobId: lease.jobId, projectId: generation.projectId, run: job.run, state: "failed", ...failure, countedMicros: counted, createdAt: iso() });
       await wtx.insertSettlement({ generationId: generation.generationId, projectId: generation.projectId, outcome: "failed", reason: generationReason, actual: cost, outputs: [], settledAt: iso() });
       await wtx.appendEvent({ type: "generation.settled", generationId: generation.generationId, outcome: "failed", occurredAt: iso() });
     });
@@ -95,7 +95,7 @@ export function createDispatch(options: DispatchOptions) {
       // Past the admission deadline: fail with the deadline's reason, never submit (RUNTIME §4.2 tick; JOB-LIFECYCLE §2).
       if (job.state === "queued" && job.deadlineAt !== null && Date.parse(job.deadlineAt) <= clock.now()) {
         const prices = priceEntries(catalogue, effectiveOf(generation).offeringId, generation.operationClass);
-        await settleFailed(wtx, lease, generation, job, "queued", { failureClass: "transient-unbilled", billed: "no", reason: "queue_timeout", operationRef: null }, await spent(wtx, generation, job.run, null, prices, "no"));
+        await settleFailed(wtx, lease, generation, job, "queued", { failureClass: "transient-unbilled", billed: "no", reason: "queue_timeout", operationRef: null }, await spent(wtx, generation, job.run, null, prices, "no"), 0);
         return { expired: generation.generationId } as const;
       }
       if (!await jobs.transition(wtx, lease, "queued", "submitting")) throw new LeaseLost(lease.jobId);
@@ -129,6 +129,14 @@ export function createDispatch(options: DispatchOptions) {
     const call = (wtx: WriteTx, operationRef: string | null, response: string | null, verdict: Verdict | null, cost: Quantities | null) =>
       wtx.insertCall({ generationId, index: job.run, projectId: generation.projectId, role: job.run === 1 ? "draft" : "repair", jobId: lease.jobId, requestDigest: outgoing.digest, renderedRequest: job.run === 1 ? null : outgoing.request, operationRef, response, verdict, reportedCost: cost, createdAt: iso() });
 
+    // What THIS run counts toward committed spend, from its own request and answer (BUSINESS §5.3); written with the run.
+    const rule = offering?.profile.cost.billedQuantity ?? { state: "unknown" as const };
+    const countedNow = (billed: Billed, response: string | null, reported: Quantities | null): number => {
+      const upper = upperBoundMicros(rule as never, outgoing.request, prices) ?? upperBound(generation.estimate as Estimate);
+      if (upper === null) throw new Error("a run's upper bound cannot be determined");
+      return runCounted({ billed, reported, derived: derivedQuantities(rule as never, outgoing.request, response), upperMicros: upper }, prices);
+    };
+
     // F3 runs immediately before every send, over the request this run sends and its digest.
     const verdict = gate({
       operationClass: generation.operationClass, status: offering?.status,
@@ -139,7 +147,7 @@ export function createDispatch(options: DispatchOptions) {
     if (verdict.result === "refused" || !transport || !credential) {
       const reason = verdict.result === "refused" ? `gate:${verdict.clause}:${verdict.reason}` : "gate:transport:absent";
       await store.write(scope, async (wtx) => settleFailed(wtx, lease, generation, job, "submitting", { failureClass: verdict.result === "refused" ? verdict.failureClass : "platform-configuration", billed: "no", reason, operationRef: null },
-        await spent(wtx, generation, job.run, null, prices, "no"), priorReason ?? reason));
+        await spent(wtx, generation, job.run, null, prices, "no"), 0, priorReason ?? reason));
       return { result: "refused", generationId, clause: verdict.result === "refused" ? verdict.clause : "status" };
     }
 
@@ -155,7 +163,7 @@ export function createDispatch(options: DispatchOptions) {
     const failedRun = async (failure: Failure, reported: Quantities | null, logged: boolean) => {
       await store.write(scope, async (wtx) => {
         if (logged || job.run > 1) await call(wtx, failure.operationRef, null, null, reported);
-        await settleFailed(wtx, lease, generation, job, "submitting", failure, await spent(wtx, generation, job.run, null, prices, failure.billed), priorReason ?? failure.reason);
+        await settleFailed(wtx, lease, generation, job, "submitting", failure, await spent(wtx, generation, job.run, { request: outgoing.request, response: null, reported }, prices, failure.billed), countedNow(failure.billed, null, reported), priorReason ?? failure.reason);
       });
       return { result: "settled", generationId } as const;
     };
@@ -180,7 +188,7 @@ export function createDispatch(options: DispatchOptions) {
         await store.write(scope, async (wtx) => {
           await call(wtx, operationRef, text, checked.verdict, reported);
           await jobs.settle(wtx, lease, "submitting", "succeeded", { operationRef, failureClass: null, billed: "yes", reason: why }, async () => {
-            await wtx.insertRun({ generationId, jobId: lease.jobId, projectId: generation.projectId, run: 1, state: "succeeded", operationRef, failureClass: null, billed: "yes", reason: why, createdAt: iso() });
+            await wtx.insertRun({ generationId, jobId: lease.jobId, projectId: generation.projectId, run: 1, state: "succeeded", operationRef, failureClass: null, billed: "yes", reason: why, countedMicros: countedNow("yes", text, reported), createdAt: iso() });
           });
           await jobs.enqueue(wtx, repairJob);
         });
@@ -193,14 +201,14 @@ export function createDispatch(options: DispatchOptions) {
       const cost = await spent(wtx, generation, job.run, { request: outgoing.request, response: text, reported }, prices, "yes");
       const settleSucceeded = (outputs: readonly { kind: "option"; objectId: ObjectId; sequence: number }[], reason: string | null) =>
         jobs.settle(wtx, lease, "submitting", "succeeded", { operationRef, failureClass: null, billed: "yes", reason }, async () => {
-          await wtx.insertRun({ generationId, jobId: lease.jobId, projectId: generation.projectId, run: job.run, state: "succeeded", operationRef, failureClass: null, billed: "yes", reason, createdAt: iso() });
+          await wtx.insertRun({ generationId, jobId: lease.jobId, projectId: generation.projectId, run: job.run, state: "succeeded", operationRef, failureClass: null, billed: "yes", reason, countedMicros: countedNow("yes", text, reported), createdAt: iso() });
           await wtx.insertSettlement({ generationId, projectId: generation.projectId, outcome: "succeeded", reason, actual: cost, outputs, settledAt: iso() });
           await wtx.appendEvent({ type: "generation.settled", generationId, outcome: "succeeded", occurredAt: iso() });
         });
       // REJECTED: the raw output of every call stays on the call log; no Option exists (AI-map §5).
       const rejected = async (v: Verdict) => {
         await call(wtx, operationRef, text, v, reported);
-        await settleFailed(wtx, lease, generation, job, "submitting", { failureClass: "unknown", billed: "yes", reason: v.pass === true ? "rejected" : `rejected:${v.guard}:${v.reason}`, operationRef }, cost);
+        await settleFailed(wtx, lease, generation, job, "submitting", { failureClass: "unknown", billed: "yes", reason: v.pass === true ? "rejected" : `rejected:${v.guard}:${v.reason}`, operationRef }, cost, countedNow("yes", text, reported));
       };
       // G4 reads the base in this transaction. A changed base is HELD: the paid output is stored as an Option (HeldAsOption), never applied.
       const base = operation.base(inputs, await operation.current(wtx, scope, generation.projectId, inputs));

@@ -85,7 +85,7 @@ export interface SpendFact {
   readonly estimate: unknown;
   readonly actual: unknown | null;
   /** Runs of this Generation that may have been billed (`maybe`): each counts its estimate until reconciled (BUSINESS §5.3). */
-  readonly maybeRuns: number;
+  readonly countedMicros: number | null;
 }
 /** The one mutable state machine (JOB-LIFECYCLE §2–§3). Times are ISO instants from the injected Clock. */
 export interface JobRow {
@@ -122,6 +122,8 @@ export interface RunRow {
   readonly billed: Billed | null;
   readonly reason: string | null;
   readonly createdAt: string;
+  /** What this run counts toward committed spend (BUSINESS §5.3); null on a run written by the previous image. */
+  readonly countedMicros: number | null;
 }
 /** One entry of the call log (GENERATION-PACKAGE §11). */
 export interface CallRow {
@@ -192,7 +194,7 @@ export interface ReadTx {
   decisions(id: ObjectId): Promise<DecisionRow[]>;
   /** The most recent Decision of this type on any object of this kind in the project, or null. */
   latestDecision(project: ProjectId, type: DecisionType, kind: string): Promise<DecisionRow | null>;
-  /** Every Generation of the scoped Account created at or after an instant, with its settled actual cost (null while unsettled) and its maybe-billed runs. */
+  /** Every Generation of the scoped Account created at or after an instant, with its settled actual cost (null while unsettled) and the sum of its runs' counted amounts. */
   spendFacts(since: string): Promise<SpendFact[]>;
   /** A Generation of this Account with this input fingerprint that has not settled, or null (JOB-LIFECYCLE §4). */
   inProgress(inputFingerprint: string): Promise<GenerationId | null>;

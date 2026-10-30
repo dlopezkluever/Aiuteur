@@ -8,6 +8,8 @@ SET LOCAL ROLE owner;
 -- `rendered_request` is the exact input of a call that is not the Generation's own request (the repair call, PACKAGE §11).
 ALTER TABLE accounts.generation ADD COLUMN input_fingerprint text;
 ALTER TABLE accounts.generation_call ADD COLUMN rendered_request jsonb;
+-- What each run counts toward committed spend (BUSINESS §5.3, §6.3), written with the run. Nullable: the previous image does not write it.
+ALTER TABLE accounts.generation_run ADD COLUMN counted_micros integer;
 
 -- "Is an identical request in progress?" and "what has this Account committed this period?" both run in the creating
 -- transaction (BUSINESS §6.3), so each reads one Account's rows by the key it needs.

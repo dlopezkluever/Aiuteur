@@ -64,7 +64,7 @@ function readTx(client: PoolClient): ReadTx {
       const { rows } = await client.query<accounts_generation_run>("SELECT * FROM accounts.generation_run WHERE generation_id = $1 ORDER BY run", [generation]);
       return rows.map((row): RunRow => ({
         generationId: generationIdSchema.parse(row.generation_id), jobId: row.job_id as JobId, projectId: projectIdSchema.parse(row.project_id), run: row.run, state: z.enum(JOB_STATES).parse(row.state),
-        operationRef: row.operation_ref, failureClass: nullable(z.enum(FAILURE_CLASSES))(row.failure_class), billed: nullable(z.enum(BILLED))(row.billed), reason: row.reason, createdAt: row.created_at.toISOString(),
+        operationRef: row.operation_ref, failureClass: nullable(z.enum(FAILURE_CLASSES))(row.failure_class), billed: nullable(z.enum(BILLED))(row.billed), reason: row.reason, countedMicros: row.counted_micros, createdAt: row.created_at.toISOString(),
       }));
     },
     async calls(generation: GenerationId) {
@@ -93,9 +93,9 @@ function readTx(client: PoolClient): ReadTx {
       return rows[0] ? decisionRow(rows[0]) : null;
     },
     async spendFacts(since: string) {
-      const { rows } = await client.query<{ generation_id: string; created_at: Date; estimate: unknown; actual: unknown; maybe_runs: string }>(
-        "SELECT g.generation_id, g.created_at, g.estimate, s.actual, (SELECT count(*) FROM accounts.generation_run r WHERE r.generation_id = g.generation_id AND r.billed = 'maybe') AS maybe_runs FROM accounts.generation g LEFT JOIN accounts.generation_settlement s ON s.generation_id = g.generation_id WHERE g.created_at >= $1 ORDER BY g.created_at, g.generation_id", [since]);
-      return rows.map((row) => ({ generationId: generationIdSchema.parse(row.generation_id), createdAt: row.created_at.toISOString(), estimate: row.estimate, actual: row.actual ?? null, maybeRuns: Number(row.maybe_runs) }));
+      const { rows } = await client.query<{ generation_id: string; created_at: Date; estimate: unknown; actual: unknown; counted: string | null }>(
+        "SELECT g.generation_id, g.created_at, g.estimate, s.actual, (SELECT CASE WHEN count(*) = 0 OR bool_or(r.counted_micros IS NULL) THEN NULL ELSE sum(r.counted_micros) END FROM accounts.generation_run r WHERE r.generation_id = g.generation_id) AS counted FROM accounts.generation g LEFT JOIN accounts.generation_settlement s ON s.generation_id = g.generation_id WHERE g.created_at >= $1 ORDER BY g.created_at, g.generation_id", [since]);
+      return rows.map((row) => ({ generationId: generationIdSchema.parse(row.generation_id), createdAt: row.created_at.toISOString(), estimate: row.estimate, actual: row.actual ?? null, countedMicros: row.counted === null ? null : Number(row.counted) }));
     },
     async inProgress(inputFingerprint: string) {
       const { rows } = await client.query<{ generation_id: string }>(
@@ -227,8 +227,8 @@ export async function createPostgresStore(connectionString: string): Promise<Sto
       return result.rowCount === 1;
     },
     async insertRun(row: RunRow) {
-      await client.query("INSERT INTO accounts.generation_run (generation_id, job_id, account_id, project_id, run, state, operation_ref, failure_class, billed, reason, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)",
-        [row.generationId, row.jobId, scope.accountId, row.projectId, row.run, row.state, row.operationRef, row.failureClass, row.billed, row.reason, row.createdAt]);
+      await client.query("INSERT INTO accounts.generation_run (generation_id, job_id, account_id, project_id, run, state, operation_ref, failure_class, billed, reason, counted_micros, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)",
+        [row.generationId, row.jobId, scope.accountId, row.projectId, row.run, row.state, row.operationRef, row.failureClass, row.billed, row.reason, row.countedMicros, row.createdAt]);
     },
     async insertCall(row: CallRow) {
       await client.query("INSERT INTO accounts.generation_call (generation_id, index, account_id, project_id, role, job_id, request_digest, rendered_request, operation_ref, response, verdict, reported_cost, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $11::jsonb, $12::jsonb, $13)",

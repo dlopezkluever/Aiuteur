@@ -104,6 +104,7 @@ export interface accounts_generation_run {
   "billed": string | null;
   "reason": string | null;
   "created_at": Date;
+  "counted_micros": number | null;
 }
 
 export interface accounts_generation_settlement {

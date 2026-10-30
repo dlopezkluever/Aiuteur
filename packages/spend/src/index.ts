@@ -117,21 +117,63 @@ export interface Caps {
 }
 
 /** What the committed-spend rule reads of one Generation. */
-export interface SpendFact { readonly createdAt: string; readonly estimate: unknown; readonly actual: unknown | null; readonly maybeRuns: number }
+export interface SpendFact { readonly createdAt: string; readonly estimate: unknown; readonly actual: unknown | null;
+  /** The sum of its runs' counted amounts (`generation_run.counted_micros`); null when any run predates the column. */
+  readonly countedMicros: number | null;
+}
 
-const upperBound = (estimate: Estimate): number | null => (estimate.form === "point" ? estimate.amountMicros : estimate.form === "range" ? estimate.maxMicros : null);
+export const upperBound = (estimate: Estimate): number | null => (estimate.form === "point" ? estimate.amountMicros : estimate.form === "range" ? estimate.maxMicros : null);
 
 /**
  * What one Generation counts toward committed spend (BUSINESS §5.3, §6.3): its approved estimate while unsettled; once settled,
- * its actual cost (reported or computed), its estimate when it was billed but no actual is available, and one estimate per run
- * that may have been billed, until reconciled. A run known not to be billed counts nothing.
+ * the sum of what each of its runs counts (`runCounted`, written with the run), so every run is represented exactly once.
+ * Runs written before per-run counts existed fall back to the Generation's actual, or its estimate when that is unavailable.
  */
 function committed(fact: SpendFact): number {
   const upper = upperBound(estimateSchema.parse(fact.estimate)) ?? 0;
   if (fact.actual === null) return upper;
+  if (fact.countedMicros !== null) return fact.countedMicros;
   const actual = actualCostSchema.parse(fact.actual);
-  const settled = actual.form === "unknown" ? (actual.billed === "yes" ? upper : 0) : actual.amountMicros;
-  return settled + fact.maybeRuns * upper;
+  return actual.form === "unknown" ? (actual.billed === "no" ? 0 : upper) : actual.amountMicros;
+}
+
+/**
+ * The most one run can bill, from that run's own Rendered request and the declared rule: every quantity at its upper bound,
+ * priced by the entries (no staleness widening). Null when the rule is undeclared or a quantity has no price entry.
+ */
+export function upperBoundMicros(rule: Declared<BilledQuantityRule>, request: RenderedRequest, entries: readonly PriceEntry[]): number | null {
+  if (rule.state !== "declared") return null;
+  let quantities: BilledQuantity[];
+  try { quantities = billedQuantities(rule.value, request); } catch (error) { if (error instanceof RangeError) return null; throw error; }
+  let total = 0;
+  for (const q of quantities) {
+    const entry = entries.find((e) => e.unit === q.unit);
+    if (!entry) return null;
+    total += Math.ceil((q.bounds.max * entry.priceMicros) / entry.per);
+  }
+  return total;
+}
+
+/**
+ * What one run counts toward committed spend, once (BUSINESS §5.3): `no` nothing; `yes` its actual, reported else derived
+ * from its own request and answer; `maybe`, or a `yes` whose quantity cannot be known, the run's own upper bound until
+ * reconciled. The upper bound is exposure, never recorded as an actual.
+ */
+export function runCounted(run: { readonly billed: Billed; readonly reported: readonly Quantity[] | null; readonly derived: readonly Quantity[] | null; readonly upperMicros: number }, entries: readonly PriceEntry[]): number {
+  if (run.billed === "no") return 0;
+  if (run.billed === "yes") {
+    const used = run.reported ?? run.derived;
+    if (used !== null) {
+      let total = 0;
+      for (const q of used) {
+        const entry = entries.find((e) => e.unit === q.unit);
+        if (!entry) return run.upperMicros;
+        total += Math.ceil((q.amount * entry.priceMicros) / entry.per);
+      }
+      return total;
+    }
+  }
+  return run.upperMicros;
 }
 
 /** How far back the facts must reach for any Account's current calendar month to be covered, whatever its timezone. */
