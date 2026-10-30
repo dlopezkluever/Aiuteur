@@ -237,7 +237,7 @@ describe("VC5 operation harness", () => {
     expect(created.outcome).toBeNull();
     expect(created.runs).toEqual([expect.objectContaining({ state: "queued" })]);
     const jobs = createJobs({ scheduler: w.execution.scheduler, clock });
-    const dispatch = createDispatch({ store, history: createHistory([sourceMaterialKind, treatmentOptionKind]), jobs, catalogue: syntheticCatalogue(), transportFor: w.execution.transportFor, credential: w.execution.credential, environment: "local", clock, ids });
+    const dispatch = createDispatch({ store, history: createHistory([sourceMaterialKind, treatmentOptionKind]), jobs, catalogue: syntheticCatalogue(), transportFor: w.execution.transportFor, credential: w.execution.credential, environment: "local", clock, ids, pricePolicy: TEST_PRICE_POLICY });
     const jobId = created.runs[0]!.jobId as never;
     expect(await jobs.claim(1, jobId)).toEqual([]);
     clock.advance(60 * 60_000);

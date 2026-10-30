@@ -41,7 +41,7 @@ export function createWorkflows(options: { store: Store; history: History; clock
   const { store, history, clock, ids, catalogue, pricePolicy, execution } = options;
   const jobs = createJobs({ scheduler: execution.scheduler, clock });
   const record = createRecord({ history, jobs, clock, ids, pricePolicy });
-  const dispatch = createDispatch({ store, history, jobs, catalogue, transportFor: execution.transportFor, credential: execution.credential, environment: execution.environment, clock, ids });
+  const dispatch = createDispatch({ store, history, jobs, catalogue, transportFor: execution.transportFor, credential: execution.credential, environment: execution.environment, clock, ids, pricePolicy });
   // Each command is one creator action, so it gets one action group (MODULE §5.1; LINEAGE §1).
   const context = (cause: CommitContext["cause"]): CommitContext => ({ actor: "creator", cause, actionGroup: actionGroupIdSchema.parse(ids.ordered()), at: clock.now(), ids });
   /**

@@ -16,7 +16,7 @@ import { createDispatch } from "@aiuteur/generation";
 import { createJobs } from "@aiuteur/jobs";
 import { createApi } from "@aiuteur/api";
 import { Pool } from "pg";
-import type { Caps } from "@aiuteur/spend";
+import type { Caps, PricePolicy } from "@aiuteur/spend";
 import { priceEntries, type SubmitResult } from "@aiuteur/providers";
 import { freshDatabase, snapshot, testExecution, NO_CAPS } from "./database.ts";
 
@@ -45,7 +45,7 @@ beforeAll(async () => {
 afterAll(async () => { for (const close of closers) await close(); await store?.close(); await adapter?.close(); await database?.close(); });
 
 /** One composition root: a fake text transport with its own recorded proposals, optionally a spy and a faulty Store for workflows. */
-async function world(proposals: readonly RecordedProposal[], options: { beforeSubmit?: (input: SubmitInput) => Promise<void>; workflowStore?: Store; providerCap?: number; caps?: Caps; repairOutcome?: SubmitResult; omitUsage?: "repair" | "all" } = {}) {
+async function world(proposals: readonly RecordedProposal[], options: { beforeSubmit?: (input: SubmitInput) => Promise<void>; workflowStore?: Store; providerCap?: number; caps?: Caps; repairOutcome?: SubmitResult; omitUsage?: "repair" | "all"; pricePolicy?: PricePolicy } = {}) {
   const run = await testExecution(database, clock, ids, proposals, options.beforeSubmit, options.providerCap, options.caps);
   closers.push(run.close);
   // A transport that answers the repair request with a scripted outcome (a Proxy: the real fake still captures nothing for it).
@@ -64,7 +64,7 @@ async function world(proposals: readonly RecordedProposal[], options: { beforeSu
       };
     } }) as typeof real;
   } };
-  const workflows = createWorkflows({ store: options.workflowStore ?? store, history: createHistory([sourceMaterialKind, treatmentOptionKind]), clock, ids, catalogue: syntheticCatalogue(), pricePolicy: TEST_PRICE_POLICY, execution });
+  const workflows = createWorkflows({ store: options.workflowStore ?? store, history: createHistory([sourceMaterialKind, treatmentOptionKind]), clock, ids, catalogue: syntheticCatalogue(), pricePolicy: options.pricePolicy ?? TEST_PRICE_POLICY, execution });
   const api = createApi({ accounts, views: createViews(store), workflows, handleAuth: adapter.handle, origin, requestId: ids.uuid, now: () => clock.now(), clientAddress: () => "203.0.113.5" });
   const call = (method: "GET" | "POST", path: string, cookie: string, body?: unknown, key: string = ids.uuid()) =>
     api.request(`${origin}${path}`, { method, headers: { origin, "content-type": "application/json", "x-aiuteur-command": "1", "idempotency-key": key, cookie }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
@@ -420,6 +420,45 @@ describe("a Generation's actual cost covers every run once (BUSINESS §4.4, §5.
     // Neither omitting the repair (run 1 alone) nor substituting the original estimate for the whole Generation would refuse at the first boundary.
     expect(run1 + next).toBeLessThanOrEqual(committedMicros + next - 1);
     expect(originalUpper + next).toBeLessThanOrEqual(committedMicros + next - 1);
+  });
+
+  // Prices confirmed 2026-10-20 are at least 1 day old here, so a policy that widens after 1 day makes them stale (explicit test values).
+  const STALE = { widenAfterDays: 1, unknownAfterDays: 73_000, driftPermille: 100 };
+  const widened = (raw: number) => Math.ceil((raw * 1100) / 1000);
+  for (const billed of ["yes", "maybe"] as const) {
+    it(`stale prices: a repair that fails billed ${billed} counts its OWN request's WIDENED upper bound once; the cap boundary is exact`, async () => {
+      const w = await world([synthetic(1, ALTERED)], { pricePolicy: STALE, repairOutcome: { outcome: "refused", failureClass: billed === "yes" ? "unknown" : "transient-maybe-billed", billed, providerReason: "failed" } });
+      const c = await pasted(w, SOURCE);
+      const scope = await scopeOf(c.cookie);
+      await store.write(scope, (tx) => tx.putSettings({ treatmentOptionCount: 3, timeZone: "America/Chicago" }));
+      const generation = generationOf((await draft(w, c)).body);
+      const raw = upperOfRequest(generation.calls[1]!.renderedRequest!);
+      const original = await upperOf(w, c); // already widened by the creating estimate
+      expect(original).toBe(widened(upperOfRequest(generation.renderedRequest)));
+      const committedMicros = micros(generation.calls[0]!.reportedCost!) + widened(raw);
+      expect(widened(raw)).toBeGreaterThan(raw);
+      const facts = await store.read(scope, (tx) => tx.spendFacts(new Date(0).toISOString()));
+      expect(facts).toEqual([expect.objectContaining({ countedMicros: committedMicros })]);
+      const refused = await world([synthetic(1, FIXED)], { pricePolicy: STALE, caps: { ...NO_CAPS, creator: { dailyMicros: committedMicros + original - 1, monthlyMicros: null, perActionMicros: null } } });
+      expect((await draft(refused, c)).body).toEqual({ result: "cap-reached", cap: "daily", remainingMicros: original - 1 });
+      const admitted = await world([synthetic(1, FIXED)], { pricePolicy: STALE, caps: { ...NO_CAPS, creator: { dailyMicros: committedMicros + original, monthlyMicros: null, perActionMicros: null } } });
+      expect((await draft(admitted, c)).body.result).toBe("generation");
+    });
+  }
+
+  it("fresh prices are not widened, and a known reported actual is never replaced by a widened estimate", async () => {
+    const w = await world([synthetic(1, ALTERED)], { repairOutcome: { outcome: "refused", failureClass: "unknown", billed: "yes", providerReason: "failed" } });
+    const c = await pasted(w, SOURCE);
+    const generation = generationOf((await draft(w, c)).body);
+    const facts = await store.read(await scopeOf(c.cookie), (tx) => tx.spendFacts(new Date(0).toISOString()));
+    expect(facts[0]!.countedMicros).toBe(micros(generation.calls[0]!.reportedCost!) + upperOfRequest(generation.calls[1]!.renderedRequest!));
+    // Known actual under stale prices: the reported cost is the actual, and the run counts it, not a widened estimate.
+    const stale = await world([synthetic(1, GOOD)], { pricePolicy: STALE });
+    const d = await pasted(stale);
+    const g = generationOf((await draft(stale, d)).body);
+    const sf = await store.read(await scopeOf(d.cookie), (tx) => tx.spendFacts(new Date(0).toISOString()));
+    expect(g.outcome!.actual).toMatchObject({ form: "reported", amountMicros: micros(g.calls[0]!.reportedCost!) });
+    expect(sf[0]!.countedMicros).toBe(micros(g.calls[0]!.reportedCost!));
   });
 
   it("a repair refused with billed no adds nothing beyond run 1", async () => {

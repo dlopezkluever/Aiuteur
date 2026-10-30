@@ -138,20 +138,13 @@ function committed(fact: SpendFact): number {
 }
 
 /**
- * The most one run can bill, from that run's own Rendered request and the declared rule: every quantity at its upper bound,
- * priced by the entries (no staleness widening). Null when the rule is undeclared or a quantity has no price entry.
+ * The most one run can bill, from that run's own Rendered request: the upper bound of the canonical `estimate` (so the same
+ * declared rule, price entries and stale-price widening BUSINESS §4.3 applies at admission apply here, once). Null when the
+ * estimate is unknown (no rule, no usable price entry, undetermined quantity).
  */
-export function upperBoundMicros(rule: Declared<BilledQuantityRule>, request: RenderedRequest, entries: readonly PriceEntry[]): number | null {
-  if (rule.state !== "declared") return null;
-  let quantities: BilledQuantity[];
-  try { quantities = billedQuantities(rule.value, request); } catch (error) { if (error instanceof RangeError) return null; throw error; }
-  let total = 0;
-  for (const q of quantities) {
-    const entry = entries.find((e) => e.unit === q.unit);
-    if (!entry) return null;
-    total += Math.ceil((q.bounds.max * entry.priceMicros) / entry.per);
-  }
-  return total;
+export function upperBoundMicros(input: EstimateInput): number | null {
+  const e = estimate(input);
+  return e.form === "point" ? e.amountMicros : e.form === "range" ? e.maxMicros : null;
 }
 
 /**

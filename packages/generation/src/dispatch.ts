@@ -4,7 +4,7 @@ import { g7Provenance, passed } from "@aiuteur/guards";
 import type { History } from "@aiuteur/history";
 import { LeaseLost, type Jobs } from "@aiuteur/jobs";
 import { gate, priceEntries, type Catalogue, type CredentialHandle, type PriceEntry, type ProviderTransport, type ReportedCost } from "@aiuteur/providers";
-import { derivedQuantities, runCounted, settleActual, upperBound, upperBoundMicros, type RunQuantities } from "@aiuteur/spend";
+import { derivedQuantities, runCounted, settleActual, upperBound, upperBoundMicros, type PricePolicy, type RunQuantities } from "@aiuteur/spend";
 import type { Clock, GenerationRow, Ids, JobRow, Leased, ReadTx, Scope, Store, WriteTx } from "@aiuteur/store";
 
 /** What an operation supplies to settle its output (FC6: `validate` and `attach`); `generation` runs them inside the settling transaction. */
@@ -39,6 +39,8 @@ export interface DispatchOptions {
   readonly environment: Environment;
   readonly clock: Clock;
   readonly ids: Ids;
+  /** The staleness policy the creating estimate used (BUSINESS §4.3): a run's conservative exposure widens by the same rule. */
+  readonly pricePolicy: PricePolicy;
 }
 
 type Failure = { failureClass: FailureClass; billed: Billed; reason: string; operationRef: string | null };
@@ -132,7 +134,7 @@ export function createDispatch(options: DispatchOptions) {
     // What THIS run counts toward committed spend, from its own request and answer (BUSINESS §5.3); written with the run.
     const rule = offering?.profile.cost.billedQuantity ?? { state: "unknown" as const };
     const countedNow = (billed: Billed, response: string | null, reported: Quantities | null): number => {
-      const upper = upperBoundMicros(rule as never, outgoing.request, prices) ?? upperBound(generation.estimate as Estimate);
+      const upper = upperBoundMicros({ request: outgoing.request, digest: outgoing.digest, rule: rule as never, entries: prices, today: iso().slice(0, 10), policy: options.pricePolicy }) ?? upperBound(generation.estimate as Estimate);
       if (upper === null) throw new Error("a run's upper bound cannot be determined");
       return runCounted({ billed, reported, derived: derivedQuantities(rule as never, outgoing.request, response), upperMicros: upper }, prices);
     };
