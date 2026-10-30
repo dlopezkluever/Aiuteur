@@ -163,6 +163,8 @@ export interface ReadTx {
   projects(): Promise<Project[]>;
   project(id: ProjectId): Promise<Project | null>;
   object(id: ObjectId): Promise<ObjectRow | null>;
+  /** The objects of one kind in one project, oldest first. */
+  objects(project: ProjectId, kind: string): Promise<ObjectRow[]>;
   /** The latest Revision, or null when the object has none. */
   head(id: ObjectId): Promise<RevisionRow | null>;
   revision(id: ObjectId, sequence: number): Promise<RevisionRow | null>;

@@ -2,10 +2,10 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { checkWorkspace, type Violation } from "@aiuteur/arch-rules";
 import { createWorkspace, repoRoot, type Workspace } from "./workspace.ts";
 
-// VC1 static rules beyond R19/R20: R9 (vendor-name search), R24 (injected environment) and the
+// VC1 static rules beyond R19/R20: R3 (the client imports only contract), R9 (vendor-name search), R24 (injected environment) and the
 // `console` ban. The repository passes them; each planted fixture below is a mistake they exist to catch.
-it("the repository passes R9, R24 and the console ban", () => {
-  expect(checkWorkspace(repoRoot).filter((v) => ["R9", "R24", "LOG"].includes(v.rule))).toStrictEqual([]);
+it("the repository passes R3, R9, R24 and the console ban", () => {
+  expect(checkWorkspace(repoRoot).filter((v) => ["R3", "R9", "R24", "LOG"].includes(v.rule))).toStrictEqual([]);
 });
 
 const TEXTS: Record<string, string> = {
@@ -27,6 +27,16 @@ const TEXTS: Record<string, string> = {
   "packages/generation/src/reads-env.ts": `export const url = process.env["DATABASE_URL"];\nexport const meta = import.meta.env;\n`,
   "packages/generation/src/branches-on-flag.ts": `export const test = process.env.NODE_ENV === "test";\nconst { VITEST } = process.env;\nexport const v = VITEST;\n`,
   "packages/generation/test/flag-in-test.test.ts": `export const ci = process.env["CI"];\n`,
+  "packages/client/src/imports-contract.ts": `import { projectSchema } from "@aiuteur/contract";\nimport { local } from "./local.ts";\nexport { projectSchema, local };\nexport type { Project } from "@aiuteur/contract";\n`,
+  "packages/client/src/local.ts": `export const local = 1;\n`,
+  "packages/client/src/leaks-providers.ts": `import { select } from "@aiuteur/providers";\nexport const leaked = select;\n`,
+  "packages/client/src/leaks-relative.ts": `export * from "../../providers/src/index.ts";\n`,
+  "packages/client/src/leaks-dynamic.ts": `export const lazy = () => import("@aiuteur/providers");\n`,
+  "packages/client/src/leaks-computed.ts": `export const lazy = (name: string) => import(\`../../providers/src/\${name}.ts\`);\n`,
+  "packages/client/src/leaks-variable.ts": `export const lazy = (spec: string) => import(spec);\n`,
+  "packages/client/src/leaks-unresolved.ts": `export * from "@aiuteur/store";\n`,
+  "packages/client/test/doubles.test.ts": `import { FakeTransport } from "@aiuteur/testing";\nimport { select } from "@aiuteur/providers";\nexport const doubles = [FakeTransport, select];\n`,
+  "packages/generation/src/imports-providers.ts": `import { select } from "@aiuteur/providers";\nexport const fine = select;\n`,
   "apps/server/src/composition/ci.ts": `export const env = process.env["AIUTEUR_ENV"];\nexport const flag = process.env.NODE_ENV;\n`,
 };
 const EXPECTED: Record<string, readonly [Violation["rule"], number][]> = {
@@ -48,6 +58,16 @@ const EXPECTED: Record<string, readonly [Violation["rule"], number][]> = {
   "packages/generation/src/reads-env.ts": [["R24", 1], ["R24", 2]],
   "packages/generation/src/branches-on-flag.ts": [["R24", 1], ["R24", 2]],
   "packages/generation/test/flag-in-test.test.ts": [["R24", 1]],
+  "packages/client/src/imports-contract.ts": [],
+  "packages/client/src/local.ts": [],
+  "packages/client/src/leaks-providers.ts": [["R3", 1]],
+  "packages/client/src/leaks-relative.ts": [["R3", 1]],
+  "packages/client/src/leaks-dynamic.ts": [["R3", 1]],
+  "packages/client/src/leaks-computed.ts": [["R3", 1]],
+  "packages/client/src/leaks-variable.ts": [["R3", 1]],
+  "packages/client/src/leaks-unresolved.ts": [["R3", 1]],
+  "packages/client/test/doubles.test.ts": [],
+  "packages/generation/src/imports-providers.ts": [],
   "apps/server/src/composition/ci.ts": [],
 };
 
