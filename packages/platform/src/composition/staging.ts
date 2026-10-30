@@ -1,10 +1,11 @@
+import { fileURLToPath } from "node:url";
 import { randomBytes, randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { createAccounts, createBetterAuth } from "@aiuteur/accounts";
 import { createApi } from "@aiuteur/api";
 import { createHistory } from "@aiuteur/history";
 import { createSmtpMailer } from "@aiuteur/mail";
-import { createHostedErrorSink, createLogger, createSecretRegistry, type ErrorSink, type Logger } from "@aiuteur/observability";
+import { createHostedErrorSink, createLogger, createSecretRegistry, indexSource, type ErrorSink, type Logger } from "@aiuteur/observability";
 import { readiness } from "@aiuteur/providers";
 import { createLiveness, createPostgresScheduler, createPostgresStore, type Clock, type Ids } from "@aiuteur/store";
 import { sourceMaterialKind, treatmentOptionKind } from "@aiuteur/story";
@@ -35,6 +36,8 @@ const STAGING_PROPOSALS: readonly RecordedProposal[] = [{ operation: "treatment.
 const SHUTDOWN_FLUSH_MS = 3_000;
 
 type Env = Readonly<Record<string, string | undefined>>;
+/** The files of this image's own code, indexed once; the ErrorSink reports a stack frame only for one of them. */
+const SOURCE = indexSource(fileURLToPath(new URL("../../../..", import.meta.url)));
 const clock: Clock = { now: () => Date.now() };
 const ids: Ids = { uuid: randomUUID, ordered: uuidv7, token: () => randomBytes(32).toString("base64url") };
 
@@ -42,7 +45,7 @@ function observe(config: WebConfig | WorkerConfig, write: (line: string) => void
   const secrets = createSecretRegistry(config.secretValues);
   const deployment = { environment: config.environment, role: config.role, release: config.release };
   const logger = createLogger({ ...deployment, write, clock, secrets });
-  const sink = createHostedErrorSink({ ...deployment, dsn: config.errorSinkDsn, secrets, onFailure: (code) => logger.warn("error-sink.delivery-failed", { code }) });
+  const sink = createHostedErrorSink({ ...deployment, dsn: config.errorSinkDsn, secrets, source: SOURCE, onFailure: (code) => logger.warn("error-sink.delivery-failed", { code }) });
   return { logger, sink };
 }
 

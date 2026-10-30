@@ -286,3 +286,65 @@ describe("the smoke tells 'not ready yet' from a real failure", () => {
     red.close();
   });
 });
+
+describe("G3 on the Account event stream: GET /api/studios/:accountId/events", () => {
+  let own: Awaited<ReturnType<typeof freshDatabase>>;
+  let web: Running;
+  let base: string;
+  type Creator = { accountId: string; cookie: string; email: string };
+  const mint = async (email: string): Promise<Creator> => {
+    const created = spawnSync("node", [join(import.meta.dirname, "../scripts/smoke-account.ts")], { encoding: "utf8", env: { PATH: process.env["PATH"] ?? "", DATABASE_URL_IDENTITY: own.url("identity"), AUTH_SECRET: SECRET, PUBLIC_ORIGIN: ORIGIN, SMOKE_EMAIL: email, SMOKE_PASSWORD: "synthetic-Paper-crane-lighthouse-98!" } });
+    const accountId = created.stdout.trim().split("=")[1]!;
+    return { accountId, email, cookie: await cookieOf(base, { email, password: "synthetic-Paper-crane-lighthouse-98!", accountId, origin: ORIGIN }) };
+  };
+  let a: Creator;
+  let b: Creator;
+  beforeAll(async () => {
+    own = await freshDatabase();
+    web = await composeWeb({ ...webEnv, DATABASE_URL_APP: own.url("app"), DATABASE_URL_IDENTITY: own.url("identity"), DATABASE_URL_SCHEDULER: own.url("scheduler") }, write);
+    base = `http://127.0.0.1:${web.port}`;
+    worker = await composeWorker({ ...workerEnv, DATABASE_URL_SCHEDULER: own.url("scheduler") }, write, 200);
+    a = await mint("account-a@example.test");
+    b = await mint("account-b@example.test");
+    // Both Accounts have real events (a fake-provider Job each), so a leak across Accounts would have something to leak.
+    for (const creator of [a, b]) expect(await runSmoke(base, { email: creator.email, password: "synthetic-Paper-crane-lighthouse-98!", accountId: creator.accountId, origin: ORIGIN })).toEqual([]);
+  }, 120_000);
+  let worker: Running | undefined;
+  afterAll(async () => { await worker?.stop(); await web?.stop(); await own?.close(); });
+
+  const open = (accountId: string, cookie: string, lastEventId?: string) => fetch(`${base}/api/studios/${accountId}/events`, { headers: { ...(cookie ? { cookie } : {}), accept: "text/event-stream", ...(lastEventId === undefined ? {} : { "last-event-id": lastEventId }) }, signal: AbortSignal.timeout(5_000) });
+  const refusal = async (response: Response) => { const body = await response.text(); await response.body?.cancel().catch(() => undefined); return { status: response.status, body }; };
+
+  it("an Account reads its own stream, and every frame it receives is its own", async () => {
+    expect(a.accountId).not.toBe(b.accountId);
+    const mine = await readEvents(fetch, new URL(`/api/studios/${a.accountId}/events`, base), a.cookie, null, (frames) => frames.length >= 3, 5_000);
+    expect(mine.length).toBeGreaterThanOrEqual(3);
+    expect(mine.every((frame) => frame.event.accountId === a.accountId)).toBe(true);
+    const theirs = await readEvents(fetch, new URL(`/api/studios/${b.accountId}/events`, base), b.cookie, null, (frames) => frames.length >= 3, 5_000);
+    expect(theirs.length).toBeGreaterThanOrEqual(3);
+    expect(theirs.every((frame) => frame.event.accountId === b.accountId)).toBe(true);
+  });
+
+  it("another Account naming this Account's id is refused exactly as an absent id is, whatever Last-Event-ID it sends", async () => {
+    const absent = await refusal(await open("00000000-0000-4000-8000-000000000009", b.cookie));
+    expect(absent).toEqual({ status: 404, body: '{"code":"not-found"}' });
+    for (const lastEventId of [undefined, "0", "1", "999999999999999", "-1", "abc", "1; DROP", `${a.accountId}`]) {
+      const refused = await refusal(await open(a.accountId, b.cookie, lastEventId));
+      expect(refused, String(lastEventId)).toEqual(absent);
+      expect(refused.body).not.toContain(a.accountId);
+      expect(refused.body).not.toMatch(/sequence|account\.created|generation|job/);
+    }
+  });
+
+  it("an unauthenticated caller is refused, with or without Last-Event-ID, and learns nothing about the Account", async () => {
+    for (const lastEventId of [undefined, "0", "999999999999999"]) {
+      const refused = await refusal(await open(a.accountId, "", lastEventId));
+      expect(refused).toEqual({ status: 401, body: '{"code":"unauthenticated"}' });
+    }
+  });
+
+  it("an Account's own cursor past its last event yields nothing, and never another Account's events", async () => {
+    const frames = await readEvents(fetch, new URL(`/api/studios/${a.accountId}/events`, base), a.cookie, 999_999_999, (all) => all.length > 0, 2_500);
+    expect(frames).toEqual([]);
+  });
+});

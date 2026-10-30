@@ -1,5 +1,6 @@
 import { admitFields, ID_FIELDS, type Deployment, type IdFields } from "./fields.ts";
 import type { SecretRegistry } from "./secrets.ts";
+import type { SourceIndex } from "./source-index.ts";
 
 /** What a caller may attach to a captured error: the tier A ids and a closed code, nothing else. */
 export interface ErrorContext extends IdFields { readonly code?: string }
@@ -15,7 +16,12 @@ export interface ErrorSink {
   flush(timeoutMs: number): Promise<void>;
 }
 
-export interface Frame { readonly function: string | null; readonly file: string; readonly line: number; readonly column: number }
+/**
+ * A stack frame is a position in code we shipped: a source file from the deployed image's own index, a line and a column.
+ * There is no function name, because a name in a stack is whatever the thrower wrote and cannot be told from creator content.
+ * A file the index does not list (a path built at run time, or anything a caller invented) is reported as `unknown`.
+ */
+export interface Frame { readonly file: string; readonly line: number; readonly column: number }
 
 /**
  * The deny-by-default shape (§7.1 rule 2): error class, closed code, stack frames, release, process role, environment
@@ -33,29 +39,24 @@ export interface ScrubbedEvent {
 }
 
 const CLASS_SHAPE = /^[A-Za-z][A-Za-z0-9_]{0,63}$/;
-/** A function name is an identifier path (`Class.method`, `Object.<anonymous>`); a name with a space or punctuation is free text and is dropped. */
-const FUNCTION_SHAPE = /^(?:[A-Za-z_$][\w$]{0,63}|<anonymous>)(?:\.(?:[A-Za-z_$][\w$]{0,63}|<anonymous>)){0,4}$/;
-/** A file is a code path: no spaces, no query string. */
-const FILE_SHAPE = /^[A-Za-z0-9_@./:\\-]{1,300}$/;
 const FRAME = /^\s*at (?:(.+?) \()?(.+?):(\d+):(\d+)\)?\s*$/;
 const MAX_FRAMES = 50;
 
-function framesOf(error: unknown, secrets: SecretRegistry): Frame[] {
+function framesOf(error: unknown, secrets: SecretRegistry, source: SourceIndex): Frame[] {
   const stack = error instanceof Error && typeof error.stack === "string" ? error.stack : "";
   const frames: Frame[] = [];
   for (const line of stack.split("\n")) {
     const match = FRAME.exec(line);
     if (!match || frames.length >= MAX_FRAMES) continue;
-    const [, rawName, file, row, column] = match;
-    const name = rawName?.replace(/^(?:async |new )+/, "");
-    // Both strings are bounded shapes. Anything else is dropped, not forwarded, so a stack cannot carry free text.
-    const kept = (value: string | undefined, shape: RegExp) => (value !== undefined && shape.test(value) && secrets.scrub(value) === value ? value : null);
-    frames.push({ function: kept(name, FUNCTION_SHAPE), file: kept(file, FILE_SHAPE) ?? "unknown", line: Number(row), column: Number(column) });
+    const [, , rawFile, row, column] = match;
+    const file = (rawFile ?? "").replace(/^file:\/\//, "");
+    // Fail closed: only a file of our own deployed source survives; the position numbers are numbers.
+    frames.push({ file: source.has(file) && secrets.scrub(file) === file ? file : "unknown", line: Number(row), column: Number(column) });
   }
   return frames;
 }
 
-export function scrubError(error: unknown, context: ErrorContext | undefined, deployment: Deployment, secrets: SecretRegistry): ScrubbedEvent {
+export function scrubError(error: unknown, context: ErrorContext | undefined, deployment: Deployment, secrets: SecretRegistry, source: SourceIndex): ScrubbedEvent {
   const name = error instanceof Error ? error.constructor.name : "";
   const { fields } = admitFields(context);
   const tags: Record<string, string> = {};
@@ -64,7 +65,7 @@ export function scrubError(error: unknown, context: ErrorContext | undefined, de
   return {
     errorClass: CLASS_SHAPE.test(name) ? name : error instanceof Error ? "Error" : "NonError",
     code: typeof fields["code"] === "string" ? clean(fields["code"]) : null,
-    frames: framesOf(error, secrets),
+    frames: framesOf(error, secrets, source),
     release: deployment.release, role: deployment.role, environment: deployment.environment,
     tags,
   };

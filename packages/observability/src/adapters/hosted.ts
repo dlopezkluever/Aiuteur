@@ -2,11 +2,14 @@ import { randomUUID } from "node:crypto";
 import { scrubError, type ErrorContext, type ErrorSink, type ScrubbedEvent } from "../error-sink.ts";
 import type { Deployment } from "../fields.ts";
 import type { SecretRegistry } from "../secrets.ts";
+import { NO_SOURCE, type SourceIndex } from "../source-index.ts";
 
 export interface HostedErrorSinkOptions extends Deployment {
   /** The tracker's project DSN: `https://<public key>@<host>/<project id>`. A host secret; it never appears in a line or an event. */
   dsn: string;
   secrets: SecretRegistry;
+  /** The deployed source files a stack frame may name; omitted means none, and every frame reports `unknown`. */
+  source?: SourceIndex;
   /** Delivery failures are reported here as a closed code, so the sink never logs by itself. */
   onFailure?(code: "delivery-failed"): void;
   fetch?: typeof fetch;
@@ -32,7 +35,7 @@ function toEvent(event: ScrubbedEvent, now: number) {
     environment: event.environment,
     // The process role is a tag; `server_name` is left unset so the host name is not sent.
     tags: { role: event.role, ...(event.code === null ? {} : { code: event.code }), ...event.tags },
-    exception: { values: [{ type: event.errorClass, stacktrace: { frames: event.frames.map((f) => ({ function: f.function ?? "?", filename: f.file, lineno: f.line, colno: f.column })).reverse() } }] },
+    exception: { values: [{ type: event.errorClass, stacktrace: { frames: event.frames.map((f) => ({ filename: f.file, lineno: f.line, colno: f.column })).reverse() } }] },
     // No user, request, breadcrumbs, contexts or extra: deny by default.
   };
 }
@@ -48,7 +51,7 @@ export function createHostedErrorSink(options: HostedErrorSinkOptions): ErrorSin
     capture(error, context?: ErrorContext) {
       try {
         const now = Date.now();
-        const event = toEvent(scrubError(error, context, options, options.secrets), now);
+        const event = toEvent(scrubError(error, context, options, options.secrets, options.source ?? NO_SOURCE), now);
         const body = [JSON.stringify({ event_id: event.event_id, sent_at: new Date(now).toISOString() }), JSON.stringify({ type: "event" }), JSON.stringify(event)].join("\n");
         const delivery: Promise<void> = send(endpoint, {
           method: "POST",
