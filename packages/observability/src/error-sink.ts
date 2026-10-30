@@ -38,7 +38,17 @@ export interface ScrubbedEvent {
   readonly tags: Readonly<Record<string, string>>;
 }
 
-const CLASS_SHAPE = /^[A-Za-z][A-Za-z0-9_]{0,63}$/;
+/**
+ * The closed classification: the platform's own built-in error classes, matched by `instanceof`, never by name. A name is
+ * whatever the thrower or a dynamic subclass chose and cannot be told from creator content, so it is never read. Anything
+ * not matched is the generic `Error` (or `NonError` for a thrown non-Error).
+ */
+const KNOWN_CLASSES: readonly (readonly [new (...args: never[]) => Error, string])[] = [
+  [TypeError, "TypeError"], [RangeError, "RangeError"], [SyntaxError, "SyntaxError"],
+  [ReferenceError, "ReferenceError"], [EvalError, "EvalError"], [URIError, "URIError"], [AggregateError, "AggregateError"],
+];
+const classOf = (error: unknown): string =>
+  !(error instanceof Error) ? "NonError" : (KNOWN_CLASSES.find(([constructor]) => error instanceof constructor)?.[1] ?? "Error");
 const FRAME = /^\s*at (?:(.+?) \()?(.+?):(\d+):(\d+)\)?\s*$/;
 const MAX_FRAMES = 50;
 
@@ -57,13 +67,12 @@ function framesOf(error: unknown, secrets: SecretRegistry, source: SourceIndex):
 }
 
 export function scrubError(error: unknown, context: ErrorContext | undefined, deployment: Deployment, secrets: SecretRegistry, source: SourceIndex): ScrubbedEvent {
-  const name = error instanceof Error ? error.constructor.name : "";
   const { fields } = admitFields(context);
   const tags: Record<string, string> = {};
   const clean = (value: string) => secrets.scrub(value);
   for (const key of ID_FIELDS) { const value = fields[key]; if (typeof value === "string") tags[key] = clean(value); }
   return {
-    errorClass: CLASS_SHAPE.test(name) ? name : error instanceof Error ? "Error" : "NonError",
+    errorClass: classOf(error),
     code: typeof fields["code"] === "string" ? clean(fields["code"]) : null,
     frames: framesOf(error, secrets, source),
     release: deployment.release, role: deployment.role, environment: deployment.environment,

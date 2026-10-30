@@ -67,6 +67,22 @@ export function describeErrorSinkConformance(name: string, subject: () => Promis
       expect(event?.frames.length).toBe(4 * 2 + 2 + 3);
     });
 
+    it("classifies by a closed list of built-in classes, never by a runtime class name", async () => {
+      const { sink, wire, events } = await subject();
+      const named = (name: string, base: new (m: string) => Error = Error) => Object.defineProperty(class extends base {}, "name", { value: name });
+      const longName = "A".repeat(63) + "_private_prompt_text";
+      const leaks = ["Mara_reads_private_treatment_draft", "Sealed_letter_close_up", longName, KEY.replaceAll("-", "_")];
+      for (const name of leaks) sink.capture(new (named(name))("x"));
+      sink.capture(new (named("Mara_reads_private_treatment_draft", TypeError))("x"));
+      class Plain extends Error {}
+      sink.capture(new Plain("x"));
+      sink.capture(new RangeError("x"));
+      await sink.flush(2_000);
+      const text = (await wire()).join("\n");
+      for (const leak of [...leaks, "Plain"]) expect(text).not.toContain(leak);
+      expect((await events()).map((event) => event.errorClass)).toEqual(["Error", "Error", "Error", "Error", "TypeError", "Error", "RangeError"]);
+    });
+
     it("reports a thrown non-Error as a neutral class and never throws to the caller", async () => {
       const { sink, events } = await subject();
       expect(() => sink.capture(undefined)).not.toThrow();
