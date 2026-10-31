@@ -10,6 +10,8 @@ import { createHostedErrorSink, createLogger, createSecretRegistry, indexSource,
 import { readiness } from "@aiuteur/providers";
 import { createLiveness, createPostgresScheduler, createPostgresStore, type Clock, type Ids } from "@aiuteur/store";
 import { sourceMaterialKind, treatmentOptionKind } from "@aiuteur/story";
+import { characterKind } from "@aiuteur/world";
+import { shotKind } from "@aiuteur/production";
 import { FAKE_TEXT_PROFILE, FakeTransport, syntheticCatalogue, TEST_PRICE_POLICY, testCredential, uuidv7, type RecordedProposal } from "@aiuteur/testing";
 import { createViews } from "@aiuteur/views";
 import { createWorkflows, type Execution } from "@aiuteur/workflows";
@@ -38,6 +40,8 @@ const SHUTDOWN_FLUSH_MS = 3_000;
 
 type Env = Readonly<Record<string, string | undefined>>;
 /** The files of this image's own code, indexed once; the ErrorSink reports a stack frame only for one of them. */
+/** Where the image keeps the built client (Dockerfile). */
+const CLIENT_DIR = fileURLToPath(new URL("../../../../client-dist", import.meta.url));
 const SOURCE = indexSource(fileURLToPath(new URL("../../../..", import.meta.url)));
 const clock: Clock = { now: () => Date.now() };
 const ids: Ids = { uuid: randomUUID, ordered: uuidv7, token: () => randomBytes(32).toString("base64url") };
@@ -53,7 +57,7 @@ function observe(config: WebConfig | WorkerConfig, write: (line: string) => void
 export interface Running { readonly port: number; stop(): Promise<void> }
 
 /** The `web` role: contract API, progress stream, deep health, staging fakes. */
-export async function composeWeb(env: Env, write: (line: string) => void): Promise<Running> {
+export async function composeWeb(env: Env, write: (line: string) => void, clientDir: string = CLIENT_DIR): Promise<Running> {
   const config = readWebConfig(env);
   const { logger, sink } = observe(config, write);
   const adapter = await createBetterAuth({ connectionString: config.databases.identity, baseURL: config.origin, secret: config.authSecret, clock, ids, idleSessionSeconds: SESSION.idleSeconds, absoluteSessionSeconds: SESSION.absoluteSeconds });
@@ -72,13 +76,13 @@ export async function composeWeb(env: Env, write: (line: string) => void): Promi
   let socketAddress = (_: Request) => "unknown";
   const api = createApi({
     accounts, views: createViews(store), handleAuth: adapter.handle, origin: config.origin, requestId: ids.uuid, now: clock.now,
-    workflows: createWorkflows({ store, history: createHistory([sourceMaterialKind, treatmentOptionKind]), clock, ids, catalogue, pricePolicy: TEST_PRICE_POLICY, execution, media }),
+    workflows: createWorkflows({ store, history: createHistory([sourceMaterialKind, treatmentOptionKind, characterKind, shotKind]), clock, ids, catalogue, pricePolicy: TEST_PRICE_POLICY, execution, media }),
     clientAddress: (request) => (config.clientAddressHeader !== null ? request.headers.get(config.clientAddressHeader)?.split(",").at(-1)?.trim() : undefined) ?? socketAddress(request),
     onUnexpectedError: (error, { requestId }) => report(error, requestId),
   });
   const probe = new Pool({ connectionString: config.databases.app, max: 1, connectionTimeoutMillis: 3_000 });
   probe.on("error", () => {});
-  const app = createWebApp({ api, routes: createEventStream({ accounts, store, ...STREAM }), deep: async () => {
+  const app = createWebApp({ api, clientDir, routes: createEventStream({ accounts, store, ...STREAM }), deep: async () => {
     const database = await probe.query("SELECT 1").then(() => "ok" as const, () => "unreachable" as const);
     const ready = readiness(config.environment, catalogue);
     const signal = database === "ok" ? await liveness.read().catch((): null => null) : null;

@@ -104,7 +104,10 @@ export function readWebConfig(env: Env): WebConfig {
   if ((smtpUser === undefined) !== (smtpPass === undefined)) r.problems.push("SMTP_USER and SMTP_PASS are set together");
   const r2Account = r.text("R2_ACCOUNT_ID");
   if (r2Account !== "" && !/^[0-9a-f]{32}$/.test(r2Account)) r.problems.push("R2_ACCOUNT_ID must be 32 hex digits");
-  const r2 = { endpoint: `https://${r2Account}.r2.cloudflarestorage.com`, bucket: r.text("R2_BUCKET"), accessKeyId: r.text("R2_ACCESS_KEY_ID"), secretAccessKey: r.text("R2_SECRET_ACCESS_KEY") };
+  // An S3-compatible endpoint may replace the account's own, for a rehearsal against a local gateway; plain http is accepted for loopback only.
+  const r2Endpoint = r.optional("R2_ENDPOINT");
+  if (r2Endpoint !== undefined && !/^https:\/\/[^/\s]+$|^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(r2Endpoint)) r.problems.push("R2_ENDPOINT must be an https origin, or http on loopback");
+  const r2 = { endpoint: r2Endpoint ?? `https://${r2Account}.r2.cloudflarestorage.com`, bucket: r.text("R2_BUCKET"), accessKeyId: r.text("R2_ACCESS_KEY_ID"), secretAccessKey: r.text("R2_SECRET_ACCESS_KEY") };
   const errorSinkDsn = r.url("ERROR_SINK_DSN", ["https:"]);
   const header = r.optional("CLIENT_ADDRESS_HEADER")?.toLowerCase() ?? null;
   if (header !== null && !/^[a-z][a-z0-9-]*$/.test(header)) r.problems.push("CLIENT_ADDRESS_HEADER must be a header name");

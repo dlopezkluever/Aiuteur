@@ -34,7 +34,7 @@ beforeAll(async () => {
   };
   workerEnv = {
     AIUTEUR_ENVIRONMENT: "staging", RELEASE_DIGEST: DIGEST, DATABASE_URL_SCHEDULER: database.url("scheduler"),
-    ERROR_SINK_DSN: "https://synthetickeyabcdef0123@tracker.invalid/7", HEARTBEAT_PING_URL: `https://heartbeat.invalid/ping/${PING}`,
+    ERROR_SINK_DSN: "https://synthetickeyabcdef0123@tracker.invalid/7", HEARTBEAT_PING_URL: `https://10.255.255.1/ping/${PING}`,
   };
 });
 afterAll(async () => { await database?.close(); });
@@ -233,6 +233,21 @@ describe("worker loop and the external heartbeat", () => {
     expect(pings.length).toBe(after);
     expect(captured.length).toBeGreaterThan(0);
     expect(out.some((l) => JSON.parse(l).key === "worker.tick-failed")).toBe(true);
+  });
+  it("a monitor that never answers does not stop the ticks: the liveness signal does not wait on it", async () => {
+    let ticks = 0;
+    let pings = 0;
+    const stop = new AbortController();
+    const logger = createLogger({ environment: "staging", role: "worker", release: DIGEST, write: () => {}, clock: { now: () => 0 }, secrets: createSecretRegistry() });
+    const done = runWorker({
+      check: async () => { ticks += 1; },
+      heartbeat: { ping: () => { pings += 1; return new Promise<boolean>(() => {}); } },
+      logger, sink: { capture: () => {}, flush: async () => {} }, intervalMs: 5, signal: stop.signal,
+    });
+    await new Promise((r) => setTimeout(r, 80));
+    stop.abort(); await done;
+    expect(ticks).toBeGreaterThan(5);
+    expect(pings).toBe(1); // one in flight at most
   });
   it("the heartbeat is a plain GET to the monitor and reports a refusal or an outage as false", async () => {
     const seen: string[] = [];

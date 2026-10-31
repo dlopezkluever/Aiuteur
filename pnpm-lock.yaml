@@ -416,6 +416,9 @@ importers:
       '@aiuteur/observability':
         specifier: workspace:*
         version: link:../observability
+      '@aiuteur/production':
+        specifier: workspace:*
+        version: link:../production
       '@aiuteur/providers':
         specifier: workspace:*
         version: link:../providers
@@ -431,9 +434,15 @@ importers:
       '@aiuteur/views':
         specifier: workspace:*
         version: link:../views
+      '@aiuteur/web':
+        specifier: workspace:*
+        version: link:../../apps/web
       '@aiuteur/workflows':
         specifier: workspace:*
         version: link:../workflows
+      '@aiuteur/world':
+        specifier: workspace:*
+        version: link:../world
       hono:
         specifier: ^4.13.14
         version: 4.13.14

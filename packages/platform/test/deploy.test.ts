@@ -272,3 +272,32 @@ describe("the staging shape", () => {
     expect(names("postgres")).toEqual(["POSTGRES_PASSWORD"]);
   });
 });
+
+describe("the release workflows name one valid, lowercase GHCR repository", () => {
+  const read = (name: string) => readFileSync(join(ROOT, ".github/workflows", name), "utf8");
+  const files = ["release-staging.yml", "rollback-staging.yml"];
+  const derive = /- name: Derive the image repository[^\n]*\n\s+run: ([^\n]+)\n/g;
+
+  it("each job that builds, deploys or rolls back derives it, lowercased, from the (mixed-case) repository name", () => {
+    for (const file of files) {
+      const steps = [...read(file).matchAll(derive)].map((m) => m[1]!);
+      expect(steps.length, file).toBe(file === "release-staging.yml" ? 2 : 1);
+      for (const step of steps) {
+        const env = join(mkdtempSync(join(tmpdir(), "ghenv-")), "env");
+        writeFileSync(env, "");
+        const result = spawnSync("bash", ["-c", step], { encoding: "utf8", env: { PATH: process.env["PATH"] ?? "", GITHUB_REPOSITORY: "DLopezKluever/Aiuteur", GITHUB_ENV: env } });
+        expect(result.status).toBe(0);
+        const value = readFileSync(env, "utf8").trim();
+        expect(value).toBe("IMAGE_REPOSITORY=ghcr.io/dlopezkluever/aiuteur");
+        expect(value.slice("IMAGE_REPOSITORY=".length)).toMatch(/^ghcr\.io\/[a-z0-9._-]+\/[a-z0-9._-]+$/);
+      }
+    }
+  });
+
+  it("build, deploy and rollback use that value, and nothing builds the reference from the raw repository name", () => {
+    for (const file of files) expect(read(file), file).not.toMatch(/ghcr\.io\/\$\{\{\s*github\.repository/);
+    expect(read("release-staging.yml")).toContain("tags: ${{ env.IMAGE_REPOSITORY }}:sha-");
+    expect(read("release-staging.yml")).toContain("IMAGE_REPOSITORY=$IMAGE_REPOSITORY /srv/aiuteur/release/deploy.sh deploy");
+    expect(read("rollback-staging.yml")).toContain("IMAGE_REPOSITORY=$IMAGE_REPOSITORY /srv/aiuteur/release/deploy.sh rollback");
+  });
+});

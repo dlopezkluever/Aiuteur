@@ -12,6 +12,7 @@ export const REQUIRED_SUITES: readonly string[] = [
   "packages/compiler/test/compiler.test.ts",
   "packages/platform/test/deploy.test.ts",
   "packages/platform/test/platform.test.ts",
+  "packages/platform/test/staging.test.ts",
   "packages/media/test/blob-store.conformance.test.ts",
   "packages/media/test/media.test.ts",
   "packages/providers/test/gate.test.ts",
