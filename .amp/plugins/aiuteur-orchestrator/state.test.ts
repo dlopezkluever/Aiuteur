@@ -5,7 +5,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { newRun, type IssueNode } from "./core.ts";
-import { createStore, reserveLaunch } from "./state.ts";
+import { writeFileSync } from "node:fs";
+import { createStore, reserveLaunch, StaleRun, validateRuns } from "./state.ts";
 
 const issue = (n: number): IssueNode => ({ number: n, title: `[T0-${n}] t`, labels: ["ready-for-agent"], assignees: [], blockedBy: [], body: "**Execution mode:** Agent\n**Coordination (not a blocker):** none" });
 const tmp = () => mkdtempSync(join(tmpdir(), "aiu-state-"));
@@ -30,7 +31,7 @@ test("a throwing update writes nothing and releases the lock", async () => {
   const s = createStore(dir);
   await assert.rejects(s.update((runs) => { runs[1] = newRun(1); throw new Error("boom"); }));
   assert.deepEqual(s.read(), {});
-  await s.put(newRun(2)); // lock was released
+  await s.update((r) => { r[2] = newRun(2); }); // lock was released
   assert.deepEqual(Object.keys(s.read()), ["2"]);
   rmSync(dir, { recursive: true });
 });
@@ -82,8 +83,44 @@ test("an unresolved reservation survives a restart and keeps the ticket and slot
 test("corrupt state fails closed instead of reading as empty", async () => {
   const dir = tmp();
   const s = createStore(dir);
-  await s.put(newRun(1));
+  await s.update((r) => { r[1] = newRun(1); });
   (await import("node:fs")).writeFileSync(join(dir, "runs.json"), "{ not json");
   await assert.rejects(s.update(() => {}));
+  rmSync(dir, { recursive: true });
+});
+
+test("structurally invalid state fails closed: [] / null run / bad status / key mismatch; no launch is possible", async () => {
+  for (const bad of ["[]", '{"123":null}', '{"1":{"ticket":1,"state":"WHATEVER","revision":0,"repairAttempt":0,"failures":{}}}', '{"2":{"ticket":1,"state":"ACTIVE","revision":0,"repairAttempt":0,"failures":{}}}']) {
+    const dir = tmp();
+    writeFileSync(join(dir, "runs.json"), bad);
+    const store = createStore(dir);
+    assert.throws(() => store.read(), bad);
+    const snapshot = async () => ({ issues: [issue(7)], branches: [], prs: [] });
+    await assert.rejects(reserveLaunch(store, snapshot, 7, 1), bad);
+    assert.equal(readFileSync(join(dir, "runs.json"), "utf8"), bad); // untouched, no sparse-array rewrite
+    rmSync(dir, { recursive: true });
+  }
+});
+
+test("state written by the store validates and reloads; empty/missing file is just no runs", async () => {
+  const dir = tmp();
+  const s = createStore(dir);
+  assert.deepEqual(s.read(), {});
+  await s.update((r) => { r[3] = { ...newRun(3), state: "ACTIVE", workerThreadId: "T-x", currentPR: 9, failures: { a: 1 } }; });
+  assert.equal(validateRuns(s.read())[3]!.currentPR, 9);
+  rmSync(dir, { recursive: true });
+});
+
+test("a stale same-run write is rejected and the newer transition survives", async () => {
+  const dir = tmp();
+  const s = createStore(dir);
+  await s.update((r) => { r[1] = { ...newRun(1), state: "ACTIVE", workerThreadId: "T-x" }; });
+  const stale = s.read()[1]!; // revision 0, read before a long operation
+  await s.mutate(1, (c) => ({ ...c, state: "MERGE_READY", currentPR: 7 }), stale.revision); // newer legitimate transition
+  await assert.rejects(s.mutate(1, () => ({ ...stale, state: "BLOCKED" }), stale.revision), StaleRun);
+  const final = s.read()[1]!;
+  assert.equal(final.state, "MERGE_READY");
+  assert.equal(final.currentPR, 7);
+  assert.equal(final.revision, 1);
   rmSync(dir, { recursive: true });
 });

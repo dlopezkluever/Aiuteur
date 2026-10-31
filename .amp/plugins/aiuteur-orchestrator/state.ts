@@ -4,22 +4,60 @@
 // for external claims (re-read inside the lock, right before reserving). This does NOT give exactly-once launches across
 // independent coordinators on different machines/Orbs. The lock is held only for short transitions, never for a Worker run.
 import { closeSync, mkdirSync, openSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { join } from "node:path";
-import { checkReservation, newRun, type IssueNode, type PrNode, type Reservation, type TicketRun } from "./core.ts";
+import { checkReservation, newRun, RUN_STATES, type IssueNode, type PrNode, type Reservation, type TicketRun } from "./core.ts";
 
 export type Runs = Record<number, TicketRun>;
 const STALE_LOCK_MS = 5 * 60 * 1000;
 const LOCK_WAIT_MS = 60 * 1000;
+
+/** One state location for every entry point (plugin commands and the standalone dry run), so they cannot disagree. */
+export const stateDir = () => process.env.AIUTEUR_STATE_DIR ?? join(homedir(), ".cache", "aiuteur-orchestrator");
+
+export class StaleRun extends Error {
+  ticket: number;
+  constructor(ticket: number, expected: number, actual: number) {
+    super(`run #${ticket} changed (revision ${actual}, expected ${expected}); not overwriting`);
+    this.ticket = ticket;
+  }
+}
+
+const isObj = (x: unknown): x is Record<string, unknown> => typeof x === "object" && x !== null && !Array.isArray(x);
+const optStr = (o: Record<string, unknown>, k: string) => o[k] === undefined || typeof o[k] === "string";
+const optNum = (o: Record<string, unknown>, k: string) => o[k] === undefined || typeof o[k] === "number";
+
+/** Coordination state must be exactly this shape; anything else throws so nothing infers free capacity from it. */
+export function validateRuns(x: unknown): Runs {
+  if (!isObj(x)) throw new Error("runs.json is not an object map of ticket -> run");
+  for (const [key, r] of Object.entries(x)) {
+    const bad = (why: string) => new Error(`runs.json entry "${key}" invalid: ${why}`);
+    if (!isObj(r)) throw bad("not an object");
+    if (!/^\d+$/.test(key) || r.ticket !== Number(key)) throw bad("key does not match ticket");
+    if (!(RUN_STATES as readonly unknown[]).includes(r.state)) throw bad("unknown state");
+    if (typeof r.revision !== "number" || typeof r.repairAttempt !== "number") throw bad("revision/repairAttempt must be numbers");
+    if (!isObj(r.failures) || !Object.values(r.failures).every((n) => typeof n === "number")) throw bad("failures must map to numbers");
+    if (!["workerThreadId", "workerModel", "verifierModel", "independence", "lastCandidateSha", "lastVerifiedSha", "repairSentForSha", "blockedReason"].every((k) => optStr(r, k))) throw bad("string field has wrong type");
+    if (!optNum(r, "currentPR")) throw bad("currentPR must be a number");
+    if (r.verdict !== undefined) {
+      const v = r.verdict;
+      if (!isObj(v) || typeof v.pr !== "number" || typeof v.sha !== "string" || !Array.isArray(v.blocking) || !Array.isArray(v.nonBlocking)) throw bad("malformed verdict");
+    }
+  }
+  return x as Runs;
+}
 
 export function createStore(dir: string) {
   const file = join(dir, "runs.json");
   const lock = join(dir, "runs.lock");
 
   const read = (): Runs => {
-    try { return JSON.parse(readFileSync(file, "utf8")); } catch (e) {
+    let text: string;
+    try { text = readFileSync(file, "utf8"); } catch (e) {
       if ((e as NodeJS.ErrnoException).code === "ENOENT") return {};
-      throw e; // corrupt state fails closed: never treat it as "no runs"
+      throw e;
     }
+    return validateRuns(JSON.parse(text)); // corrupt or mis-shaped state fails closed: never treated as "no runs"
   };
 
   async function acquire() {
@@ -35,12 +73,13 @@ export function createStore(dir: string) {
     }
   }
 
-  /** Serialized read-modify-write on fresh state, written atomically. If `fn` throws nothing is written. */
+  /** Serialized read-modify-write on fresh state, validated before it is written atomically. If `fn` throws nothing is written. */
   async function update<R>(fn: (runs: Runs) => R | Promise<R>): Promise<R> {
     await acquire();
     try {
       const runs = read();
       const result = await fn(runs);
+      validateRuns(JSON.parse(JSON.stringify(runs)));
       const tmp = `${file}.${process.pid}.tmp`;
       writeFileSync(tmp, JSON.stringify(runs, null, 2));
       renameSync(tmp, file);
@@ -50,8 +89,22 @@ export function createStore(dir: string) {
     }
   }
 
-  const put = (run: TicketRun) => update((runs) => { runs[run.ticket] = run; });
-  return { read, update, put };
+  /**
+   * The only way to change an EXISTING run. `fn` receives the run as it is on disk right now. With `expectedRevision`, the
+   * write is rejected (StaleRun) if anything wrote the run since the caller read it, so a command that waited on a Worker,
+   * verifier or CI can never replace a newer transition with a decision derived from its old copy.
+   */
+  const mutate = (ticket: number, fn: (current: TicketRun) => TicketRun, expectedRevision?: number): Promise<TicketRun> =>
+    update((runs) => {
+      const cur = runs[ticket];
+      if (!cur) throw new Error(`no run recorded for #${ticket}`);
+      if (expectedRevision !== undefined && cur.revision !== expectedRevision) throw new StaleRun(ticket, expectedRevision, cur.revision);
+      const next: TicketRun = { ...fn(cur), ticket, revision: cur.revision + 1 };
+      runs[ticket] = next;
+      return next;
+    });
+
+  return { read, update, mutate };
 }
 export type Store = ReturnType<typeof createStore>;
 

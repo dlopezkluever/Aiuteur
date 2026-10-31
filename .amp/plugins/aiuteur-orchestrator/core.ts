@@ -303,9 +303,14 @@ export function buildVerdict(
 
 // RESERVED: launch committed, Worker identity not yet durable. UNRESOLVED: a Worker may exist that we could not own.
 // Both occupy their ticket and a concurrency slot until an operator resolves them; neither is ever auto-relaunched.
-export type RunState = "READY" | "RESERVED" | "UNRESOLVED" | "ACTIVE" | "VERIFYING" | "MERGE_READY" | "DONE" | "BLOCKED";
-/** Runs that count toward the concurrency cap. BLOCKED/DONE free the slot (BLOCKED still owns its ticket). */
-export const holdsSlot = (r: TicketRun) => r.state !== "DONE" && r.state !== "BLOCKED";
+export const RUN_STATES = ["READY", "RESERVED", "UNRESOLVED", "ACTIVE", "VERIFYING", "MERGE_READY", "DONE", "BLOCKED"] as const;
+export type RunState = (typeof RUN_STATES)[number];
+/**
+ * Does this run still consume an implementation slot? Only DONE, and BLOCKED runs that never had a recorded Worker thread,
+ * release it. A recorded thread has never been proven stopped, so BLOCKED-with-thread (escalation, closed PR, failed repair
+ * turn) keeps its slot until an operator resolves it. "No PR yet" is never a reason to block: that stays ACTIVE.
+ */
+export const holdsSlot = (r: TicketRun) => r.state !== "DONE" && !(r.state === "BLOCKED" && !r.workerThreadId);
 export const ownsTicket = (r: TicketRun) => r.state !== "DONE";
 export interface TicketRun {
   ticket: number;
@@ -314,6 +319,7 @@ export interface TicketRun {
   workerModel?: string | undefined;
   verifierModel?: string | undefined;
   independence?: Independence | undefined;
+  revision: number; // bumped by every durable write; a write derived from an older revision is rejected (see state.ts)
   repairAttempt: number; // repairs sent so far; > 0 while ACTIVE means "repairing"
   failures: Record<string, number>; // times each root requirement has been sent back
   currentPR?: number | undefined;
@@ -323,7 +329,7 @@ export interface TicketRun {
   verdict?: Verdict | undefined; // bound to (verdict.pr, verdict.sha); stale if either differs from the live PR
   blockedReason?: string | undefined;
 }
-export const newRun = (ticket: number): TicketRun => ({ ticket, state: "READY", repairAttempt: 0, failures: {} });
+export const newRun = (ticket: number): TicketRun => ({ ticket, state: "READY", revision: 0, repairAttempt: 0, failures: {} });
 
 export type Reservation = { ok: true } | { ok: false; reason: string };
 /** Pure launch-commit check on FRESH facts: no local run owns the ticket, a slot is free, and the ticket is still runnable. */

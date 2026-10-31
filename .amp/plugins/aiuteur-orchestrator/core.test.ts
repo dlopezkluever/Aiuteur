@@ -4,7 +4,7 @@ import { test } from "node:test";
 import {
   afterRepairSent, buildVerdict, ciState, classifyFailure, computeFrontier, decide, invalidateVerdict, mergeArgs, mergeGuard,
   mergeRejectedForHead, newRun, parseVerifierReply, routeVerifier, routeWorker, selectTickets, workerStartArgs,
-  checkReservation, extractThreadId, initThreadId, hasClaim, launchWorker, workerErrorText, type LaunchDeps,
+  checkReservation, holdsSlot, extractThreadId, initThreadId, hasClaim, launchWorker, workerErrorText, type LaunchDeps,
   mergeModeFrom, smokeReplyOk, smokeVerifierPrompt,
   type Finding, type IssueNode, type PrFacts, type TicketRun,
 } from "./core.ts";
@@ -356,4 +356,12 @@ test("reservation check: held slot, local ownership and fresh claims all refuse;
   assert.equal(checkReservation(2, issues, [], [], [run(1, "BLOCKED")], 1).ok, true); // blocked frees the slot...
   assert.equal(checkReservation(1, issues, [], [], [run(1, "BLOCKED")], 2).ok, false); // ...but still owns its ticket
   assert.equal(checkReservation(1, issues, [], [], [run(1, "RESERVED")], 2).ok, false); // reservation without a thread id is not free
+});
+
+test("slot occupancy: BLOCKED releases the slot only when no Worker thread was ever recorded", () => {
+  const r = (state: TicketRun["state"], thread?: string): TicketRun => ({ ...newRun(1), state, ...(thread ? { workerThreadId: thread } : {}) });
+  for (const s of ["RESERVED", "UNRESOLVED", "ACTIVE", "VERIFYING", "MERGE_READY"] as const) assert.equal(holdsSlot(r(s)), true, s);
+  assert.equal(holdsSlot(r("BLOCKED", TID)), true);
+  assert.equal(holdsSlot(r("BLOCKED")), false);
+  assert.equal(holdsSlot(r("DONE", TID)), false);
 });
