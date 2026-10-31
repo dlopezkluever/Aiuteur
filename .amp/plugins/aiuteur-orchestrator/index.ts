@@ -15,7 +15,7 @@ import {
   verifierPrompt, workerContinueArgs, workerPrompt, workerStartArgs, type TicketRun,
 } from "./core.ts";
 import { dryRunReport } from "./dry-run.ts";
-import { availableModels, ciFor, closeIssue, commentOnPr, githubSnapshot, issueState, mergePr, prForTicket, run as exec } from "./github.ts";
+import { availableModels, ciFor, closeIssue, commentOnPr, githubSnapshot, issueState, mergePr, prForTicket, run as exec, runStreaming } from "./github.ts";
 
 export const description = "Runs the Aiuteur ticket graph: Claude Code worker, fresh OpenAI verifier per SHA, exact-SHA merge.";
 
@@ -58,7 +58,7 @@ export default function (amp: PluginAPI) {
     const out = await launchWorker({
       ticket: r.ticket,
       models,
-      exec: (args) => exec("amp", args, { timeoutMs: WORKER_TURN_MS }),
+      exec: (args, onLine) => runStreaming("amp", args, onLine, WORKER_TURN_MS),
       persistThread: (workerThreadId, workerModel) => { cur = { ...cur, state: "ACTIVE", workerThreadId, workerModel }; save(cur); },
       claimed: async () => { const g = await githubSnapshot(); return hasClaim(r.ticket, g.branches, g.prs); },
     });

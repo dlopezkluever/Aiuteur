@@ -1,6 +1,6 @@
 // Live GitHub and Amp CLI reads. Reads only, except mergePr/closeIssue/commentOnPr, which index.ts calls after the
 // deterministic merge guard. Nothing here caches: every call asks GitHub.
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { ciState, REPO, ticketOfBranch, type CiState, type IssueNode, type PrFacts, type PrNode, mergeArgs } from "./core.ts";
 
 export function run(cmd: string, args: string[], opts: { timeoutMs?: number; input?: string } = {}): Promise<{ stdout: string; stderr: string; code: number }> {
@@ -10,6 +10,24 @@ export function run(cmd: string, args: string[], opts: { timeoutMs?: number; inp
       resolve({ stdout, stderr: stderr || (error && typeof error.code !== "number" ? String(error.message) : ""), code });
     });
     if (opts.input !== undefined) child.stdin?.end(opts.input);
+  });
+}
+
+/** Like `run`, but hands each stdout line to `onLine` as it arrives (the Worker's stream-json). Still returns everything at exit. */
+export function runStreaming(cmd: string, args: string[], onLine: (line: string) => void, timeoutMs: number): Promise<{ stdout: string; stderr: string; code: number }> {
+  return new Promise((resolve) => {
+    const child = spawn(cmd, args, { stdio: ["ignore", "pipe", "pipe"], timeout: timeoutMs });
+    let stdout = "", stderr = "", pending = "";
+    child.stdout.on("data", (d: Buffer) => {
+      const text = d.toString();
+      stdout += text;
+      pending += text;
+      let nl: number;
+      while ((nl = pending.indexOf("\n")) >= 0) { onLine(pending.slice(0, nl)); pending = pending.slice(nl + 1); }
+    });
+    child.stderr.on("data", (d: Buffer) => { stderr += d.toString(); });
+    child.on("error", (e) => resolve({ stdout, stderr: stderr || String(e.message), code: 1 }));
+    child.on("close", (code) => { if (pending) onLine(pending); resolve({ stdout, stderr, code: code ?? 1 }); });
   });
 }
 

@@ -73,10 +73,16 @@ function streamEvents(stdout: string): Record<string, unknown>[] {
   }
   return events;
 }
-export function extractThreadId(stdout: string): string | undefined {
-  const id = streamEvents(stdout).find((e) => typeof e.session_id === "string" && THREAD_ID.test(e.session_id))?.session_id;
-  return id as string | undefined;
+const EXACT_THREAD_ID = new RegExp(`^${THREAD_ID.source}$`);
+/** The only event allowed to establish Worker identity: `{"type":"system","subtype":"init","session_id":"T-..."}`. */
+export function initThreadId(line: string): string | undefined {
+  try {
+    const e = JSON.parse(line);
+    if (e?.type === "system" && e.subtype === "init" && typeof e.session_id === "string" && EXACT_THREAD_ID.test(e.session_id)) return e.session_id;
+  } catch { /* not an event line */ }
+  return undefined;
 }
+export const extractThreadId = (stdout: string) => stdout.split("\n").map(initThreadId).find((id) => id !== undefined);
 /** The execution error channel only: stderr plus the final `result` event when it is flagged is_error. Never assistant/user/tool events. */
 export function workerErrorText(stdout: string, stderr: string): string {
   const result = streamEvents(stdout).filter((e) => e.type === "result").at(-1);
@@ -94,8 +100,9 @@ export type LaunchOutcome =
 export interface LaunchDeps {
   ticket: number;
   models: readonly string[];
-  exec: (args: string[]) => Promise<{ code: number; stdout: string; stderr: string }>;
-  /** Called as soon as a thread id is observed, even if the run then fails. */
+  /** Must call `onLine` for each stdout line as it arrives, not at exit. */
+  exec: (args: string[], onLine: (line: string) => void) => Promise<{ code: number; stdout: string; stderr: string }>;
+  /** Called the moment the init event arrives, while the Worker is still running, so a crash cannot lose the identity. */
   persistThread: (threadId: string, model: string) => void;
   /** Fresh read of live GitHub: does any ticket/<N>-* branch or PR exist now? */
   claimed: () => Promise<boolean>;
@@ -111,9 +118,11 @@ export async function launchWorker(d: LaunchDeps): Promise<LaunchOutcome> {
   for (;;) {
     const route = routeWorker(d.models, exhausted);
     if (!route) return { kind: "blocked", reason: `Claude subscription unavailable for every preferred model (${exhausted.join(", ") || "none discovered"}); not falling back to paid usage` };
-    const res = await d.exec(workerStartArgs(workerPrompt(d.ticket), route.model, `[orchestrator] #${d.ticket} worker`));
-    const threadId = extractThreadId(res.stdout);
-    if (threadId) d.persistThread(threadId, route.model);
+    let threadId: string | undefined;
+    const res = await d.exec(workerStartArgs(workerPrompt(d.ticket), route.model, `[orchestrator] #${d.ticket} worker`), (line) => {
+      const id = threadId ? undefined : initThreadId(line);
+      if (id) { threadId = id; d.persistThread(id, route.model); }
+    });
     if (res.code === 0 && threadId) return { kind: "started", threadId, model: route.model };
     const errorText = workerErrorText(res.stdout, res.stderr);
     const detail = `exit ${res.code}${threadId ? `, thread ${threadId}` : ""}: ${errorText.trim().slice(-400)}`;

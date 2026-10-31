@@ -4,7 +4,7 @@ import { test } from "node:test";
 import {
   afterRepairSent, buildVerdict, ciState, classifyFailure, computeFrontier, decide, invalidateVerdict, mergeArgs, mergeGuard,
   mergeRejectedForHead, newRun, parseVerifierReply, routeVerifier, routeWorker, selectTickets, workerStartArgs,
-  extractThreadId, hasClaim, launchWorker, workerErrorText, type LaunchDeps,
+  extractThreadId, initThreadId, hasClaim, launchWorker, workerErrorText, type LaunchDeps,
   mergeModeFrom, smokeReplyOk, smokeVerifierPrompt,
   type Finding, type IssueNode, type PrFacts, type TicketRun,
 } from "./core.ts";
@@ -191,7 +191,12 @@ function harness(runs: { code: number; stdout: string; stderr?: string }[], clai
   const deps: LaunchDeps = {
     ticket: 103,
     models: ["anthropic/claude-opus-5-5", "anthropic/claude-opus-5", "anthropic/claude-sonnet-5-5"],
-    exec: async (args) => { launches.push(args); const r = runs[Math.min(n++, runs.length - 1)]!; return { stderr: "", ...r }; },
+    exec: async (args, onLine) => {
+      launches.push(args);
+      const r = runs[Math.min(n++, runs.length - 1)]!;
+      for (const line of r.stdout.split("\n")) onLine(line);
+      return { stderr: "", ...r };
+    },
     persistThread: (id) => persisted.push(id),
     claimed: async () => claimed[Math.min(c++, claimed.length - 1)] ?? false,
   };
@@ -261,4 +266,43 @@ test("every provider failure with no thread or claim exhausts the models and sto
   const out = await launchWorker(h.deps);
   assert.equal(h.launches.length, 3);
   assert.match(out.kind === "blocked" ? out.reason : "", /not falling back to paid usage/);
+});
+
+test("only a system/init event establishes Worker identity", () => {
+  for (const e of [
+    { type: "assistant", session_id: TID }, { type: "user", session_id: TID }, { type: "tool_result", session_id: TID },
+    { type: "result", subtype: "success", session_id: TID }, { type: "system", subtype: "other", session_id: TID },
+    { type: "system", subtype: "init", session_id: `x ${TID}` }, { type: "system", subtype: "init", session_id: "not-a-thread" },
+  ]) assert.equal(initThreadId(ev(e)), undefined, ev(e));
+  assert.equal(initThreadId(providerStart), TID);
+  assert.equal(initThreadId("not json"), undefined);
+});
+
+test("an earlier non-init session_id cannot win over the real init event", async () => {
+  const other = "T-0aaaaaaa-b730-7542-bd8f-fcfc74a58524";
+  const stream = [ev({ type: "assistant", session_id: other }), ev({ type: "result", session_id: other }), providerStart].join("\n");
+  assert.equal(extractThreadId(stream), TID);
+  const h = harness([{ code: 1, stdout: stream }]);
+  await launchWorker(h.deps);
+  assert.deepEqual(h.persisted, [TID]);
+});
+
+test("thread id is persisted while the Worker process is still running, before it exits", async () => {
+  const persisted: string[] = [];
+  let persistedWhileAlive: string[] | undefined;
+  const deps: LaunchDeps = {
+    ticket: 103,
+    models: ["anthropic/claude-opus-5-5"],
+    exec: async (_args, onLine) => {
+      onLine(providerStart);
+      await new Promise((r) => setTimeout(r, 50)); // process still alive
+      persistedWhileAlive = [...persisted];
+      return { code: 1, stdout: providerStart, stderr: "" };
+    },
+    persistThread: (id) => persisted.push(id),
+    claimed: async () => false,
+  };
+  const out = await launchWorker(deps);
+  assert.deepEqual(persistedWhileAlive, [TID]);
+  assert.equal(out.kind === "blocked" && out.threadId, TID);
 });
