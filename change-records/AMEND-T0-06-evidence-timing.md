@@ -1,6 +1,8 @@
 # Amendment record: timing of two evidence obligations of T0-06 (#103)
 
-Format: SWARM-READINESS §3.2. Status: **proposed; owner directive given in the #103 worker session; integration-thread sign-off pending.** Nothing here changes a frozen contract (FC1 to FC11 are Draft until T0 exit, #118), so this is a sequencing amendment of acceptance evidence, not an FC amendment. It is recorded here because #103's acceptance text and VERIFICATION §9 would otherwise be unsatisfiable.
+> **STATUS: REJECTED. NON-OPERATIVE. SUPERSEDED.** The integration verifier ruled that VERIFICATION-AND-OBSERVABILITY §7.1 and §9 require this evidence before the merge that introduces the change, and #80 forbids weakening a gate in the change it unblocks. Deferring to #108 and #129 keeps the obligation but moves the merge timing, so it must **not** be ratified. Nothing below takes effect. Replacement: issue #226 (T0-06a) supplies the capability (real text adapter on staging, capped eval Account, capture and sampling runner, `treatment.draft` eval set), is a blocker of #103, and #103 produces and attaches the recorded VC2/VC5 and VC14 evidence before it merges. #108 and #129 keep only their remaining original scope. This file is kept as historical record only.
+
+Format: SWARM-READINESS §3.2. Status (original, now void): proposed. Nothing here changes a frozen contract (FC1 to FC11 are Draft until T0 exit, #118), so this is a sequencing amendment of acceptance evidence, not an FC amendment. It is recorded here because #103's acceptance text and VERIFICATION §9 would otherwise be unsatisfiable.
 
 ## The failing real case
 
