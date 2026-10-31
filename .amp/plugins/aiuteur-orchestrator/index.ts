@@ -194,22 +194,19 @@ export default function (amp: PluginAPI) {
   });
 
   amp.registerCommand("smoke-verifier", { title: "Smoke-test verifier launch", category: "aiuteur", description: "Create a fresh OpenAI verifier Orb with the production agent, tools and routing on a harmless prompt. Touches no ticket, PR or GitHub state." }, async (ctx) => {
-    const models = await availableModels();
-    const exhausted: string[] = [];
-    for (;;) {
-      const route = routeVerifier(models, exhausted);
-      if (!route) return void (await ctx.ui.notify("No OpenAI verifier model completed a fresh Orb run."));
-      const nonce = `SMOKE-${Math.random().toString(36).slice(2, 10)}`;
-      try {
-        const thread = await verifierAgents[VERIFIER_MODELS.indexOf(route.model as (typeof VERIFIER_MODELS)[number])]!.createThread({ executor: "orb", project: REPO, features: [] });
-        await thread.appendUserMessage({ type: "user-message", content: smokeVerifierPrompt(nonce) });
-        const reply = await thread.waitForResponse({ timeoutMs: 15 * 60 * 1000 });
-        const text = reply.content.map((b) => ("text" in b ? b.text : "")).join("\n");
-        return void (await ctx.ui.notify(`verifier smoke ${smokeReplyOk(text, nonce) ? "OK" : "UNEXPECTED REPLY"}; thread ${thread.id}; model ${route.model} (${route.modeKey}), independence ${route.independence}; reply: ${text.slice(0, 120)}`));
-      } catch (e) {
-        exhausted.push(route.model);
-        amp.logger.log(`verifier smoke failed on ${route.model}: ${String(e).slice(0, 300)}`);
-      }
+    const route = routeVerifier(await availableModels());
+    if (!route) return void (await ctx.ui.notify("No OpenAI verifier model available for a fresh Orb run."));
+    const nonce = `SMOKE-${Math.random().toString(36).slice(2, 10)}`;
+    let threadId: string | undefined;
+    try {
+      const thread = await verifierAgents[VERIFIER_MODELS.indexOf(route.model as (typeof VERIFIER_MODELS)[number])]!.createThread({ executor: "orb", project: REPO, features: [] });
+      threadId = thread.id;
+      await thread.appendUserMessage({ type: "user-message", content: smokeVerifierPrompt(nonce) });
+      const reply = await thread.waitForResponse({ timeoutMs: 15 * 60 * 1000 });
+      const text = reply.content.map((b) => ("text" in b ? b.text : "")).join("\n");
+      return void (await ctx.ui.notify(`verifier smoke ${smokeReplyOk(text, nonce) ? "OK" : "UNEXPECTED REPLY"}; thread ${thread.id}; model ${route.model} (${route.modeKey}), independence ${route.independence}; reply: ${text.slice(0, 120)}`));
+    } catch (e) {
+      await ctx.ui.notify(`verifier smoke failed on ${route.model}; ${threadId ? `thread ${threadId}` : "thread creation outcome unknown"}; no retry: ${String(e).slice(0, 300)}`);
     }
   });
 
