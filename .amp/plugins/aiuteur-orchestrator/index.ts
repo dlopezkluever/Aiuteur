@@ -5,15 +5,14 @@
 // @amp-agent-mode {"key":"aiu-verifier-1","label":"aiuteur verifier 1"}
 // @amp-agent-mode {"key":"aiu-verifier-2","label":"aiuteur verifier 2"}
 // @amp-agent-mode {"key":"aiu-verifier-3","label":"aiuteur verifier 3"}
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
-import type { PluginAPI } from "@ampcode/plugin";
+import type { PluginAPI, ThreadID } from "@ampcode/plugin";
 import {
   DEFAULT_CAP, REPO, mergeModeFrom, smokeReplyOk, smokeVerifierPrompt, VERIFIER_EFFORT, VERIFIER_INSTRUCTIONS, VERIFIER_MODELS, VERIFIER_TOOLS, WORKER_EFFORT,
-  afterRepairSent, buildVerdict, classifyFailure, computeFrontier, hasClaim, launchWorker, workerErrorText, decide, extractThreadId, invalidateVerdict, mergeGuard,
-  mergeRejectedForHead, newRun, parseVerifierReply, repairPrompt, routeVerifier, routeWorker, selectTickets, verifierModeKey,
+  afterRepairSent, buildVerdict, holdsSlot, ownsTicket, classifyFailure, computeFrontier, hasClaim, launchWorker, workerErrorText, decide, extractThreadId, invalidateVerdict, mergeGuard,
+  mergeRejectedForHead, parseVerifierReply, repairPrompt, routeVerifier, routeWorker, selectTickets, verifierModeKey,
   verifierPrompt, workerContinueArgs, workerPrompt, workerStartArgs, type TicketRun,
 } from "./core.ts";
+import { createStore, reserveLaunch } from "./state.ts";
 import { dryRunReport } from "./dry-run.ts";
 import { availableModels, ciFor, closeIssue, commentOnPr, githubSnapshot, issueState, mergePr, prForTicket, run as exec, runStreaming } from "./github.ts";
 
@@ -27,14 +26,9 @@ const CI_POLL_MS = 60_000;
 const CI_TIMEOUT_MS = 45 * 60 * 1000;
 
 export default function (amp: PluginAPI) {
-  const stateFile = join(amp.system.cacheDirectory, "runs.json");
-  const load = (): Record<number, TicketRun> => {
-    try { return JSON.parse(readFileSync(stateFile, "utf8")); } catch { return {}; }
-  };
-  const save = (r: TicketRun) => {
-    mkdirSync(amp.system.cacheDirectory, { recursive: true });
-    writeFileSync(stateFile, JSON.stringify({ ...load(), [r.ticket]: r }, null, 2));
-  };
+  const store = createStore(amp.system.cacheDirectory); // sole writer of run state (serialized, atomic)
+  const load = () => store.read();
+  const save = (r: TicketRun) => store.put(r);
   const log = (t: number, msg: string) => amp.logger.log(`#${t} ${msg}`);
 
   // One agent per verifier model; each is a registered mode because Orb-backed custom agents must be.
@@ -44,32 +38,42 @@ export default function (amp: PluginAPI) {
     return agent;
   });
 
-  const block = (r: TicketRun, reason: string): TicketRun => {
-    log(r.ticket, `BLOCKED: ${reason}`);
-    const next: TicketRun = { ...r, state: "BLOCKED", blockedReason: reason };
-    save(next);
+  const block = async (r: TicketRun, reason: string, state: "BLOCKED" | "UNRESOLVED" = "BLOCKED"): Promise<TicketRun> => {
+    log(r.ticket, `${state}: ${reason}`);
+    const next: TicketRun = { ...r, state, blockedReason: reason };
+    await save(next);
     return next;
+  };
+
+  // Killing the local CLI proves nothing about the remote Orb. Ask Amp to cancel the thread, then count it stopped only if
+  // Amp reports it idle. Unproven against a live Worker; any doubt returns false and the reservation stays.
+  const cancelRemote = async (id: string): Promise<boolean> => {
+    try { const t = amp.threads.get(id as ThreadID); await t.cancel(); return (await t.state.get()) === "idle"; } catch { return false; }
   };
 
   // ---- Worker ------------------------------------------------------------------------------------------------------
 
+  /** Precondition: `r` is the RESERVED run committed by reserveLaunch. */
   async function startWorker(r: TicketRun, models: string[]): Promise<TicketRun> {
-    let cur = r;
     const out = await launchWorker({
       ticket: r.ticket,
       models,
-      exec: (args, onLine) => runStreaming("amp", args, onLine, WORKER_TURN_MS),
-      persistThread: (workerThreadId, workerModel) => { cur = { ...cur, state: "ACTIVE", workerThreadId, workerModel }; save(cur); },
+      exec: (args, onLine, signal) => runStreaming("amp", args, onLine, WORKER_TURN_MS, signal),
+      persistThread: (workerThreadId, workerModel) => store.update((runs) => { runs[r.ticket] = { ...(runs[r.ticket] ?? r), state: "ACTIVE", workerThreadId, workerModel }; }),
+      cancelRemote,
       claimed: async () => { const g = await githubSnapshot(); return hasClaim(r.ticket, g.branches, g.prs); },
     });
-    return out.kind === "started" ? cur : block(cur, out.reason);
+    const cur = load()[r.ticket] ?? r;
+    if (out.kind === "started") return cur;
+    if (out.kind === "unresolved") return block({ ...cur, workerThreadId: out.threadId, workerModel: out.model }, out.reason, "UNRESOLVED");
+    return block(cur, out.reason);
   }
 
   async function repairWorker(r: TicketRun, prompt: string): Promise<TicketRun> {
     const res = await exec("amp", workerContinueArgs(r.workerThreadId!, prompt), { timeoutMs: WORKER_TURN_MS });
     if (res.code === 0) return r;
     const out = workerErrorText(res.stdout, res.stderr);
-    return block(r, `${classifyFailure(out) === "provider" ? "provider/runtime condition" : "worker continuation failed"} (Worker thread ${r.workerThreadId} kept): ${out.trim().slice(-400)}`);
+    return await block(r, `${classifyFailure(out) === "provider" ? "provider/runtime condition" : "worker continuation failed"} (Worker thread ${r.workerThreadId} kept): ${out.trim().slice(-400)}`);
   }
 
   // ---- Verifier (fresh Orb thread for every call) -------------------------------------------------------------------
@@ -78,7 +82,7 @@ export default function (amp: PluginAPI) {
     const exhausted: string[] = [];
     for (let invalid = 0; invalid < 2; ) {
       const route = routeVerifier(models, exhausted);
-      if (!route) return block(r, "no OpenAI verifier model available; independence is never downgraded");
+      if (!route) return await block(r, "no OpenAI verifier model available; independence is never downgraded");
       const agent = verifierAgents[VERIFIER_MODELS.indexOf(route.model as (typeof VERIFIER_MODELS)[number])]!;
       let text: string;
       try {
@@ -88,7 +92,7 @@ export default function (amp: PluginAPI) {
         text = reply.content.map((b) => ("text" in b ? b.text : "")).join("\n");
       } catch (e) {
         if (classifyFailure(String(e)) === "provider") { exhausted.push(route.model); continue; }
-        return block(r, `verifier run failed: ${String(e).slice(0, 400)}`);
+        return await block(r, `verifier run failed: ${String(e).slice(0, 400)}`);
       }
       const parsed = parseVerifierReply(text, { pr, sha });
       if (!parsed.ok) { log(r.ticket, `invalid verdict (${parsed.reason}); fresh verifier`); invalid++; continue; }
@@ -96,20 +100,25 @@ export default function (amp: PluginAPI) {
       const verdict = buildVerdict(parsed.findings, { pr, sha }, withModels);
       await commentOnPr(pr, `Aiuteur verifier verdict for \`${sha}\`\n\n\`\`\`json\n${JSON.stringify(verdict, null, 2)}\n\`\`\``).catch(() => undefined);
       const next: TicketRun = { ...withModels, state: "VERIFYING", verdict, lastVerifiedSha: sha };
-      save(next);
+      await save(next);
       return next;
     }
-    return block(r, "verifier returned an invalid verdict twice (fresh verifier each time)");
+    return await block(r, "verifier returned an invalid verdict twice (fresh verifier each time)");
   }
 
   // ---- one ticket, end to end ---------------------------------------------------------------------------------------
 
   async function drive(ticket: number): Promise<TicketRun> {
     const models = await availableModels();
-    let r = load()[ticket] ?? newRun(ticket);
-    if (!r.workerThreadId && r.state !== "BLOCKED" && r.state !== "DONE") r = await startWorker(r, models);
+    let r = load()[ticket];
+    if (!r) throw new Error(`no run recorded for #${ticket}; launches go through run-next's reservation`);
+    if (r.state === "RESERVED" || (!r.workerThreadId && r.state !== "BLOCKED" && r.state !== "UNRESOLVED" && r.state !== "DONE")) {
+      // Worker identity was never recorded: a Worker may exist. Hold the ticket and slot; never relaunch.
+      return block(r, "launch reserved but no Worker thread was recorded (coordinator stopped mid-launch?); a Worker may exist. Resolve manually before re-running.", "UNRESOLVED");
+    }
+    if (r.state === "UNRESOLVED") return r;
     const ciDeadline = Date.now() + CI_TIMEOUT_MS;
-    for (let step = 0; step < 100 && r.state !== "DONE" && r.state !== "BLOCKED" && r.state !== "MERGE_READY"; step++) {
+    for (let step = 0; step < 100 && r.state !== "DONE" && r.state !== "BLOCKED" && r.state !== "UNRESOLVED" && r.state !== "MERGE_READY"; step++) {
       const pr = await prForTicket(ticket);
       const ci = pr ? await ciFor(pr.headSha) : "pending";
       if (pr) r = { ...r, currentPR: pr.number, lastCandidateSha: pr.headSha };
@@ -118,13 +127,13 @@ export default function (amp: PluginAPI) {
       switch (action.type) {
         case "done":
           r = { ...r, state: "DONE" };
-          save(r);
+          await save(r);
           break;
         case "escalate":
-          r = block(r, action.reason);
+          r = await block(r, action.reason);
           break;
         case "wait":
-          if (action.for !== "ci" || Date.now() > ciDeadline) { r = block(r, action.reason); break; }
+          if (action.for !== "ci" || Date.now() > ciDeadline) { r = await block(r, action.reason); break; }
           await new Promise((res) => setTimeout(res, CI_POLL_MS));
           break;
         case "verify":
@@ -132,30 +141,30 @@ export default function (amp: PluginAPI) {
           break;
         case "repair": {
           r = afterRepairSent(r, action);
-          save(r);
+          await save(r);
           r = await repairWorker(r, repairPrompt(action, pr!.number));
           break;
         }
         case "merge-ready": {
           const live = (await prForTicket(ticket))!;
           const guard = mergeGuard(r.verdict, live, await ciFor(live.headSha));
-          if (!guard.ok) { r = (guard.reason === "head-moved" || guard.reason === "wrong-pr") ? invalidateVerdict(r) : block(r, `not merge-ready: ${guard.reason}`); save(r); break; }
+          if (!guard.ok) { r = (guard.reason === "head-moved" || guard.reason === "wrong-pr") ? invalidateVerdict(r) : await block(r, `not merge-ready: ${guard.reason}`); await save(r); break; }
           r = { ...r, state: "MERGE_READY" };
-          save(r);
+          await save(r);
           log(ticket, `MERGE_READY: would run gh pr merge ${action.pr} --match-head-commit ${action.sha}; stopping (manual-merge mode)`);
           break;
         }
         case "merge": {
           const live = (await prForTicket(ticket))!;
           const guard = mergeGuard(r.verdict, live, await ciFor(live.headSha));
-          if (!guard.ok) { r = (guard.reason === "head-moved" || guard.reason === "wrong-pr") ? invalidateVerdict(r) : block(r, `merge refused: ${guard.reason}`); save(r); break; }
+          if (!guard.ok) { r = (guard.reason === "head-moved" || guard.reason === "wrong-pr") ? invalidateVerdict(r) : await block(r, `merge refused: ${guard.reason}`); await save(r); break; }
           const res = await mergePr(action.pr, action.sha);
           if (res.code === 0) {
             if ((await issueState(ticket)) === "OPEN") await closeIssue(ticket, `Merged via PR #${action.pr} at ${action.sha}; independent verifier PASS on that SHA and required CI green.`);
             r = { ...r, state: "DONE" };
           } else if (mergeRejectedForHead(res.stderr)) r = invalidateVerdict(r); // new SHA => fresh verifier, no blind retry
-          else r = block(r, `merge failed: ${res.stderr.slice(0, 400)}`);
-          save(r);
+          else r = await block(r, `merge failed: ${res.stderr.slice(0, 400)}`);
+          await save(r);
           break;
         }
       }
@@ -165,26 +174,32 @@ export default function (amp: PluginAPI) {
 
   // ---- commands ----------------------------------------------------------------------------------------------------
 
-  const activeRuns = () => Object.values(load()).filter((r) => r.state !== "DONE" && r.state !== "BLOCKED");
+  const heldSlots = () => Object.values(load()).filter(holdsSlot).length;
+  const ownedTickets = () => Object.values(load()).filter(ownsTicket).map((r) => r.ticket);
 
   amp.registerCommand("dry-run", { title: "Dry run", category: "aiuteur", description: "Read-only: show the live GitHub frontier and what would run." }, async (ctx) => {
-    const report = await dryRunReport(CAP, activeRuns().length);
+    const report = await dryRunReport(CAP, heldSlots(), ownedTickets());
     amp.logger.log(report);
     await ctx.ui.notify(report);
   });
 
   amp.registerCommand("run-next", { title: "Run next ticket", category: "aiuteur", description: "Start ONE untouched eligible ticket end to end (Worker, verifier, merge). Asks for confirmation." }, async (ctx) => {
     const { issues, branches, prs } = await githubSnapshot();
-    const pick = selectTickets(computeFrontier(issues, branches, prs), activeRuns().length, CAP)[0];
+    const pick = selectTickets(computeFrontier(issues, branches, prs, ownedTickets()), heldSlots(), CAP)[0];
     if (!pick) return void (await ctx.ui.notify("No eligible ticket or no free concurrency slot."));
     const ok = await ctx.ui.confirm({ title: `Run #${pick.number}?`, message: `${pick.title}\n\nCreates a Claude Code worker Orb, runs /implement #${pick.number}, verifies with a fresh OpenAI Orb per SHA, and merges only after exact-SHA PASS + required CI.`, confirmButtonText: "Run" });
     if (!ok) return;
-    const result = await drive(pick.number);
+    // Confirmation authorizes THIS ticket only. Revalidate it on fresh GitHub state inside the lock, reserve, and only then launch.
+    const models = await availableModels();
+    const reservation = await reserveLaunch(store, githubSnapshot, pick.number, CAP);
+    if (!reservation.ok) return void (await ctx.ui.notify(`Not launching #${pick.number}: ${reservation.reason}. State changed after confirmation; nothing started.`));
+    const started = await startWorker(load()[pick.number]!, models);
+    const result = started.state === "ACTIVE" ? await drive(pick.number) : started;
     await ctx.ui.notify(`#${pick.number}: ${result.state}${result.blockedReason ? ` (${result.blockedReason})` : ""}`);
   });
 
   amp.registerCommand("resume", { title: "Resume runs", category: "aiuteur", description: "Continue every unfinished run recorded in the orchestrator state file." }, async (ctx) => {
-    for (const r of activeRuns()) await ctx.ui.notify(`#${r.ticket}: ${(await drive(r.ticket)).state}`);
+    for (const r of Object.values(load()).filter(holdsSlot)) await ctx.ui.notify(`#${r.ticket}: ${(await drive(r.ticket)).state}`);
   });
 
   amp.registerCommand("smoke-verifier", { title: "Smoke-test verifier launch", category: "aiuteur", description: "Create a fresh OpenAI verifier Orb with the production agent, tools and routing on a harmless prompt. Touches no ticket, PR or GitHub state." }, async (ctx) => {

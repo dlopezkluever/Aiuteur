@@ -3,10 +3,10 @@
 import { computeFrontier, DEFAULT_CAP, formatDryRun, routeVerifier, routeWorker } from "./core.ts";
 import { availableModels, githubSnapshot } from "./github.ts";
 
-export async function dryRunReport(cap: number, activeRuns = 0): Promise<string> {
+export async function dryRunReport(cap: number, activeRuns = 0, owned: number[] = []): Promise<string> {
   const [{ issues, branches, prs }, models] = await Promise.all([githubSnapshot(), availableModels()]);
   return formatDryRun({
-    frontier: computeFrontier(issues, branches, prs),
+    frontier: computeFrontier(issues, branches, prs, owned),
     activeRuns,
     cap,
     workerModel: routeWorker(models)?.model ?? null,

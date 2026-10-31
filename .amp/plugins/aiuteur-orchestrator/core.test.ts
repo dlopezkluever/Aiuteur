@@ -4,7 +4,7 @@ import { test } from "node:test";
 import {
   afterRepairSent, buildVerdict, ciState, classifyFailure, computeFrontier, decide, invalidateVerdict, mergeArgs, mergeGuard,
   mergeRejectedForHead, newRun, parseVerifierReply, routeVerifier, routeWorker, selectTickets, workerStartArgs,
-  extractThreadId, initThreadId, hasClaim, launchWorker, workerErrorText, type LaunchDeps,
+  checkReservation, extractThreadId, initThreadId, hasClaim, launchWorker, workerErrorText, type LaunchDeps,
   mergeModeFrom, smokeReplyOk, smokeVerifierPrompt,
   type Finding, type IssueNode, type PrFacts, type TicketRun,
 } from "./core.ts";
@@ -197,7 +197,8 @@ function harness(runs: { code: number; stdout: string; stderr?: string }[], clai
       for (const line of r.stdout.split("\n")) onLine(line);
       return { stderr: "", ...r };
     },
-    persistThread: (id) => persisted.push(id),
+    persistThread: (id) => { persisted.push(id); },
+    cancelRemote: async () => false,
     claimed: async () => claimed[Math.min(c++, claimed.length - 1)] ?? false,
   };
   return { deps, launches, persisted };
@@ -299,7 +300,8 @@ test("thread id is persisted while the Worker process is still running, before i
       persistedWhileAlive = [...persisted];
       return { code: 1, stdout: providerStart, stderr: "" };
     },
-    persistThread: (id) => persisted.push(id),
+    persistThread: (id) => { persisted.push(id); },
+    cancelRemote: async () => false,
     claimed: async () => false,
   };
   const out = await launchWorker(deps);
@@ -321,4 +323,37 @@ test("a verdict authorizes exactly its PR and SHA", () => {
     assert.equal(mergeGuard(r.verdict, live, "pass").ok, false);
   }
   assert.deepEqual(mergeGuard(r.verdict, other(8, SHA_A), "pass"), { ok: false, reason: "wrong-pr" });
+});
+
+test("persistence failure after init: cancel attempted, ownership kept, no replacement Worker", async () => {
+  for (const stopped of [true, false]) {
+    const cancelled: string[] = [];
+    let aborted = false;
+    const deps: LaunchDeps = {
+      ticket: 103,
+      models: ["anthropic/claude-opus-5-5", "anthropic/claude-opus-5"],
+      exec: async (_a, onLine, signal) => { signal.addEventListener("abort", () => { aborted = true; }); onLine(providerStart); return { code: aborted ? 1 : 0, stdout: providerStart, stderr: "" }; },
+      persistThread: () => { throw new Error("disk full"); },
+      cancelRemote: async (id) => { cancelled.push(id); return stopped; },
+      claimed: async () => false,
+    };
+    const out = await launchWorker(deps);
+    assert.deepEqual(cancelled, [TID]);
+    assert.equal(aborted, true);
+    assert.equal(out.kind, "unresolved");
+    assert.equal(out.kind === "unresolved" && out.remoteStopped, stopped);
+    assert.equal(out.kind === "unresolved" && out.threadId, TID);
+  }
+});
+
+test("reservation check: held slot, local ownership and fresh claims all refuse; RESERVED/UNRESOLVED hold the slot", () => {
+  const issues = [issue(1), issue(2)];
+  const run = (ticket: number, state: TicketRun["state"]): TicketRun => ({ ...newRun(ticket), state });
+  assert.deepEqual(checkReservation(1, issues, [], [], [], 1), { ok: true });
+  assert.equal(checkReservation(1, issues, ["ticket/1-other"], [], [], 1).ok, false); // claim appeared after confirmation
+  assert.equal(checkReservation(2, issues, [], [], [run(1, "RESERVED")], 1).ok, false); // different ticket, cap 1
+  assert.equal(checkReservation(2, issues, [], [], [run(1, "UNRESOLVED")], 1).ok, false);
+  assert.equal(checkReservation(2, issues, [], [], [run(1, "BLOCKED")], 1).ok, true); // blocked frees the slot...
+  assert.equal(checkReservation(1, issues, [], [], [run(1, "BLOCKED")], 2).ok, false); // ...but still owns its ticket
+  assert.equal(checkReservation(1, issues, [], [], [run(1, "RESERVED")], 2).ok, false); // reservation without a thread id is not free
 });

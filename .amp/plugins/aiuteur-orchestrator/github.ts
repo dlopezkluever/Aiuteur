@@ -14,9 +14,9 @@ export function run(cmd: string, args: string[], opts: { timeoutMs?: number; inp
 }
 
 /** Like `run`, but hands each stdout line to `onLine` as it arrives (the Worker's stream-json). Still returns everything at exit. */
-export function runStreaming(cmd: string, args: string[], onLine: (line: string) => void, timeoutMs: number): Promise<{ stdout: string; stderr: string; code: number }> {
+export function runStreaming(cmd: string, args: string[], onLine: (line: string) => void, timeoutMs: number, signal?: AbortSignal): Promise<{ stdout: string; stderr: string; code: number }> {
   return new Promise((resolve) => {
-    const child = spawn(cmd, args, { stdio: ["ignore", "pipe", "pipe"], timeout: timeoutMs });
+    const child = spawn(cmd, args, { stdio: ["ignore", "pipe", "pipe"], timeout: timeoutMs, ...(signal ? { signal } : {}) });
     let stdout = "", stderr = "", pending = "";
     child.stdout.on("data", (d: Buffer) => {
       const text = d.toString();

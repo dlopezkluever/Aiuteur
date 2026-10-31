@@ -95,15 +95,19 @@ export const hasClaim = (ticket: number, branches: string[], prs: PrNode[]) =>
 
 export type LaunchOutcome =
   | { kind: "started"; threadId: string; model: string }
-  | { kind: "blocked"; reason: string; threadId?: string; model?: string };
+  | { kind: "blocked"; reason: string; threadId?: string; model?: string }
+  /** A Worker may exist that the coordinator could not durably own. Ownership must be kept; nothing may relaunch. */
+  | { kind: "unresolved"; reason: string; threadId: string; model: string; remoteStopped: boolean };
 
 export interface LaunchDeps {
   ticket: number;
   models: readonly string[];
   /** Must call `onLine` for each stdout line as it arrives, not at exit. */
-  exec: (args: string[], onLine: (line: string) => void) => Promise<{ code: number; stdout: string; stderr: string }>;
+  exec: (args: string[], onLine: (line: string) => void, signal: AbortSignal) => Promise<{ code: number; stdout: string; stderr: string }>;
   /** Called the moment the init event arrives, while the Worker is still running, so a crash cannot lose the identity. */
-  persistThread: (threadId: string, model: string) => void;
+  persistThread: (threadId: string, model: string) => unknown;
+  /** Ask Amp to stop the remote Worker thread; true only if it is confirmed no longer running. Killing the local CLI proves nothing. */
+  cancelRemote: (threadId: string) => Promise<boolean>;
   /** Fresh read of live GitHub: does any ticket/<N>-* branch or PR exist now? */
   claimed: () => Promise<boolean>;
 }
@@ -119,10 +123,20 @@ export async function launchWorker(d: LaunchDeps): Promise<LaunchOutcome> {
     const route = routeWorker(d.models, exhausted);
     if (!route) return { kind: "blocked", reason: `Claude subscription unavailable for every preferred model (${exhausted.join(", ") || "none discovered"}); not falling back to paid usage` };
     let threadId: string | undefined;
+    let persisting: Promise<unknown> = Promise.resolve();
+    let persistError: unknown;
+    const abort = new AbortController();
     const res = await d.exec(workerStartArgs(workerPrompt(d.ticket), route.model, `[orchestrator] #${d.ticket} worker`), (line) => {
       const id = threadId ? undefined : initThreadId(line);
-      if (id) { threadId = id; d.persistThread(id, route.model); }
-    });
+      if (!id) return;
+      threadId = id;
+      persisting = (async () => d.persistThread(id, route.model))().catch((e) => { persistError = e ?? new Error("persist failed"); abort.abort(); });
+    }, abort.signal);
+    await persisting;
+    if (threadId && persistError !== undefined) {
+      const remoteStopped = await d.cancelRemote(threadId).catch(() => false);
+      return { kind: "unresolved", threadId, model: route.model, remoteStopped, reason: `could not durably record Worker thread ${threadId} (${String(persistError).slice(0, 200)}); remote cancellation ${remoteStopped ? "confirmed the thread stopped" : "NOT confirmed"}. Ticket #${d.ticket} stays reserved; no replacement Worker will launch.` };
+    }
     if (res.code === 0 && threadId) return { kind: "started", threadId, model: route.model };
     const errorText = workerErrorText(res.stdout, res.stderr);
     const detail = `exit ${res.code}${threadId ? `, thread ${threadId}` : ""}: ${errorText.trim().slice(-400)}`;
@@ -180,7 +194,7 @@ export const ticketOfBranch = (name: string) => {
   return m ? Number(m[1]) : null;
 };
 
-export interface Claim { branches: string[]; prs: number[]; assignees: string[] }
+export interface Claim { branches: string[]; prs: number[]; assignees: string[]; local?: boolean }
 export interface Frontier {
   runnable: Ticket[];
   blocked: Ticket[];
@@ -190,17 +204,18 @@ export interface Frontier {
 }
 
 /** An open ticket with a `ticket/<n>-*` branch, an open PR from one, or an assignee is already claimed. */
-export function computeFrontier(issues: IssueNode[], branches: string[], prs: PrNode[]): Frontier {
+export function computeFrontier(issues: IssueNode[], branches: string[], prs: PrNode[], owned: readonly number[] = []): Frontier {
   const claimOf = (n: number): Claim => ({
     branches: branches.filter((b) => ticketOfBranch(b) === n),
     prs: prs.filter((p) => ticketOfBranch(p.headRefName) === n).map((p) => p.number),
     assignees: issues.find((i) => i.number === n)?.assignees ?? [],
+    ...(owned.includes(n) ? { local: true } : {}),
   });
   const f: Frontier = { runnable: [], blocked: [], inFlight: [], humanGated: [], deferredSerial: [] };
   const tickets = issues.map(parseTicket).filter((t): t is Ticket => t !== null && t.ready).sort((a, b) => a.number - b.number);
   for (const t of tickets) {
     const claim = claimOf(t.number);
-    if (claim.branches.length + claim.prs.length + claim.assignees.length > 0) f.inFlight.push({ ticket: t, claim });
+    if (claim.branches.length + claim.prs.length + claim.assignees.length > 0 || claim.local) f.inFlight.push({ ticket: t, claim });
     else if (t.mode !== "Agent") f.humanGated.push(t);
     else if (t.openBlockers.length > 0) f.blocked.push(t);
     else f.runnable.push(t);
@@ -286,7 +301,12 @@ export function buildVerdict(
 
 // ---- per-ticket run record and next-action decision ----------------------------------------------------------------
 
-export type RunState = "READY" | "ACTIVE" | "VERIFYING" | "MERGE_READY" | "DONE" | "BLOCKED";
+// RESERVED: launch committed, Worker identity not yet durable. UNRESOLVED: a Worker may exist that we could not own.
+// Both occupy their ticket and a concurrency slot until an operator resolves them; neither is ever auto-relaunched.
+export type RunState = "READY" | "RESERVED" | "UNRESOLVED" | "ACTIVE" | "VERIFYING" | "MERGE_READY" | "DONE" | "BLOCKED";
+/** Runs that count toward the concurrency cap. BLOCKED/DONE free the slot (BLOCKED still owns its ticket). */
+export const holdsSlot = (r: TicketRun) => r.state !== "DONE" && r.state !== "BLOCKED";
+export const ownsTicket = (r: TicketRun) => r.state !== "DONE";
 export interface TicketRun {
   ticket: number;
   state: RunState;
@@ -304,6 +324,19 @@ export interface TicketRun {
   blockedReason?: string | undefined;
 }
 export const newRun = (ticket: number): TicketRun => ({ ticket, state: "READY", repairAttempt: 0, failures: {} });
+
+export type Reservation = { ok: true } | { ok: false; reason: string };
+/** Pure launch-commit check on FRESH facts: no local run owns the ticket, a slot is free, and the ticket is still runnable. */
+export function checkReservation(ticket: number, issues: IssueNode[], branches: string[], prs: PrNode[], runs: readonly TicketRun[], cap: number): Reservation {
+  const existing = runs.find((r) => r.ticket === ticket && ownsTicket(r));
+  if (existing) return { ok: false, reason: `#${ticket} already has a local run (${existing.state})` };
+  const held = runs.filter(holdsSlot).length;
+  if (held >= cap) return { ok: false, reason: `concurrency cap ${cap} reached (${held} held)` };
+  const f = computeFrontier(issues, branches, prs, runs.filter(ownsTicket).map((r) => r.ticket));
+  if (f.runnable.some((t) => t.number === ticket)) return { ok: true };
+  const claim = f.inFlight.find((x) => x.ticket.number === ticket);
+  return { ok: false, reason: claim ? `#${ticket} is now claimed (${[...claim.claim.branches, ...claim.claim.prs.map((n) => `PR #${n}`)].join(", ") || "assignee"})` : `#${ticket} is no longer eligible (closed, blocked, not ready-for-agent, or serial-deferred)` };
+}
 
 export type CiState = "pass" | "fail" | "pending";
 export interface PrFacts { number: number; headSha: string; state: "OPEN" | "MERGED" | "CLOSED"; draft: boolean }
@@ -479,7 +512,7 @@ export function formatDryRun({ frontier, activeRuns, cap, workerModel, verifierM
     list(nextUp.map((t) => `${line(t)}  <- blocked by ${t.openBlockers.map((n) => `#${n}`).join(", ")}`)),
     "",
     "Excluded as already in progress (branch, open PR or assignee):",
-    list(frontier.inFlight.map(({ ticket, claim }) => `${line(ticket)}  <- ${[...claim.branches, ...claim.prs.map((n) => `PR #${n}`), ...claim.assignees.map((a) => `@${a}`)].join(", ")}`)),
+    list(frontier.inFlight.map(({ ticket, claim }) => `${line(ticket)}  <- ${[...claim.branches, ...claim.prs.map((n) => `PR #${n}`), ...claim.assignees.map((a) => `@${a}`), ...(claim.local ? ["local run/reservation"] : [])].join(", ")}`)),
     "",
     "Excluded as human-gated (Execution mode is not Agent):",
     list(frontier.humanGated.map((t) => `${line(t)}  [${t.mode}]`)),
