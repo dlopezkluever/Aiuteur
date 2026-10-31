@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Runs on every orb wake: bring PostgreSQL back up. Fast and idempotent; never installs anything.
+set -euo pipefail
+SUDO=""; [ "$(id -u)" -eq 0 ] || SUDO="sudo"
+pg_version="$(ls /usr/lib/postgresql | sort -n | tail -1)"
+pg_isready -h 127.0.0.1 -U postgres -q || $SUDO pg_ctlcluster "$pg_version" main start
+for _ in $(seq 1 8); do pg_isready -h 127.0.0.1 -U postgres -q && exit 0; sleep 1; done
+echo "PostgreSQL did not become ready" >&2; exit 1

@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# Orb bootstrap for Aiuteur: mirrors .github/workflows/pipeline.yml (the `verify` job's prerequisites).
+# Finite and idempotent. Starts no long-lived process: PostgreSQL is stopped before exit and `.agents/resume` restarts it.
+set -euo pipefail
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+
+step() { printf '\n==> %s\n' "$*"; }
+SUDO=""; [ "$(id -u)" -eq 0 ] || SUDO="sudo"
+
+step "system packages (PostgreSQL 15 as in CI, ffmpeg for the fake provider's media checks)"
+missing=()
+dpkg -s postgresql >/dev/null 2>&1 || missing+=(postgresql)
+command -v ffmpeg >/dev/null 2>&1 || missing+=(ffmpeg)
+if [ "${#missing[@]}" -gt 0 ]; then
+  $SUDO apt-get update -qq
+  DEBIAN_FRONTEND=noninteractive $SUDO apt-get install -y -qq "${missing[@]}"
+fi
+
+step "pnpm (version pinned by package.json packageManager) and dependencies"
+command -v pnpm >/dev/null 2>&1 || { $SUDO corepack enable; corepack prepare --activate >/dev/null; }
+pnpm install --frozen-lockfile
+
+step "PostgreSQL: trust auth for the runtime roles (as CI), speed over durability, test databases"
+pg_version="$(ls /usr/lib/postgresql | sort -n | tail -1)"
+conf_dir="/etc/postgresql/$pg_version/main"
+$SUDO sed -i -E 's/^(host\s+all\s+all\s+(127\.0\.0\.1\/32|::1\/128)\s+)\S+/\1trust/' "$conf_dir/pg_hba.conf"
+echo "fsync = off
+synchronous_commit = off
+full_page_writes = off" | $SUDO tee "$conf_dir/conf.d/aiuteur-test.conf" >/dev/null
+$SUDO pg_ctlcluster "$pg_version" main start 2>/dev/null || true
+for _ in $(seq 1 30); do pg_isready -h 127.0.0.1 -U postgres -q && break; sleep 1; done
+psql_pg() { $SUDO -u postgres psql -v ON_ERROR_STOP=1 -qtAc "$1"; }
+[ "$(psql_pg "select 1 from pg_roles where rolname='$(id -un)'")" = 1 ] || psql_pg "create role \"$(id -un)\" superuser login"
+[ "$(psql_pg "select 1 from pg_database where datname='generated_equality'")" = 1 ] || psql_pg "create database generated_equality"
+$SUDO pg_ctlcluster "$pg_version" main stop 2>/dev/null || true
+
+step "environment the suites read (no credentials: trust auth, loopback only)"
+marker="# aiuteur test database"
+if ! grep -Fqx "$marker" "$HOME/.bash_profile" 2>/dev/null; then
+  cat >> "$HOME/.bash_profile" <<PROFILE
+
+$marker
+export TEST_POSTGRES_URL=postgres://postgres@127.0.0.1:5432/postgres
+export MIGRATION_DATABASE_URL=postgres://postgres@127.0.0.1:5432/generated_equality
+PROFILE
+fi
+
+step "Playwright Chromium for the VC9 short path (absent means failure in CI)"
+pnpm --filter @aiuteur/web exec playwright install --with-deps chromium
+
+step "setup complete"
