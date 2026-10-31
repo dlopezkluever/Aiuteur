@@ -6,7 +6,7 @@
 import { closeSync, mkdirSync, openSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { checkReservation, newRun, RUN_STATES, type IssueNode, type PrNode, type Reservation, type TicketRun } from "./core.ts";
+import { checkReservation, newRun, RUN_STATES, verdictProblem, type IssueNode, type PrNode, type Reservation, type TicketRun } from "./core.ts";
 
 export type Runs = Record<number, TicketRun>;
 const STALE_LOCK_MS = 5 * 60 * 1000;
@@ -39,10 +39,8 @@ export function validateRuns(x: unknown): Runs {
     if (!isObj(r.failures) || !Object.values(r.failures).every((n) => typeof n === "number")) throw bad("failures must map to numbers");
     if (!["workerThreadId", "workerModel", "verifierModel", "independence", "lastCandidateSha", "lastVerifiedSha", "repairSentForSha", "blockedReason"].every((k) => optStr(r, k))) throw bad("string field has wrong type");
     if (!optNum(r, "currentPR")) throw bad("currentPR must be a number");
-    if (r.verdict !== undefined) {
-      const v = r.verdict;
-      if (!isObj(v) || typeof v.pr !== "number" || typeof v.sha !== "string" || !Array.isArray(v.blocking) || !Array.isArray(v.nonBlocking)) throw bad("malformed verdict");
-    }
+    if (r.workerRunning !== undefined && typeof r.workerRunning !== "boolean") throw bad("workerRunning must be a boolean");
+    if (r.verdict !== undefined) { const p = verdictProblem(r.verdict); if (p) throw bad(p); }
   }
   return x as Runs;
 }
@@ -121,7 +119,7 @@ export async function reserveLaunch(
   return store.update(async (runs) => {
     const g = await snapshot();
     const verdict = checkReservation(ticket, g.issues, g.branches, g.prs, Object.values(runs), cap);
-    if (verdict.ok) runs[ticket] = { ...newRun(ticket), state: "RESERVED" };
+    if (verdict.ok) runs[ticket] = { ...newRun(ticket), state: "RESERVED", workerRunning: true };
     return verdict;
   });
 }

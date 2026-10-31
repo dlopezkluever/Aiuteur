@@ -20,7 +20,8 @@ const pass = (pr, sha) => "```json\n" + JSON.stringify({ pr, verifiedSha: sha, f
 function world({ issues = [7, 8], prs = [] } = {}) {
   const dir = mkdtempSync(join(tmpdir(), "aiu-cmd-"));
   writeFileSync(join(dir, "gh"), `#!/bin/sh\nD="${dir}"\ncase "$*" in\n*"api graphql"*) cat "$D/issues.ndjson";;\n*matching-refs*) cat "$D/refs.txt";;\n*check-runs*) cat "$D/ci.json";;\n"pr list"*) cat "$D/prs.json";;\n"pr comment"*) :;;\n*) echo "unexpected gh $*" >&2; exit 1;;\nesac\n`, { mode: 0o755 });
-  writeFileSync(join(dir, "amp"), `#!/bin/sh\ncase "$*" in\n"plugins show-agent-options"*) printf '%s' "$AIUTEUR_TEST_MODELS";;\n*) echo "$*" >> "${dir}/amp.log";;\nesac\n`, { mode: 0o755 });
+  // A Worker launch (--mode claude-code) emits its init event, then stays alive until $D/release exists, then exits $D/exitcode (default 1).
+  writeFileSync(join(dir, "amp"), `#!/bin/sh\ncase "$*" in\n"plugins show-agent-options"*) printf '%s' "$AIUTEUR_TEST_MODELS";;\n*"--mode claude-code"*) echo "$*" >> "${dir}/amp.log"; echo '{"type":"system","subtype":"init","session_id":"${TID}"}'; while [ ! -f "${dir}/release" ]; do sleep 0.02; done; echo "typecheck failed in packages/api" >&2; exit $(cat "${dir}/exitcode" 2>/dev/null || echo 1);;\n*) echo "$*" >> "${dir}/amp.log";;\nesac\n`, { mode: 0o755 });
   const w = {
     dir,
     state: join(dir, "state"),
@@ -28,6 +29,7 @@ function world({ issues = [7, 8], prs = [] } = {}) {
     setPrs: (list) => writeFileSync(join(dir, "prs.json"), JSON.stringify(list)),
     setCi: (ok) => writeFileSync(join(dir, "ci.json"), JSON.stringify([{ name: "verify", status: "completed", conclusion: ok ? "success" : "failure" }])),
     runs: () => JSON.parse(readFileSync(join(w.state, "runs.json"), "utf8")),
+    release: (code = 1) => { writeFileSync(join(dir, "exitcode"), String(code)); writeFileSync(join(dir, "release"), ""); },
     ampLog: () => { try { return readFileSync(join(dir, "amp.log"), "utf8"); } catch { return ""; } },
   };
   w.setIssues(issues); w.setPrs(prs); w.setCi(true);
@@ -149,4 +151,80 @@ test("standalone dry-run agrees with the plugin about RESERVED / UNRESOLVED capa
   boot(w, []);
   await assert.rejects(exec("node", [script], { env: process.env }), (e) => e.code === 1 && /dry run refused/.test(e.stderr) && !/Would create/.test(e.stdout));
   cleanup(w);
+});
+
+const waitFor = async (fn) => { for (let i = 0; i < 500; i++) { try { if (fn()) return; } catch { /* not yet */ } await new Promise((r) => setTimeout(r, 10)); } throw new Error("timed out"); };
+const slots = (b) => /free slots (\d)/.exec(b.notices.at(-1))[1];
+
+test("merged PR while the Worker turn is still running: DONE but the slot stays held; a late failure cannot regress DONE; completion frees the slot", async () => {
+  const w = world();
+  const b = boot(w, {});
+  const launch = b.call("run-next"); // Worker launched and held open by the stub
+  await waitFor(() => w.runs()[7]?.workerThreadId);
+  assert.equal(w.runs()[7].workerRunning, true);
+  w.setPrs([openPr(A, { state: "MERGED" })]);
+  await b.call("resume");
+  assert.equal(w.runs()[7].state, "DONE");
+  assert.equal(w.runs()[7].workerRunning, true);
+  await b.call("dry-run");
+  assert.equal(slots(b), "0");
+  await b.call("run-next"); // CAP=1: must not start a second Worker
+  assert.match(b.notices.at(-1), /No eligible ticket or no free concurrency slot/);
+  assert.equal(w.ampLog().split("--mode claude-code").length - 1, 1); // exactly one Worker launch
+  w.release(1); // the Worker now exits non-zero, after DONE was recorded
+  await launch;
+  assert.equal(w.runs()[7].state, "DONE"); // not regressed to BLOCKED
+  assert.equal(w.runs()[7].workerRunning, false);
+  await b.call("dry-run");
+  assert.equal(slots(b), "1"); // known finished: capacity is free again
+  cleanup(w);
+});
+
+test("late Worker failure cannot regress MERGE_READY or erase its PR/verdict", async () => {
+  const w = world();
+  const b = boot(w, {}, async (p) => replyFor(p));
+  const launch = b.call("run-next");
+  await waitFor(() => w.runs()[7]?.workerThreadId);
+  w.setPrs([openPr(A)]);
+  await b.call("resume");
+  assert.equal(w.runs()[7].state, "MERGE_READY");
+  w.release(1);
+  await launch;
+  const final = w.runs()[7];
+  assert.equal(final.state, "MERGE_READY");
+  assert.equal(final.verdict.sha, A);
+  assert.equal(final.currentPR, 70);
+  assert.equal(final.workerRunning, false);
+  cleanup(w);
+});
+
+test("normal Worker completion (exit 0) frees the slot once the run is blocked or done", async () => {
+  const w = world();
+  const b = boot(w, {});
+  w.release(0);
+  await b.call("run-next"); // Worker exits cleanly; no PR yet -> stays ACTIVE and in flight
+  assert.equal(w.runs()[7].workerRunning, false);
+  assert.equal(w.runs()[7].state, "ACTIVE");
+  w.setPrs([openPr(A, { state: "MERGED" })]);
+  await b.call("resume");
+  assert.equal(w.runs()[7].state, "DONE");
+  await b.call("dry-run");
+  assert.equal(slots(b), "1");
+  cleanup(w);
+});
+
+test("changed head on a Draft PR durably invalidates MERGE_READY; same head on a Draft keeps it", async () => {
+  const w = world({ prs: [openPr(C, { isDraft: true })] });
+  const b = boot(w, { 7: run(7, { state: "MERGE_READY", currentPR: 70, verdict: verdict(70, A) }) });
+  await b.call("resume");
+  assert.equal(w.runs()[7].state, "VERIFYING");
+  assert.equal(w.runs()[7].verdict, undefined); // old PASS for A no longer persisted
+  assert.equal(b.calls.length, 0); // Draft waits; no verifier yet
+  cleanup(w);
+  const w2 = world({ prs: [openPr(A, { isDraft: true })] });
+  const b2 = boot(w2, { 7: run(7, { state: "MERGE_READY", currentPR: 70, verdict: verdict(70, A) }) });
+  await b2.call("resume");
+  assert.equal(w2.runs()[7].state, "MERGE_READY");
+  assert.equal(w2.runs()[7].verdict.sha, A);
+  cleanup(w2);
 });

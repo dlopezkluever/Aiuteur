@@ -4,7 +4,7 @@ import { test } from "node:test";
 import {
   afterRepairSent, buildVerdict, ciState, classifyFailure, computeFrontier, decide, invalidateVerdict, mergeArgs, mergeGuard,
   mergeRejectedForHead, newRun, parseVerifierReply, routeVerifier, routeWorker, selectTickets, workerStartArgs,
-  checkReservation, holdsSlot, extractThreadId, initThreadId, hasClaim, launchWorker, workerErrorText, type LaunchDeps,
+  applyLaunchOutcome, applyRepairOutcome, checkReservation, holdsSlot, extractThreadId, initThreadId, hasClaim, launchWorker, workerErrorText, type LaunchDeps, type LaunchOutcome,
   mergeModeFrom, smokeReplyOk, smokeVerifierPrompt,
   type Finding, type IssueNode, type PrFacts, type TicketRun,
 } from "./core.ts";
@@ -358,10 +358,31 @@ test("reservation check: held slot, local ownership and fresh claims all refuse;
   assert.equal(checkReservation(1, issues, [], [], [run(1, "RESERVED")], 2).ok, false); // reservation without a thread id is not free
 });
 
-test("slot occupancy: BLOCKED releases the slot only when no Worker thread was ever recorded", () => {
-  const r = (state: TicketRun["state"], thread?: string): TicketRun => ({ ...newRun(1), state, ...(thread ? { workerThreadId: thread } : {}) });
-  for (const s of ["RESERVED", "UNRESOLVED", "ACTIVE", "VERIFYING", "MERGE_READY"] as const) assert.equal(holdsSlot(r(s)), true, s);
-  assert.equal(holdsSlot(r("BLOCKED", TID)), true);
+test("slot occupancy follows Worker execution, not lifecycle or thread ids", () => {
+  const r = (state: TicketRun["state"], o: Partial<TicketRun> = {}): TicketRun => ({ ...newRun(1), state, workerThreadId: TID, ...o });
+  for (const s of ["RESERVED", "UNRESOLVED", "ACTIVE", "VERIFYING", "MERGE_READY"] as const) assert.equal(holdsSlot(r(s, { workerRunning: false })), s === "RESERVED" || s === "UNRESOLVED" || s === "ACTIVE" || s === "VERIFYING" || s === "MERGE_READY", s);
+  assert.equal(holdsSlot(r("DONE", { workerRunning: true })), true); // merged but the Worker may still be running
+  assert.equal(holdsSlot(r("BLOCKED", { workerRunning: true })), true);
+  assert.equal(holdsSlot(r("DONE", { workerRunning: false })), false); // known finished: released
+  assert.equal(holdsSlot(r("BLOCKED", { workerRunning: false })), false); // a historical thread id alone does not hold a slot
   assert.equal(holdsSlot(r("BLOCKED")), false);
-  assert.equal(holdsSlot(r("DONE", TID)), false);
+});
+
+test("late Worker outcomes never regress newer lifecycle state, but always record that the turn ended", () => {
+  const fail: LaunchOutcome = { kind: "blocked", reason: "worker run failed", threadId: TID, model: "claude-opus-5-5" };
+  for (const state of ["DONE", "MERGE_READY", "VERIFYING"] as const) {
+    const cur: TicketRun = { ...newRun(1), state, workerRunning: true, currentPR: 7, verdict: buildVerdict([], { pr: 7, sha: SHA_A }, models) };
+    const next = applyLaunchOutcome(cur, fail);
+    assert.equal(next.state, state);
+    assert.equal(next.workerRunning, false);
+    assert.equal(next.currentPR, 7);
+    assert.ok(next.verdict);
+  }
+  const launching: TicketRun = { ...newRun(1), state: "ACTIVE", workerRunning: true };
+  assert.equal(applyLaunchOutcome(launching, fail).state, "BLOCKED");
+  assert.equal(applyLaunchOutcome(launching, { kind: "started", threadId: TID, model: "m" }).workerRunning, false);
+  const lost = applyLaunchOutcome(launching, { kind: "unresolved", reason: "x", threadId: TID, model: "m", remoteStopped: false });
+  assert.deepEqual([lost.state, lost.workerRunning], ["UNRESOLVED", true]);
+  assert.equal(applyRepairOutcome({ ...launching }, "boom").state, "BLOCKED");
+  assert.equal(applyRepairOutcome({ ...newRun(1), state: "MERGE_READY", workerRunning: true }, "boom").state, "MERGE_READY");
 });

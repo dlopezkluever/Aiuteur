@@ -239,6 +239,29 @@ export type FindingClass = (typeof FINDING_CLASSES)[number];
 export interface Finding { class: FindingClass; summary: string; requirement?: string; evidence?: string }
 
 /** Everything we record about one verification; never written into the verified code tree. */
+/**
+ * Fold the end of a Worker launch into the CURRENT durable run. The outcome always records that the turn ended; it changes
+ * lifecycle only while the run is still in the launch phase (RESERVED/ACTIVE), so a late exit cannot regress DONE, MERGE_READY
+ * or anything a newer command already decided.
+ */
+export function applyLaunchOutcome(cur: TicketRun, out: LaunchOutcome): TicketRun {
+  const launchPhase = cur.state === "RESERVED" || cur.state === "ACTIVE";
+  if (out.kind === "unresolved") {
+    const held = { ...cur, workerThreadId: out.threadId, workerModel: out.model, workerRunning: true };
+    return cur.state === "DONE" ? held : { ...held, state: "UNRESOLVED", blockedReason: out.reason };
+  }
+  const finished: TicketRun = { ...cur, workerRunning: false };
+  if (out.kind === "started") return launchPhase ? { ...finished, state: "ACTIVE" } : finished;
+  const withThread = out.threadId ? { ...finished, workerThreadId: out.threadId, ...(out.model ? { workerModel: out.model } : {}) } : finished;
+  return launchPhase ? { ...withThread, state: "BLOCKED", blockedReason: out.reason } : withThread;
+}
+
+/** Same rule for a repair turn: always clear workerRunning; block only if the run is still waiting on that repair. */
+export function applyRepairOutcome(cur: TicketRun, failure?: string): TicketRun {
+  const finished: TicketRun = { ...cur, workerRunning: false };
+  return failure !== undefined && cur.state === "ACTIVE" ? { ...finished, state: "BLOCKED", blockedReason: failure } : finished;
+}
+
 export interface Verdict {
   pr: number;
   sha: string;
@@ -248,6 +271,35 @@ export interface Verdict {
   workerModel: string;
   verifierModel: string;
   independence: Independence;
+}
+
+const isRec = (x: unknown): x is Record<string, unknown> => typeof x === "object" && x !== null && !Array.isArray(x);
+const nonEmpty = (x: unknown): x is string => typeof x === "string" && x.trim() !== "";
+
+/** The one definition of a well-formed finding, for fresh verifier output and for persisted verdicts alike. */
+export function findingProblem(f: unknown, allowed: readonly FindingClass[]): string | undefined {
+  if (!isRec(f)) return "finding is not an object";
+  if (!FINDING_CLASSES.includes(f.class as FindingClass)) return `unknown finding class ${String(f.class)}`;
+  if (!allowed.includes(f.class as FindingClass)) return `${String(f.class)} is not allowed here`;
+  if (!nonEmpty(f.summary)) return "finding without summary";
+  if (f.requirement !== undefined && typeof f.requirement !== "string") return "requirement must be a string";
+  if (f.evidence !== undefined && typeof f.evidence !== "string") return "evidence must be a string";
+  if (f.class === "REQUIREMENT_VIOLATION" && (!nonEmpty(f.requirement) || !nonEmpty(f.evidence))) return `requirement violation "${f.summary}" lacks an owning requirement or reproducible evidence`;
+  return undefined;
+}
+
+/** A persisted verdict authorizes readiness/merge, so it must satisfy the full contract: provenance plus taxonomy placement. */
+export function verdictProblem(v: unknown): string | undefined {
+  if (!isRec(v)) return "verdict is not an object";
+  if (!Number.isInteger(v.pr)) return "verdict.pr must be an integer";
+  if (typeof v.sha !== "string" || !/^[0-9a-f]{40}$/.test(v.sha)) return "verdict.sha must be a 40-hex SHA";
+  if (v.workerMode !== "claude-code") return "verdict.workerMode must be claude-code";
+  if (!nonEmpty(v.workerModel) || !nonEmpty(v.verifierModel)) return "verdict worker/verifier model missing";
+  if (v.independence !== "cross-family") return "verdict.independence must be cross-family";
+  if (!Array.isArray(v.blocking) || !Array.isArray(v.nonBlocking)) return "verdict findings must be arrays";
+  for (const f of v.blocking) { const p = findingProblem(f, ["REQUIREMENT_VIOLATION"]); if (p) return `blocking: ${p}`; }
+  for (const f of v.nonBlocking) { const p = findingProblem(f, ["HARDENING_OPPORTUNITY", "IMPROVEMENT"]); if (p) return `nonBlocking: ${p}`; }
+  return undefined;
 }
 
 export type ParsedReply = { ok: true; findings: Finding[] } | { ok: false; reason: string };
@@ -268,15 +320,13 @@ export function parseVerifierReply(text: string, expected: { pr: number; sha: st
   }
   if (!Array.isArray(data.findings)) return { ok: false, reason: "findings must be an array" };
   const findings: Finding[] = [];
-  for (const f of data.findings as Record<string, unknown>[]) {
-    if (!FINDING_CLASSES.includes(f.class as FindingClass)) return { ok: false, reason: `unknown finding class ${String(f.class)}` };
-    if (typeof f.summary !== "string" || f.summary.trim() === "") return { ok: false, reason: "finding without summary" };
-    const finding: Finding = { class: f.class as FindingClass, summary: f.summary };
-    if (typeof f.requirement === "string") finding.requirement = f.requirement;
-    if (typeof f.evidence === "string") finding.evidence = f.evidence;
-    if (finding.class === "REQUIREMENT_VIOLATION" && (!finding.requirement?.trim() || !finding.evidence?.trim())) {
-      return { ok: false, reason: `requirement violation "${finding.summary}" lacks an owning requirement or reproducible evidence` };
-    }
+  for (const f of data.findings as unknown[]) {
+    const problem = findingProblem(f, FINDING_CLASSES);
+    if (problem) return { ok: false, reason: problem };
+    const r = f as Record<string, string>;
+    const finding: Finding = { class: r.class as FindingClass, summary: r.summary! };
+    if (r.requirement !== undefined) finding.requirement = r.requirement;
+    if (r.evidence !== undefined) finding.evidence = r.evidence;
     findings.push(finding);
   }
   return { ok: true, findings };
@@ -306,11 +356,13 @@ export function buildVerdict(
 export const RUN_STATES = ["READY", "RESERVED", "UNRESOLVED", "ACTIVE", "VERIFYING", "MERGE_READY", "DONE", "BLOCKED"] as const;
 export type RunState = (typeof RUN_STATES)[number];
 /**
- * Does this run still consume an implementation slot? Only DONE, and BLOCKED runs that never had a recorded Worker thread,
- * release it. A recorded thread has never been proven stopped, so BLOCKED-with-thread (escalation, closed PR, failed repair
- * turn) keeps its slot until an operator resolves it. "No PR yet" is never a reason to block: that stays ACTIVE.
+ * Does this run still consume an implementation slot? Capacity follows Worker EXECUTION, not lifecycle: a run whose Worker turn
+ * may still be running holds its slot even if the PR is already merged (DONE) or the coordinator gave up (BLOCKED). Runs in
+ * flight (ACTIVE/VERIFYING/MERGE_READY) also hold it. A recorded thread id alone proves nothing: once the Worker turn is
+ * known finished (workerRunning cleared) DONE/BLOCKED runs release the slot. "No PR yet" is never a reason to block.
  */
-export const holdsSlot = (r: TicketRun) => r.state !== "DONE" && !(r.state === "BLOCKED" && !r.workerThreadId);
+export const workerMayRun = (r: TicketRun) => r.workerRunning === true || r.state === "RESERVED" || r.state === "UNRESOLVED";
+export const holdsSlot = (r: TicketRun) => workerMayRun(r) || r.state === "ACTIVE" || r.state === "VERIFYING" || r.state === "MERGE_READY";
 export const ownsTicket = (r: TicketRun) => r.state !== "DONE";
 export interface TicketRun {
   ticket: number;
@@ -319,6 +371,7 @@ export interface TicketRun {
   workerModel?: string | undefined;
   verifierModel?: string | undefined;
   independence?: Independence | undefined;
+  workerRunning?: boolean | undefined; // an implementation Worker turn may still be executing (set at reservation/repair, cleared only when the turn is known finished)
   revision: number; // bumped by every durable write; a write derived from an older revision is rejected (see state.ts)
   repairAttempt: number; // repairs sent so far; > 0 while ACTIVE means "repairing"
   failures: Record<string, number>; // times each root requirement has been sent back
@@ -376,7 +429,7 @@ function repairOrEscalate(run: TicketRun, findings: Finding[], sha: string): Act
 export function afterRepairSent(run: TicketRun, action: Extract<Action, { type: "repair" }>): TicketRun {
   const failures = { ...run.failures };
   for (const f of action.findings) failures[rootKey(f)] = (failures[rootKey(f)] ?? 0) + 1;
-  return { ...run, failures, repairAttempt: run.repairAttempt + 1, repairSentForSha: action.sha, state: "ACTIVE" };
+  return { ...run, failures, repairAttempt: run.repairAttempt + 1, repairSentForSha: action.sha, state: "ACTIVE", workerRunning: true };
 }
 
 /** The whole lifecycle as one function of live facts. PR HEAD decides; an old verdict never carries over to a new SHA. */

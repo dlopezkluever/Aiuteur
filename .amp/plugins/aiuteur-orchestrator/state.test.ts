@@ -4,7 +4,7 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { newRun, type IssueNode } from "./core.ts";
+import { buildVerdict, newRun, parseVerifierReply, type IssueNode } from "./core.ts";
 import { writeFileSync } from "node:fs";
 import { createStore, reserveLaunch, StaleRun, validateRuns } from "./state.ts";
 
@@ -123,4 +123,38 @@ test("a stale same-run write is rejected and the newer transition survives", asy
   assert.equal(final.currentPR, 7);
   assert.equal(final.revision, 1);
   rmSync(dir, { recursive: true });
+});
+
+const SHA = "a".repeat(40);
+const models = { workerModel: "claude-opus-5-5", verifierModel: "openai/gpt-6-astra", independence: "cross-family" as const };
+const withVerdict = (v: unknown) => ({ 1: { ...newRun(1), state: "MERGE_READY", verdict: v } });
+const violation = { class: "REQUIREMENT_VIOLATION", summary: "s", requirement: "AC-1", evidence: "run x" };
+
+test("a verdict produced by the real parser/builder persists and reloads unchanged", async () => {
+  const reply = "```json\n" + JSON.stringify({ pr: 7, verifiedSha: SHA, findings: [{ class: "IMPROVEMENT", summary: "nit" }, { class: "HARDENING_OPPORTUNITY", summary: "h" }] }) + "\n```";
+  const parsed = parseVerifierReply(reply, { pr: 7, sha: SHA });
+  assert.ok(parsed.ok);
+  const verdict = buildVerdict(parsed.ok ? parsed.findings : [], { pr: 7, sha: SHA }, models);
+  const dir = tmp();
+  const s = createStore(dir);
+  await s.update((r) => { r[1] = { ...newRun(1), state: "MERGE_READY", verdict }; });
+  assert.deepEqual(s.read()[1]!.verdict, JSON.parse(JSON.stringify(verdict)));
+  rmSync(dir, { recursive: true });
+});
+
+test("malformed persisted verdicts fail closed: violation in nonBlocking, PASS-shaped blocking mismatch, missing provenance, wrong types", () => {
+  const good = JSON.parse(JSON.stringify(buildVerdict([], { pr: 7, sha: SHA }, models)));
+  assert.doesNotThrow(() => validateRuns(withVerdict(good)));
+  const bad: Record<string, unknown> = {
+    "violation in nonBlocking": { ...good, nonBlocking: [violation] },
+    "improvement in blocking": { ...good, blocking: [{ class: "IMPROVEMENT", summary: "i" }] },
+    "violation without evidence": { ...good, blocking: [{ class: "REQUIREMENT_VIOLATION", summary: "s", requirement: "AC-1" }] },
+    "missing verifier model": { ...good, verifierModel: undefined },
+    "missing independence": { ...good, independence: undefined },
+    "wrong independence": { ...good, independence: "same-family" },
+    "pr not a number": { ...good, pr: "7" },
+    "sha not a sha": { ...good, sha: "abc" },
+    "findings not arrays": { ...good, blocking: {} },
+  };
+  for (const [name, v] of Object.entries(bad)) assert.throws(() => validateRuns(JSON.parse(JSON.stringify(withVerdict(v)))), /runs.json/, name);
 });
