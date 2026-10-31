@@ -4,6 +4,7 @@ import { test } from "node:test";
 import {
   afterRepairSent, buildVerdict, ciState, classifyFailure, computeFrontier, decide, invalidateVerdict, mergeArgs, mergeGuard,
   mergeRejectedForHead, newRun, parseVerifierReply, routeVerifier, routeWorker, selectTickets, workerStartArgs,
+  extractThreadId, hasClaim, launchWorker, workerErrorText, type LaunchDeps,
   mergeModeFrom, smokeReplyOk, smokeVerifierPrompt,
   type Finding, type IssueNode, type PrFacts, type TicketRun,
 } from "./core.ts";
@@ -168,4 +169,96 @@ test("verifier smoke prompt names no ticket, PR, SHA or skill, and only an exact
   assert.ok(!/#\d|\/implement|pull|PR |[0-9a-f]{40}/i.test(p));
   assert.equal(smokeReplyOk(" SMOKE-abc\n", "SMOKE-abc"), true);
   assert.equal(smokeReplyOk("SMOKE-abc and more", "SMOKE-abc"), false);
+});
+
+// ---- Worker launch: the defect found in independent verification of PR #227 ----------------------------------------
+const TID = "T-01a19059-b730-7542-bd8f-fcfc74a58524";
+const ev = (o: object) => JSON.stringify(o);
+// A realistic failing run: ordinary transcript words that look like provider words, a real thread id, an implementation failure.
+const noisyTranscript = [
+  ev({ type: "system", subtype: "init", session_id: TID }),
+  ev({ type: "user", message: { content: [{ type: "text", text: "ticket: quota, capacity, billing, subscription, 503" }] }, session_id: TID }),
+  ev({ type: "assistant", message: { content: [{ type: "text", text: "pushed ticket/103-t0-06; typecheck failed in packages/api (quota capacity billing subscription 503)" }] }, session_id: TID }),
+  ev({ type: "result", subtype: "error_during_execution", is_error: true, result: "typecheck failed in packages/api", session_id: TID }),
+].join("\n");
+const providerStart = ev({ type: "system", subtype: "init", session_id: TID });
+const providerResult = ev({ type: "result", is_error: true, result: "Claude usage limit reached", session_id: TID });
+
+function harness(runs: { code: number; stdout: string; stderr?: string }[], claimed: boolean[] = []) {
+  const launches: string[][] = [];
+  const persisted: string[] = [];
+  let n = 0, c = 0;
+  const deps: LaunchDeps = {
+    ticket: 103,
+    models: ["anthropic/claude-opus-5-5", "anthropic/claude-opus-5", "anthropic/claude-sonnet-5-5"],
+    exec: async (args) => { launches.push(args); const r = runs[Math.min(n++, runs.length - 1)]!; return { stderr: "", ...r }; },
+    persistThread: (id) => persisted.push(id),
+    claimed: async () => claimed[Math.min(c++, claimed.length - 1)] ?? false,
+  };
+  return { deps, launches, persisted };
+}
+
+test("transcript words like quota/billing/503 are not provider evidence; implementation failure stays implementation", () => {
+  assert.equal(extractThreadId(noisyTranscript), TID);
+  assert.equal(classifyFailure(workerErrorText(noisyTranscript, "")), "implementation");
+  assert.equal(classifyFailure(workerErrorText(providerStart + "\n" + providerResult, "")), "provider");
+  assert.equal(classifyFailure(workerErrorText("", "Error: 429 rate limit")), "provider"); // stderr is the error channel
+  // thread ids quoted inside transcript text are not the worker's id
+  assert.equal(extractThreadId(ev({ type: "assistant", message: { text: `see ${TID}` } })), undefined);
+});
+
+test("implementation failure with a thread: no second /implement, thread id kept", async () => {
+  const h = harness([{ code: 1, stdout: noisyTranscript }]);
+  const out = await launchWorker(h.deps);
+  assert.equal(h.launches.length, 1);
+  assert.deepEqual(h.persisted, [TID]);
+  assert.equal(out.kind, "blocked");
+  assert.equal(out.kind === "blocked" && out.threadId, TID);
+  assert.ok(out.kind === "blocked" && !/subscription unavailable/.test(out.reason));
+});
+
+test("provider failure AFTER a thread exists: no fresh Worker, thread preserved", async () => {
+  const h = harness([{ code: 1, stdout: providerStart + "\n" + providerResult }]);
+  const out = await launchWorker(h.deps);
+  assert.equal(h.launches.length, 1);
+  assert.deepEqual(h.persisted, [TID]);
+  assert.equal(out.kind === "blocked" && out.threadId, TID);
+  assert.match(out.kind === "blocked" ? out.reason : "", /provider\/runtime condition.*not launching another Worker/);
+});
+
+test("implementation failure before any thread: no model fallback", async () => {
+  const h = harness([{ code: 1, stdout: "", stderr: "Error: cannot read project settings" }]);
+  assert.equal((await launchWorker(h.deps)).kind, "blocked");
+  assert.equal(h.launches.length, 1);
+});
+
+test("genuine provider failure before any thread or claim falls back to the next subscription Claude model", async () => {
+  const h = harness([
+    { code: 1, stdout: "", stderr: "Claude usage limit reached" },
+    { code: 0, stdout: providerStart },
+  ]);
+  const out = await launchWorker(h.deps);
+  assert.equal(h.launches.length, 2);
+  assert.ok(h.launches[0]!.includes("model:claude-opus-5-5,effort:high"));
+  assert.ok(h.launches[1]!.includes("model:claude-opus-5,effort:high"));
+  assert.ok(h.launches.every((a) => a[a.indexOf("--mode") + 1] === "claude-code"));
+  assert.deepEqual(out, { kind: "started", threadId: TID, model: "claude-opus-5" });
+});
+
+test("a branch/PR that appears before fallback prevents another Worker", async () => {
+  const h = harness([{ code: 1, stdout: "", stderr: "HTTP 529 overloaded" }], [true]);
+  const out = await launchWorker(h.deps);
+  assert.equal(h.launches.length, 1);
+  assert.equal(out.kind, "blocked");
+  assert.match(out.kind === "blocked" ? out.reason : "", /now has a branch\/PR/);
+  assert.equal(hasClaim(103, ["ticket/103-t0-06"], []), true);
+  assert.equal(hasClaim(10, ["ticket/103-t0-06"], []), false);
+  assert.equal(hasClaim(103, [], [{ number: 1, headRefName: "ticket/103-x", headRefOid: "a", isDraft: true }]), true);
+});
+
+test("every provider failure with no thread or claim exhausts the models and stops without paid fallback", async () => {
+  const h = harness([{ code: 1, stdout: "", stderr: "usage limit" }]);
+  const out = await launchWorker(h.deps);
+  assert.equal(h.launches.length, 3);
+  assert.match(out.kind === "blocked" ? out.reason : "", /not falling back to paid usage/);
 });

@@ -10,7 +10,7 @@ import { join } from "node:path";
 import type { PluginAPI } from "@ampcode/plugin";
 import {
   DEFAULT_CAP, REPO, mergeModeFrom, smokeReplyOk, smokeVerifierPrompt, VERIFIER_EFFORT, VERIFIER_INSTRUCTIONS, VERIFIER_MODELS, VERIFIER_TOOLS, WORKER_EFFORT,
-  afterRepairSent, buildVerdict, classifyFailure, computeFrontier, decide, extractThreadId, invalidateVerdict, mergeGuard,
+  afterRepairSent, buildVerdict, classifyFailure, computeFrontier, hasClaim, launchWorker, workerErrorText, decide, extractThreadId, invalidateVerdict, mergeGuard,
   mergeRejectedForHead, newRun, parseVerifierReply, repairPrompt, routeVerifier, routeWorker, selectTickets, verifierModeKey,
   verifierPrompt, workerContinueArgs, workerPrompt, workerStartArgs, type TicketRun,
 } from "./core.ts";
@@ -54,28 +54,22 @@ export default function (amp: PluginAPI) {
   // ---- Worker ------------------------------------------------------------------------------------------------------
 
   async function startWorker(r: TicketRun, models: string[]): Promise<TicketRun> {
-    const exhausted: string[] = [];
-    for (;;) {
-      const route = routeWorker(models, exhausted);
-      if (!route) return block(r, `Claude subscription unavailable for every preferred model (${exhausted.join(", ") || "none discovered"}); not falling back to paid usage`);
-      const res = await exec("amp", workerStartArgs(workerPrompt(r.ticket), route.model, `[orchestrator] #${r.ticket} worker`), { timeoutMs: WORKER_TURN_MS });
-      const out = `${res.stdout}\n${res.stderr}`;
-      const threadId = extractThreadId(out);
-      if (res.code === 0 && threadId) {
-        const next: TicketRun = { ...r, state: "ACTIVE", workerThreadId: threadId, workerModel: route.model };
-        save(next);
-        return next;
-      }
-      if (classifyFailure(out) === "provider") { exhausted.push(route.model); log(r.ticket, `provider condition on ${route.model}; trying next subscription model`); continue; }
-      return block(r, `worker run failed (exit ${res.code}${threadId ? `, thread ${threadId}` : ""}): ${out.slice(-400)}`);
-    }
+    let cur = r;
+    const out = await launchWorker({
+      ticket: r.ticket,
+      models,
+      exec: (args) => exec("amp", args, { timeoutMs: WORKER_TURN_MS }),
+      persistThread: (workerThreadId, workerModel) => { cur = { ...cur, state: "ACTIVE", workerThreadId, workerModel }; save(cur); },
+      claimed: async () => { const g = await githubSnapshot(); return hasClaim(r.ticket, g.branches, g.prs); },
+    });
+    return out.kind === "started" ? cur : block(cur, out.reason);
   }
 
   async function repairWorker(r: TicketRun, prompt: string): Promise<TicketRun> {
     const res = await exec("amp", workerContinueArgs(r.workerThreadId!, prompt), { timeoutMs: WORKER_TURN_MS });
     if (res.code === 0) return r;
-    const out = `${res.stdout}\n${res.stderr}`;
-    return block(r, `${classifyFailure(out) === "provider" ? "provider/runtime condition" : "worker continuation failed"}: ${out.slice(-400)}`);
+    const out = workerErrorText(res.stdout, res.stderr);
+    return block(r, `${classifyFailure(out) === "provider" ? "provider/runtime condition" : "worker continuation failed"} (Worker thread ${r.workerThreadId} kept): ${out.trim().slice(-400)}`);
   }
 
   // ---- Verifier (fresh Orb thread for every call) -------------------------------------------------------------------

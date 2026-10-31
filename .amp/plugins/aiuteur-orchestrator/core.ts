@@ -34,11 +34,15 @@ export function routeVerifier(available: readonly string[], exhausted: readonly 
 
 export type FailureKind = "provider" | "implementation";
 
-/** Provider/runtime conditions (capacity, quota, model gone) are not ticket failures and never count as repairs. */
-export function classifyFailure(output: string): FailureKind {
+/**
+ * Provider/runtime conditions (capacity, quota, model gone) are not ticket failures and never count as repairs.
+ * Pass ONLY text from the execution/provider error channel (see workerErrorText), never a Worker transcript: ticket
+ * text, repo contents and test output routinely contain words like "quota" or "billing".
+ */
+export function classifyFailure(errorText: string): FailureKind {
   const providerPattern =
-    /usage limit|rate.?limit|quota|overloaded|capacity|\b(429|529|503)\b|model.{0,40}(not available|unavailable|not found)|subscription|credit|billing|unauthori[sz]ed|login required|not logged in/i;
-  return providerPattern.test(output) ? "provider" : "implementation";
+    /usage limit|rate.?limit|quota (exceeded|exhausted|reached)|overloaded|at capacity|\b(429|529|503)\b|model.{0,40}(not available|unavailable|not found)|subscription (limit|required|expired|inactive)|credit balance|billing (error|issue|required)|unauthori[sz]ed|login required|not logged in/i;
+  return providerPattern.test(errorText) ? "provider" : "implementation";
 }
 
 // ---- Worker launch (Claude Code mode, subscription-backed) ----------------------------------------------------------
@@ -61,7 +65,65 @@ export function workerContinueArgs(threadId: string, prompt: string): string[] {
   return ["threads", "continue", threadId, "-ox", prompt, "--stream-json"];
 }
 
-export const extractThreadId = (streamOutput: string) => THREAD_ID.exec(streamOutput)?.[0];
+/** `--stream-json` is one JSON event per line; the first (`system`/`init`) carries the new thread as `session_id`. */
+function streamEvents(stdout: string): Record<string, unknown>[] {
+  const events: Record<string, unknown>[] = [];
+  for (const line of stdout.split("\n")) {
+    try { const e = JSON.parse(line); if (e && typeof e === "object") events.push(e); } catch { /* not an event line */ }
+  }
+  return events;
+}
+export function extractThreadId(stdout: string): string | undefined {
+  const id = streamEvents(stdout).find((e) => typeof e.session_id === "string" && THREAD_ID.test(e.session_id))?.session_id;
+  return id as string | undefined;
+}
+/** The execution error channel only: stderr plus the final `result` event when it is flagged is_error. Never assistant/user/tool events. */
+export function workerErrorText(stdout: string, stderr: string): string {
+  const result = streamEvents(stdout).filter((e) => e.type === "result").at(-1);
+  const resultError = result && result.is_error === true && typeof result.result === "string" ? result.result : "";
+  return `${stderr}\n${resultError}`;
+}
+
+export const hasClaim = (ticket: number, branches: string[], prs: PrNode[]) =>
+  branches.some((b) => ticketOfBranch(b) === ticket) || prs.some((p) => ticketOfBranch(p.headRefName) === ticket);
+
+export type LaunchOutcome =
+  | { kind: "started"; threadId: string; model: string }
+  | { kind: "blocked"; reason: string; threadId?: string; model?: string };
+
+export interface LaunchDeps {
+  ticket: number;
+  models: readonly string[];
+  exec: (args: string[]) => Promise<{ code: number; stdout: string; stderr: string }>;
+  /** Called as soon as a thread id is observed, even if the run then fails. */
+  persistThread: (threadId: string, model: string) => void;
+  /** Fresh read of live GitHub: does any ticket/<N>-* branch or PR exist now? */
+  claimed: () => Promise<boolean>;
+}
+
+/**
+ * Launches the Worker. A fresh `/implement #N` on another Claude model is only safe when the previous attempt never
+ * established a Worker: no thread id observed, no ticket branch/PR appeared, and the failure is a genuine provider one.
+ * Otherwise the existing Worker is preserved (BLOCKED, resumable by thread id) and nothing new is launched.
+ */
+export async function launchWorker(d: LaunchDeps): Promise<LaunchOutcome> {
+  const exhausted: string[] = [];
+  for (;;) {
+    const route = routeWorker(d.models, exhausted);
+    if (!route) return { kind: "blocked", reason: `Claude subscription unavailable for every preferred model (${exhausted.join(", ") || "none discovered"}); not falling back to paid usage` };
+    const res = await d.exec(workerStartArgs(workerPrompt(d.ticket), route.model, `[orchestrator] #${d.ticket} worker`));
+    const threadId = extractThreadId(res.stdout);
+    if (threadId) d.persistThread(threadId, route.model);
+    if (res.code === 0 && threadId) return { kind: "started", threadId, model: route.model };
+    const errorText = workerErrorText(res.stdout, res.stderr);
+    const detail = `exit ${res.code}${threadId ? `, thread ${threadId}` : ""}: ${errorText.trim().slice(-400)}`;
+    const provider = classifyFailure(errorText) === "provider";
+    if (threadId) return { kind: "blocked", threadId, model: route.model, reason: `${provider ? "provider/runtime condition" : "worker run failed"} after Worker thread ${threadId} existed; not launching another Worker. Resume that thread (amp threads continue ${threadId}). ${detail}` };
+    if (!provider) return { kind: "blocked", reason: `worker run failed (implementation): ${detail}` };
+    if (await d.claimed()) return { kind: "blocked", reason: `provider condition on ${route.model}, but ticket #${d.ticket} now has a branch/PR; not launching another Worker. ${detail}` };
+    exhausted.push(route.model);
+  }
+}
 
 // ---- GitHub facts -> frontier --------------------------------------------------------------------------------------
 
