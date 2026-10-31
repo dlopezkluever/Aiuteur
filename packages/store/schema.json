@@ -2449,6 +2449,42 @@
       "policies": []
     },
     {
+      "schema": "operator",
+      "name": "worker_tick",
+      "owner": "owner",
+      "rls": false,
+      "force_rls": false,
+      "grants": "{owner=arwdDxt/owner,backup=r/owner}",
+      "columns": [
+        {
+          "name": "singleton",
+          "type": "boolean",
+          "default": "true",
+          "nullable": false
+        },
+        {
+          "name": "last_tick_at",
+          "type": "timestamp with time zone",
+          "default": null,
+          "nullable": false
+        }
+      ],
+      "constraints": [
+        {
+          "name": "worker_tick_pkey",
+          "definition": "PRIMARY KEY (singleton)"
+        },
+        {
+          "name": "worker_tick_singleton_check",
+          "definition": "CHECK (singleton)"
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX worker_tick_pkey ON operator.worker_tick USING btree (singleton)"
+      ],
+      "policies": []
+    },
+    {
       "schema": "public",
       "name": "migrations",
       "owner": "owner",
@@ -2547,6 +2583,20 @@
       "definition": "CREATE OR REPLACE FUNCTION accounts.reject_rewrite()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO 'pg_catalog'\nAS $function$ BEGIN RAISE EXCEPTION 'append-only: % on % is not allowed', TG_OP, TG_TABLE_NAME USING ERRCODE = '23000'; END $function$\n",
       "owner": "owner",
       "grants": "{owner=X/owner}"
+    },
+    {
+      "schema": "operator",
+      "name": "liveness",
+      "definition": "CREATE OR REPLACE FUNCTION operator.liveness()\n RETURNS TABLE(worker_age_ms bigint, oldest_overdue_ms bigint)\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog'\nAS $function$\nDECLARE\n  now_at timestamptz := clock_timestamp();\nBEGIN\n  PERFORM set_config('aiuteur.claim', 'on', true);\n  RETURN QUERY SELECT\n    (SELECT floor(extract(epoch FROM now_at - t.last_tick_at) * 1000)::bigint FROM operator.worker_tick t),\n    (SELECT floor(extract(epoch FROM now_at - min(j.due_at)) * 1000)::bigint FROM accounts.job j\n      WHERE j.due_at <= now_at AND j.state NOT IN ('waiting', 'succeeded', 'failed', 'cancelled')\n        AND (j.lease_expires_at IS NULL OR j.lease_expires_at <= now_at)\n        AND (j.state <> 'queued' OR j.class = 'local' OR j.deadline_at <= now_at));\n  PERFORM set_config('aiuteur.claim', '', true);\nEND $function$\n",
+      "owner": "owner",
+      "grants": "{owner=X/owner,scheduler=X/owner}"
+    },
+    {
+      "schema": "operator",
+      "name": "worker_tick",
+      "definition": "CREATE OR REPLACE FUNCTION operator.worker_tick()\n RETURNS void\n LANGUAGE sql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog'\nAS $function$\n  INSERT INTO operator.worker_tick (singleton, last_tick_at) VALUES (true, clock_timestamp())\n  ON CONFLICT (singleton) DO UPDATE SET last_tick_at = EXCLUDED.last_tick_at\n$function$\n",
+      "owner": "owner",
+      "grants": "{owner=X/owner,scheduler=X/owner}"
     }
   ],
   "schemas": [
@@ -2563,7 +2613,7 @@
     {
       "name": "operator",
       "owner": "owner",
-      "grants": "{owner=UC/owner,backup=U/owner}"
+      "grants": "{owner=UC/owner,backup=U/owner,scheduler=U/owner}"
     }
   ]
 }

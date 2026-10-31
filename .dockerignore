@@ -1,0 +1,14 @@
+.git
+.github
+.amp
+.agents
+.claude
+.codex
+.impeccable
+_inputs
+prototypes
+docs
+change-records
+node_modules
+**/node_modules
+.vitest-report.json

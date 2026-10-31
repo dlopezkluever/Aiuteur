@@ -12,6 +12,7 @@
     "@aiuteur/contract": "workspace:*",
     "@aiuteur/history": "workspace:*",
     "@aiuteur/mail": "workspace:*",
+    "@aiuteur/observability": "workspace:*",
     "@aiuteur/providers": "workspace:*",
     "@aiuteur/store": "workspace:*",
     "@aiuteur/story": "workspace:*",

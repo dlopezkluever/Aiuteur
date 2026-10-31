@@ -1,0 +1,50 @@
+name: rollback-staging
+
+# T0-10 (issue #107): restore a prior image digest on staging. Nothing is rebuilt or retagged: the host pulls the digest and
+# swaps to it. Only a digest this host has already run and confirmed (state/deployed) is accepted; any other is refused.
+# Leave `digest` empty to restore the previous digest the host recorded.
+on:
+  workflow_dispatch:
+    inputs:
+      digest:
+        description: "Digest to restore (sha256:...), or empty for the recorded previous digest"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: staging-deploy
+  cancel-in-progress: false
+
+jobs:
+  rollback:
+    name: rollback staging by digest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: staging
+    steps:
+      - name: Check the input is a digest
+        run: |
+          [[ -z "$DIGEST" || "$DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "not a digest" >&2; exit 1; }
+        env:
+          DIGEST: ${{ inputs.digest }}
+      - name: Derive the image repository (GHCR names are lowercase)
+        run: echo "IMAGE_REPOSITORY=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+      - name: Install the SSH identity of the staging host
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/staging
+          chmod 600 ~/.ssh/staging
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+        env:
+          SSH_KEY: ${{ secrets.STAGING_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.STAGING_SSH_KNOWN_HOSTS }}
+      - name: Roll back by digest
+        run: |
+          ssh -i ~/.ssh/staging "$SSH_TARGET" "IMAGE_REPOSITORY=$IMAGE_REPOSITORY /srv/aiuteur/release/deploy.sh rollback $DIGEST" | tee rollback.log
+          grep '^EVIDENCE ' rollback.log | sed 's/^EVIDENCE //' | sed 's/^/    /' >> "$GITHUB_STEP_SUMMARY"
+        env:
+          SSH_TARGET: ${{ secrets.STAGING_SSH_USER }}@${{ secrets.STAGING_SSH_HOST }}
+          DIGEST: ${{ inputs.digest }}

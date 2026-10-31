@@ -387,6 +387,73 @@ importers:
         specifier: ^5.0.5
         version: 5.0.5(@types/node@24.19.2)(vite@7.3.7(@types/node@24.19.2)(lightningcss@1.33.0))
 
+  packages/observability:
+    dependencies:
+      '@aiuteur/contract':
+        specifier: workspace:*
+        version: link:../contract
+
+  packages/platform:
+    dependencies:
+      '@aiuteur/accounts':
+        specifier: workspace:*
+        version: link:../accounts
+      '@aiuteur/api':
+        specifier: workspace:*
+        version: link:../api
+      '@aiuteur/contract':
+        specifier: workspace:*
+        version: link:../contract
+      '@aiuteur/history':
+        specifier: workspace:*
+        version: link:../history
+      '@aiuteur/mail':
+        specifier: workspace:*
+        version: link:../mail
+      '@aiuteur/media':
+        specifier: workspace:*
+        version: link:../media
+      '@aiuteur/observability':
+        specifier: workspace:*
+        version: link:../observability
+      '@aiuteur/production':
+        specifier: workspace:*
+        version: link:../production
+      '@aiuteur/providers':
+        specifier: workspace:*
+        version: link:../providers
+      '@aiuteur/store':
+        specifier: workspace:*
+        version: link:../store
+      '@aiuteur/story':
+        specifier: workspace:*
+        version: link:../story
+      '@aiuteur/testing':
+        specifier: workspace:*
+        version: link:../testing
+      '@aiuteur/views':
+        specifier: workspace:*
+        version: link:../views
+      '@aiuteur/web':
+        specifier: workspace:*
+        version: link:../../apps/web
+      '@aiuteur/workflows':
+        specifier: workspace:*
+        version: link:../workflows
+      '@aiuteur/world':
+        specifier: workspace:*
+        version: link:../world
+      hono:
+        specifier: ^4.13.14
+        version: 4.13.14
+      pg:
+        specifier: ^8.16.3
+        version: 8.23.1
+    devDependencies:
+      '@types/pg':
+        specifier: ^8.16.0
+        version: 8.23.1
+
   packages/production:
     dependencies:
       '@aiuteur/contract':
@@ -472,6 +539,9 @@ importers:
       '@aiuteur/mail':
         specifier: workspace:*
         version: link:../mail
+      '@aiuteur/observability':
+        specifier: workspace:*
+        version: link:../observability
       '@aiuteur/providers':
         specifier: workspace:*
         version: link:../providers

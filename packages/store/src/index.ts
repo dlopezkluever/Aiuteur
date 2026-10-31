@@ -325,3 +325,5 @@ export { createPostgresScheduler } from "./scheduler.ts";
 export { migrateDatabase } from "./migrations.ts";
 export { schemaCatalogue } from "./catalogue.ts";
 export { fakeGenerationCount } from "./derived.ts";
+export { createLiveness, type Liveness } from "./liveness.ts";
+export { provisionRolePasswords, PASSWORD_ROLES, type PasswordRole } from "./roles.ts";
