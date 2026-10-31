@@ -10,6 +10,10 @@ import { ResolverFactory } from "oxc-resolver";
 //        only in an adapter or in `testing/`, and only `testing/` extends FakeTransport.
 //   R20  Module-mocking APIs are banned on repository modules.
 //   EI12 No CORE module imports previs (BUILD-SEQUENCE §5; issue #98).
+//   R3   `client` imports only `contract` (MODULE-ARCHITECTURE §4, R3): nothing of Aiuteur but `packages/contract`.
+//   R16  Only `media` holds a BlobStore (PERSISTENCE-AND-MEDIA §7.6, §10.4 R16, R17): the port, its adapters and its
+//        delete guard are imported only by `media`, `testing/`, the Store package that defines the port, tests and
+//        composition roots. So committed-media deletion and key building cannot happen anywhere else.
 //   R9   Vendor and model names appear only in adapters and Catalogue data (MODULE-ARCHITECTURE §9).
 //   R24  The environment is read only in composition roots and injected; no module branches on
 //        an ambient test flag (VERIFICATION-AND-OBSERVABILITY §3.2 line 3).
@@ -22,7 +26,7 @@ import { ResolverFactory } from "oxc-resolver";
 // evasions; they are not a proof against deliberately obfuscated code.
 
 export interface Violation {
-  readonly rule: "R19" | "R20" | "EI12" | "R9" | "R24" | "LOG";
+  readonly rule: "R3" | "R16" | "R19" | "R20" | "EI12" | "R9" | "R24" | "LOG";
   /** Workspace-relative, `/`-separated. */
   readonly path: string;
   readonly line: number;
@@ -30,9 +34,13 @@ export interface Violation {
 }
 
 const TESTING_DIR = "packages/testing/";
+const CLIENT_DIR = "packages/client/";
+const CONTRACT_DIR = "packages/contract/";
 const PROVIDERS_DIR = "packages/providers/";
 const ADAPTERS_DIR = "packages/providers/src/adapters/";
 const TRANSPORT_TYPES = new Set(["ProviderTransport", "RealAdapter", "FakeAdapter"]);
+/** The BlobStore port, its adapters and its delete guard (R16). */
+const BLOB_NAMES = new Set(["BlobStore", "createR2BlobStore", "FakeBlobStore", "deletableKey"]);
 const VITEST_OBJECTS = new Set(["vi", "vitest"]);
 const MOCKING = new Set(["mock", "doMock", "unmock", "doUnmock", "importMock", "importActual", "spyOn"]);
 const JEST_MOCKING = new Set(["mock", "doMock", "unmock", "dontMock", "requireMock", "requireActual", "createMockFromModule", "spyOn"]);
@@ -42,7 +50,7 @@ const NOT_PRODUCT_CODE = new Set(["docs", "_inputs", "prototypes"]);
 
 /** A test file: `*.test.ts` or anything under a package's or tool's `test/` directory. */
 export function isTestFile(path: string): boolean {
-  return /\.test\.[cm]?[jt]sx?$/.test(path) || /^(packages|tools)\/[^/]+\/test\//.test(path);
+  return /\.test\.[cm]?[jt]sx?$/.test(path) || /^(packages|apps|tools)\/[^/]+\/test\//.test(path);
 }
 
 /** A composition root that may wire test doubles (local, ci, staging; never production). */
@@ -67,7 +75,7 @@ function collectWorkspaceFiles(root: string, pattern: RegExp): string[] {
   const files: string[] = [];
   const visit = (dir: string, top: boolean) => {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      if (entry.name === "node_modules") continue;
+      if (entry.name === "node_modules" || entry.name === "dist") continue;
       if (top && (entry.name.startsWith(".") || NOT_PRODUCT_CODE.has(entry.name))) continue;
       const full = join(dir, entry.name);
       if (entry.isDirectory()) visit(full, false);
@@ -118,7 +126,7 @@ function checkVendorNames(path: string, text: string): Violation[] {
 
 /** Whether this file may read the ambient environment: composition roots, scripts and tests. */
 const isProductionRoot = (path: string) => /(^|\/)composition\/production\.[cm]?[jt]s$/.test(path);
-const mayReadEnvironment = (path: string) => isNonProductionCompositionRoot(path) || isProductionRoot(path) || /^(packages|tools)\/[^/]+\/scripts\//.test(path) || isTestFile(path);
+const mayReadEnvironment = (path: string) => isNonProductionCompositionRoot(path) || isProductionRoot(path) || /^(packages|apps|tools)\/[^/]+\/scripts\//.test(path) || isTestFile(path);
 
 type AstNode = { readonly type: string; readonly start: number; readonly [key: string]: unknown };
 
@@ -138,7 +146,9 @@ function checkFile(path: string, text: string, resolveFrom: (path: string, speci
   // R19 and EI12 share resolved static imports, exports and literal import().
   const mayImportTesting = path.startsWith(TESTING_DIR) || isTestFile(path) || isNonProductionCompositionRoot(path);
   const core = path.startsWith("packages/") && !path.startsWith("packages/previs/") && !path.startsWith(TESTING_DIR) && !isTestFile(path);
-  if (!mayImportTesting || core) {
+  // R3 judges the client's own sources; its tests may use the doubles like any test (R19 still governs them).
+  const client = path.startsWith(CLIENT_DIR) && !isTestFile(path);
+  if (!mayImportTesting || core || client) {
     const specifiers = [
       ...result.module.staticImports.map((i) => ({ value: i.moduleRequest.value, start: i.start })),
       ...result.module.staticExports.flatMap((e) => e.entries.flatMap((x) => (x.moduleRequest ? [{ value: x.moduleRequest.value, start: e.start }] : []))),
@@ -147,10 +157,19 @@ function checkFile(path: string, text: string, resolveFrom: (path: string, speci
       const source = node["source"] as AstNode | undefined;
       if (node.type === "ImportExpression" && source?.type === "Literal" && typeof source["value"] === "string") {
         specifiers.push({ value: source["value"], start: node.start });
+      } else if (client && node.type === "ImportExpression") {
+        // R3 fails closed: a client import whose target is not a plain string cannot be shown to stay inside contract.
+        report("R3", node.start, "client dynamic import() with a computed specifier cannot be proven to import only contract");
       }
     });
     for (const { value, start } of specifiers) {
       if (!mayImportTesting && into(value, TESTING_DIR)) report("R19", start, `non-test module imports testing/ ("${value}"); only tests and local, ci and staging composition roots may`);
+      if (client) {
+        const resolved = resolveFrom(path, value);
+        const reachesAiuteur = value.startsWith("@aiuteur/") || (resolved !== null && /^(packages|apps|tools)\//.test(resolved) && !resolved.startsWith(CLIENT_DIR));
+        const isContract = value === "@aiuteur/contract" || resolved?.startsWith(CONTRACT_DIR) === true;
+        if (reachesAiuteur && !isContract) report("R3", start, `client imports "${value}"; the client imports only contract`);
+      }
       if (core && into(value, "packages/previs/")) report("EI12", start, "CORE must not import previs; wire the stage at its composition root");
     }
   }
@@ -165,6 +184,20 @@ function checkFile(path: string, text: string, resolveFrom: (path: string, speci
       if (local === undefined) continue;
       const imported = specifier.type === "ImportSpecifier" ? nameOf(specifier["imported"]) : specifier.type === "ImportNamespaceSpecifier" ? "*" : "default";
       if (imported !== undefined) bindings.set(local, { from, name: imported });
+    }
+  }
+  // R16: who may hold a BlobStore. Judged on the imported name and where its module resolves (or names, if unresolved).
+  const mayHoldBlobs = path.startsWith("packages/media/") || path.startsWith(TESTING_DIR) || path.startsWith("packages/store/") || isTestFile(path) || isNonProductionCompositionRoot(path) || isProductionRoot(path);
+  if (!mayHoldBlobs) {
+    for (const node of result.program.body as unknown as AstNode[]) {
+      if (node.type !== "ImportDeclaration") continue;
+      const from = (node["source"] as { value: string }).value;
+      const blobModule = /^@aiuteur\/(store|media|testing)$/.test(from) || ["packages/store/", "packages/media/", TESTING_DIR].some((dir) => into(from, dir));
+      if (!blobModule) continue;
+      for (const specifier of node["specifiers"] as AstNode[]) {
+        const imported = specifier.type === "ImportSpecifier" ? nameOf(specifier["imported"]) : undefined;
+        if (imported !== undefined && BLOB_NAMES.has(imported)) report("R16", specifier.start, `${imported} imported outside media; only media holds a BlobStore`);
+      }
     }
   }
   /** Whether `node` names export `name` of a module resolving into `dir`, directly or through a namespace import. */
@@ -217,7 +250,7 @@ function checkFile(path: string, text: string, resolveFrom: (path: string, speci
       const property = memberName(node);
       // LOG: `console.x` and `globalThis.console`, outside tests and scripts.
       const object0 = node["object"] as AstNode;
-      if (!isTestFile(path) && !/^(packages|tools)\/[^/]+\/scripts\//.test(path) && ((nameOf(object0) === "console" && !bindings.has("console")) || (nameOf(object0) === "globalThis" && property === "console"))) {
+      if (!isTestFile(path) && !/^(packages|apps|tools)\/[^/]+\/scripts\//.test(path) && ((nameOf(object0) === "console" && !bindings.has("console")) || (nameOf(object0) === "globalThis" && property === "console"))) {
         report("LOG", node.start, "console is banned in product code; use the typed logger");
       }
       // R24: the ambient environment is read in composition roots only (scripts and tests may read their own inputs, never a flag).

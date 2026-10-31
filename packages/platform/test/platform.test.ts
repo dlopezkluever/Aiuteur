@@ -29,11 +29,11 @@ beforeAll(async () => {
     AIUTEUR_ENVIRONMENT: "staging", RELEASE_DIGEST: DIGEST, PORT: "0", PUBLIC_ORIGIN: ORIGIN, AUTH_SECRET: SECRET,
     DATABASE_URL_APP: database.url("app"), DATABASE_URL_IDENTITY: database.url("identity"), DATABASE_URL_SCHEDULER: database.url("scheduler"),
     SMTP_HOST: "127.0.0.1", SMTP_SECURITY: "none", SMTP_FROM: "studio@example.test",
+    R2_ACCOUNT_ID: "0".repeat(32), R2_BUCKET: "staging-media", R2_ACCESS_KEY_ID: "synthetic-r2-key-id-0001", R2_SECRET_ACCESS_KEY: R2_SECRET,
     ERROR_SINK_DSN: "https://synthetickeyabcdef0123@tracker.invalid/7", WORKER_STALE_AFTER_MS: "1500", OVERDUE_AFTER_MS: "60000",
   };
   workerEnv = {
     AIUTEUR_ENVIRONMENT: "staging", RELEASE_DIGEST: DIGEST, DATABASE_URL_SCHEDULER: database.url("scheduler"),
-    R2_ACCOUNT_ID: "0".repeat(32), R2_BUCKET: "staging-media", R2_ACCESS_KEY_ID: "synthetic-r2-key-id-0001", R2_SECRET_ACCESS_KEY: R2_SECRET,
     ERROR_SINK_DSN: "https://synthetickeyabcdef0123@tracker.invalid/7", HEARTBEAT_PING_URL: `https://heartbeat.invalid/ping/${PING}`,
   };
 });
@@ -47,8 +47,9 @@ describe("R24 and least privilege: each role parses only its own configuration",
     const worker = readWorkerConfig(workerEnv);
     expect(web).toMatchObject({ environment: "staging", release: DIGEST, role: "web" });
     expect(web.secretValues).toContain(SECRET);
-    expect(web.secretValues).not.toContain(R2_SECRET);
-    expect(worker.secretValues).toContain(R2_SECRET);
+    expect(web.secretValues).toContain(R2_SECRET);
+    expect(worker.secretValues).not.toContain(R2_SECRET);
+    expect(worker.secretValues).not.toContain(SECRET);
     expect(worker.secretValues).not.toContain(SECRET);
   });
 
@@ -67,10 +68,10 @@ describe("R24 and least privilege: each role parses only its own configuration",
   });
 
   it("refuses migration, owner, Postgres and smoke values, and another role's secrets, in any process", () => {
-    const foreignToWeb = { R2_SECRET_ACCESS_KEY: "x", HEARTBEAT_PING_URL: "https://h.invalid/x", MIGRATION_DATABASE_URL: "postgres://postgres@h/db", ROLE_PASSWORD_APP: "x", POSTGRES_PASSWORD: "x", SMOKE_PASSWORD: "x" };
+    const foreignToWeb = { HEARTBEAT_PING_URL: "https://h.invalid/x", MIGRATION_DATABASE_URL: "postgres://postgres@h/db", ROLE_PASSWORD_APP: "x", POSTGRES_PASSWORD: "x", SMOKE_PASSWORD: "x" };
     const web = problemsOf(() => readWebConfig({ ...webEnv, ...foreignToWeb }));
     expect(web).toEqual(expect.arrayContaining(Object.keys(foreignToWeb).map((name) => `${name} must not be present in the web process`)));
-    const foreignToWorker = { AUTH_SECRET: "x", SMTP_PASS: "x", DATABASE_URL_APP: "postgres://app@h/db", DATABASE_URL_IDENTITY: "postgres://identity@h/db", MIGRATION_DATABASE_URL: "postgres://postgres@h/db", ROLE_PASSWORD_SCHEDULER: "x", SMOKE_EMAIL: "x" };
+    const foreignToWorker = { R2_SECRET_ACCESS_KEY: "x", AUTH_SECRET: "x", SMTP_PASS: "x", DATABASE_URL_APP: "postgres://app@h/db", DATABASE_URL_IDENTITY: "postgres://identity@h/db", MIGRATION_DATABASE_URL: "postgres://postgres@h/db", ROLE_PASSWORD_SCHEDULER: "x", SMOKE_EMAIL: "x" };
     const worker = problemsOf(() => readWorkerConfig({ ...workerEnv, ...foreignToWorker }));
     expect(worker).toEqual(expect.arrayContaining(Object.keys(foreignToWorker).map((name) => `${name} must not be present in the worker process`)));
   });

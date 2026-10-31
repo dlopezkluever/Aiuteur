@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { Pool, type PoolClient } from "pg";
-import { ACTOR_KINDS, BILLED, CALL_ROLES, DECISION_TYPES, FAILURE_CLASSES, GENERATION_OUTCOMES, IDEMPOTENT_OPERATIONS, ATTEMPT_ORIGINS, JOB_CLASSES, JOB_STATES, OPERATION_CLASSES, REVISION_CAUSES, WORKFLOW_OPERATIONS, accountSchema, actionGroupIdSchema, eventSchema, generationIdSchema, objectIdSchema, projectIdSchema, settingsSchema, type AccountId, type GenerationId, type JobId, type ObjectId, type Project, type ProjectId, type Settings } from "@aiuteur/contract";
-import type { AttemptRow, CallRow, CaptureRow, DecisionRow, GenerationRow, JobRow, ReadTx, RevisionRow, RunRow, Scope, SettlementRow, Store, WriteTx } from "./index.ts";
-import type { accounts_account, accounts_capture, accounts_decision, accounts_event, accounts_generation, accounts_generation_call, accounts_generation_run, accounts_generation_settlement, accounts_idempotency, accounts_attempt, accounts_job, accounts_lock, accounts_object, accounts_project, accounts_revision, accounts_settings } from "./rows.generated.ts";
+import { ACTOR_KINDS, BILLED, CALL_ROLES, DECISION_TYPES, FAILURE_CLASSES, GENERATION_OUTCOMES, IDEMPOTENT_OPERATIONS, ATTEMPT_ORIGINS, JOB_CLASSES, JOB_STATES, MEDIA_ORIGINS, OPERATION_CLASSES, REVISION_CAUSES, WORKFLOW_OPERATIONS, accountSchema, actionGroupIdSchema, eventSchema, generationIdSchema, objectIdSchema, projectIdSchema, settingsSchema, type AccountId, type GenerationId, type JobId, type ObjectId, type Project, type ProjectId, type Settings } from "@aiuteur/contract";
+import type { AttemptRow, MediaRow, CallRow, CaptureRow, DecisionRow, GenerationRow, JobRow, ReadTx, RevisionRow, RunRow, Scope, SettlementRow, Store, WriteTx } from "./index.ts";
+import type { accounts_account, accounts_capture, accounts_decision, accounts_event, accounts_generation, accounts_generation_call, accounts_generation_run, accounts_generation_settlement, accounts_idempotency, accounts_attempt, accounts_job, accounts_lock, accounts_media, accounts_object, accounts_project, accounts_revision, accounts_settings } from "./rows.generated.ts";
 
 /** Boot rejects a privileged login or indirect privileged role membership. */
 export async function assertRuntimeRole(pool: Pool, expected: "app" | "identity" | "scheduler"): Promise<void> {
@@ -109,6 +109,10 @@ function readTx(client: PoolClient): ReadTx {
       const row = rows[0];
       return row ? { objectId: objectIdSchema.parse(row.object_id), projectId: projectIdSchema.parse(row.project_id), kind: row.kind } : null;
     },
+    async objects(project: ProjectId, kind: string) {
+      const { rows } = await client.query<accounts_object>("SELECT object_id, project_id, kind FROM accounts.object WHERE project_id = $1 AND kind = $2 ORDER BY created_at, object_id", [project, kind]);
+      return rows.map((row) => ({ objectId: objectIdSchema.parse(row.object_id), projectId: projectIdSchema.parse(row.project_id), kind: row.kind }));
+    },
     async head(id: ObjectId) {
       const { rows } = await client.query<accounts_revision>("SELECT * FROM accounts.revision WHERE object_id = $1 ORDER BY sequence DESC LIMIT 1", [id]);
       return rows[0] ? revision(rows[0]) : null;
@@ -125,8 +129,13 @@ function readTx(client: PoolClient): ReadTx {
       const { rows } = await client.query<accounts_attempt>("SELECT * FROM accounts.attempt WHERE object_id = $1 ORDER BY position", [id]);
       return rows.map((row): AttemptRow => ({
         attemptId: row.attempt_id, objectId: objectIdSchema.parse(row.object_id), projectId: projectIdSchema.parse(row.project_id),
-        basedOn: row.based_on, origin: z.enum(ATTEMPT_ORIGINS).parse(row.origin), generationId: row.generation_id === null ? null : generationIdSchema.parse(row.generation_id), body: row.body, createdAt: row.created_at.toISOString(),
+        basedOn: row.based_on, origin: z.enum(ATTEMPT_ORIGINS).parse(row.origin), generationId: row.generation_id === null ? null : generationIdSchema.parse(row.generation_id), media: row.media_hash, body: row.body, createdAt: row.created_at.toISOString(),
       }));
+    },
+    async media(project: ProjectId, hash: string) {
+      const { rows } = await client.query<accounts_media>("SELECT * FROM accounts.media WHERE project_id = $1 AND hash = $2", [project, hash]);
+      const row = rows[0];
+      return row ? { projectId: projectIdSchema.parse(row.project_id), hash: row.hash, size: row.size, contentType: row.content_type, width: row.width, height: row.height, key: row.key, origin: z.enum(MEDIA_ORIGINS).parse(row.origin), createdAt: row.created_at.toISOString() } satisfies MediaRow : null;
     },
     async lockState(id: ObjectId) {
       const { rows } = await client.query<Pick<accounts_lock, "locked"> & { sequence: number }>("SELECT locked, sequence FROM accounts.lock WHERE object_id = $1 ORDER BY sequence DESC LIMIT 1", [id]);
@@ -238,8 +247,12 @@ export async function createPostgresStore(connectionString: string): Promise<Sto
     },
     async insertAttempt(row) {
       await client.query(
-        "INSERT INTO accounts.attempt (attempt_id, object_id, account_id, project_id, based_on, origin, generation_id, body, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9)",
-        [row.attemptId, row.objectId, scope.accountId, row.projectId, row.basedOn, row.origin, row.generationId, JSON.stringify(row.body), row.createdAt]);
+        "INSERT INTO accounts.attempt (attempt_id, object_id, account_id, project_id, based_on, origin, generation_id, media_hash, body, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10)",
+        [row.attemptId, row.objectId, scope.accountId, row.projectId, row.basedOn, row.origin, row.generationId, row.media, JSON.stringify(row.body), row.createdAt]);
+    },
+    async insertMedia(row: MediaRow) {
+      await client.query("INSERT INTO accounts.media (account_id, project_id, hash, size, content_type, width, height, key, origin, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
+        [scope.accountId, row.projectId, row.hash, row.size, row.contentType, row.width, row.height, row.key, row.origin, row.createdAt]);
     },
   });
   return {

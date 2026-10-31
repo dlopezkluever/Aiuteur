@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { accountIdSchema, type ObjectId, type Settings } from "@aiuteur/contract";
+import { accountIdSchema, objectIdSchema, projectIdSchema, type ObjectId, type Settings } from "@aiuteur/contract";
+import { uuidv7 } from "../uuidv7.ts";
 import type { Scope, Store } from "@aiuteur/store";
 
 export interface StoreSubject {
@@ -20,6 +21,20 @@ export function describeStoreConformance(name: string, subject: () => Promise<St
       expect(await store.read(a, (tx) => tx.account(a.accountId))).toMatchObject({ accountId: a.accountId });
       expect(await store.read(b, (tx) => tx.account(a.accountId))).toBeNull();
       expect(await store.read(b, (tx) => tx.account(accountIdSchema.parse("99999999-9999-4999-8999-999999999999")))).toBeNull();
+    });
+
+    it("lists the objects of one kind in one project, oldest first, and only for the scoped Account", async () => {
+      const { store, a, b } = await subject();
+      const project = projectIdSchema.parse(uuidv7());
+      const [first, second, other] = [uuidv7(), uuidv7(), uuidv7()].map((id) => objectIdSchema.parse(id));
+      if (!first || !second || !other) throw new Error("ids");
+      await store.write(a, async (tx) => {
+        await tx.insertProject({ projectId: project, createdAt: new Date().toISOString() });
+        for (const [objectId, kind] of [[first, "note"], [other, "memo"], [second, "note"]] as const) await tx.insertObject({ objectId, projectId: project, kind, createdAt: new Date().toISOString() });
+      });
+      expect((await store.read(a, (tx) => tx.objects(project, "note"))).map((row) => row.objectId)).toEqual([first, second]);
+      expect(await store.read(a, (tx) => tx.objects(project, "absent"))).toEqual([]);
+      expect(await store.read(b, (tx) => tx.objects(project, "note"))).toEqual([]);
     });
 
     it("round trips settings without loss, rolls back a throw, and isolates writes", async () => {

@@ -1,16 +1,19 @@
 // A skipped required check fails the pipeline (VERIFICATION-AND-OBSERVABILITY §9). Vitest reports a skipped,
 // todo or filtered test as a success, so the pipeline reads its JSON report and refuses anything that did not run.
 
-/** Every test file of the active T0 gates (VC2, VC3, VC4, VC5, VC6, VC7 incl. G9, VC8, VC10, VC1 rules); each must run at least one passing test. A new gate file is added here. */
+/** Every test file of the active T0 gates (VC2, VC3, VC4 incl. BlobStore, VC5, VC6, VC7 incl. G5 and G9, VC8, VC9, VC10, VC1 rules); each must run at least one passing test. A new gate file is added here. */
 export const REQUIRED_SUITES: readonly string[] = [
   "packages/api/test/t0-01.test.ts",
   "packages/api/test/t0-02.test.ts",
   "packages/api/test/t0-03.test.ts",
   "packages/api/test/t0-04.test.ts",
   "packages/api/test/t0-05.test.ts",
+  "packages/api/test/t0-12.test.ts",
   "packages/compiler/test/compiler.test.ts",
   "packages/platform/test/deploy.test.ts",
   "packages/platform/test/platform.test.ts",
+  "packages/media/test/blob-store.conformance.test.ts",
+  "packages/media/test/media.test.ts",
   "packages/providers/test/gate.test.ts",
   "packages/spend/test/estimate.test.ts",
   "packages/testing/test/catalogue.test.ts",
@@ -22,6 +25,8 @@ export const REQUIRED_SUITES: readonly string[] = [
   "packages/testing/test/store.conformance.test.ts",
   "packages/testing/test/vc10.test.ts",
   "packages/testing/test/vc6.test.ts",
+  "apps/web/test/e1.test.ts",
+  "apps/web/test/e1-world.test.ts",
   "tools/arch-rules/test/arch-rules.test.ts",
   "tools/arch-rules/test/ei12.test.ts",
   "tools/arch-rules/test/static-rules.test.ts",

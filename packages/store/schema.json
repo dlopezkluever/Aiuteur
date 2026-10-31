@@ -109,6 +109,12 @@
           "type": "timestamp with time zone",
           "default": null,
           "nullable": false
+        },
+        {
+          "name": "media_hash",
+          "type": "text",
+          "default": null,
+          "nullable": true
         }
       ],
       "constraints": [
@@ -125,12 +131,20 @@
           "definition": "CHECK (((origin <> 'held'::text) OR (generation_id IS NOT NULL)))"
         },
         {
+          "name": "attempt_media",
+          "definition": "FOREIGN KEY (account_id, project_id, media_hash) REFERENCES accounts.media(account_id, project_id, hash)"
+        },
+        {
           "name": "attempt_origin",
-          "definition": "CHECK ((origin = ANY (ARRAY['stale-base'::text, 'held'::text])))"
+          "definition": "CHECK ((origin = ANY (ARRAY['stale-base'::text, 'held'::text, 'upload'::text])))"
         },
         {
           "name": "attempt_pkey",
           "definition": "PRIMARY KEY (attempt_id)"
+        },
+        {
+          "name": "attempt_upload_holds_media",
+          "definition": "CHECK (((origin = 'upload'::text) = (media_hash IS NOT NULL)))"
         }
       ],
       "indexes": [
@@ -990,7 +1004,7 @@
         },
         {
           "name": "idempotency_operation",
-          "definition": "CHECK ((operation = ANY (ARRAY['source-material.paste'::text, 'source-material.change-role'::text, 'treatment-option.choose'::text, 'treatment.draft'::text])))"
+          "definition": "CHECK ((operation = ANY (ARRAY['source-material.paste'::text, 'source-material.change-role'::text, 'treatment-option.choose'::text, 'treatment.draft'::text, 'character.create'::text, 'character.reference'::text, 'shot.create'::text, 'shot.presence'::text])))"
         },
         {
           "name": "idempotency_pkey",
@@ -1264,6 +1278,128 @@
       ],
       "indexes": [
         "CREATE UNIQUE INDEX lock_pkey ON accounts.lock USING btree (object_id, sequence)"
+      ],
+      "policies": [
+        {
+          "name": "account_scope",
+          "check": "(account_id = (NULLIF(current_setting('aiuteur.account_id'::text, true), ''::text))::uuid)",
+          "roles": [
+            "public"
+          ],
+          "using": "(account_id = (NULLIF(current_setting('aiuteur.account_id'::text, true), ''::text))::uuid)",
+          "command": "ALL"
+        }
+      ]
+    },
+    {
+      "schema": "accounts",
+      "name": "media",
+      "owner": "owner",
+      "rls": true,
+      "force_rls": true,
+      "grants": "{owner=arwdDxt/owner,app=ar/owner,backup=r/owner}",
+      "columns": [
+        {
+          "name": "account_id",
+          "type": "uuid",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "project_id",
+          "type": "uuid",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "hash",
+          "type": "text",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "size",
+          "type": "integer",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "content_type",
+          "type": "text",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "width",
+          "type": "integer",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "height",
+          "type": "integer",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "key",
+          "type": "text",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "origin",
+          "type": "text",
+          "default": null,
+          "nullable": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": null,
+          "nullable": false
+        }
+      ],
+      "constraints": [
+        {
+          "name": "media_account_id_project_id_fkey",
+          "definition": "FOREIGN KEY (account_id, project_id) REFERENCES accounts.project(account_id, project_id)"
+        },
+        {
+          "name": "media_content_type",
+          "definition": "CHECK ((content_type = ANY (ARRAY['image/png'::text, 'image/jpeg'::text, 'image/webp'::text])))"
+        },
+        {
+          "name": "media_hash_check",
+          "definition": "CHECK ((hash ~ '^[0-9a-f]{64}$'::text))"
+        },
+        {
+          "name": "media_height_check",
+          "definition": "CHECK ((height > 0))"
+        },
+        {
+          "name": "media_key_is_derived",
+          "definition": "CHECK ((key = ((((('a/'::text || (account_id)::text) || '/p/'::text) || (project_id)::text) || '/m/'::text) || hash)))"
+        },
+        {
+          "name": "media_origin",
+          "definition": "CHECK ((origin = 'upload'::text))"
+        },
+        {
+          "name": "media_pkey",
+          "definition": "PRIMARY KEY (account_id, project_id, hash)"
+        },
+        {
+          "name": "media_size_check",
+          "definition": "CHECK ((size > 0))"
+        },
+        {
+          "name": "media_width_check",
+          "definition": "CHECK ((width > 0))"
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX media_pkey ON accounts.media USING btree (account_id, project_id, hash)"
       ],
       "policies": [
         {

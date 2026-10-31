@@ -264,8 +264,8 @@ describe("the staging shape", () => {
   it("the example files keep service secrets service-specific and name only non-superuser roles", () => {
     const text = (name: string) => readFileSync(join(ROOT, "deploy/env", `${name}.env.example`), "utf8");
     const names = (name: string) => text(name).split("\n").filter((line) => /^[A-Z_0-9]+=/.test(line)).map((line) => line.split("=")[0]!);
-    expect(names("web")).not.toContainEqual(expect.stringMatching(/^(R2_|HEARTBEAT_|POSTGRES_|ROLE_PASSWORD_|MIGRATION_|SMOKE_)/));
-    expect(names("worker")).not.toContainEqual(expect.stringMatching(/^(AUTH_SECRET|SMTP_|DATABASE_URL_APP|DATABASE_URL_IDENTITY|POSTGRES_|ROLE_PASSWORD_|MIGRATION_|SMOKE_)/));
+    expect(names("web")).not.toContainEqual(expect.stringMatching(/^(HEARTBEAT_|POSTGRES_|ROLE_PASSWORD_|MIGRATION_|SMOKE_)/));
+    expect(names("worker")).not.toContainEqual(expect.stringMatching(/^(R2_|AUTH_SECRET|SMTP_|DATABASE_URL_APP|DATABASE_URL_IDENTITY|POSTGRES_|ROLE_PASSWORD_|MIGRATION_|SMOKE_)/));
     expect(names("worker")).toContain("DATABASE_URL_SCHEDULER");
     for (const name of ["web", "worker"]) for (const line of text(name).split("\n").filter((l) => l.startsWith("DATABASE_URL_"))) expect(line).toMatch(/\/\/(app|identity|scheduler):/);
     expect(names("owner")).toEqual(["MIGRATION_DATABASE_URL", "ROLE_PASSWORD_APP", "ROLE_PASSWORD_IDENTITY", "ROLE_PASSWORD_SCHEDULER"]);

@@ -2,7 +2,7 @@ import { Pool } from "pg";
 import { assertRuntimeRole } from "./postgres.ts";
 
 /**
- * The durable liveness signal of OPERATIONAL-BASELINE §7.2, through the `scheduler` identity (migration 7). The worker
+ * The durable liveness signal of OPERATIONAL-BASELINE §7.2, through the `scheduler` identity (migration 8). The worker
  * writes `tick`; `web` reads ages for `/healthz/deep`. Numbers only: no Account, no Job, no content.
  */
 export interface Liveness {

@@ -5,6 +5,7 @@ import { createAccounts, createBetterAuth } from "@aiuteur/accounts";
 import { createApi } from "@aiuteur/api";
 import { createHistory } from "@aiuteur/history";
 import { createSmtpMailer } from "@aiuteur/mail";
+import { createMedia, createR2BlobStore } from "@aiuteur/media";
 import { createHostedErrorSink, createLogger, createSecretRegistry, indexSource, type ErrorSink, type Logger } from "@aiuteur/observability";
 import { readiness } from "@aiuteur/providers";
 import { createLiveness, createPostgresScheduler, createPostgresStore, type Clock, type Ids } from "@aiuteur/store";
@@ -61,6 +62,8 @@ export async function composeWeb(env: Env, write: (line: string) => void): Promi
   const liveness = await createLiveness(config.databases.scheduler);
   const mailer = createSmtpMailer(config.smtp);
   const catalogue = syntheticCatalogue();
+  // Private media on R2; the signed-URL lifetimes and the size cap are tuning values set here, as the ci root sets them.
+  const media = createMedia({ blob: createR2BlobStore(config.r2), clock, ids, maxBytes: 10 * 1024 * 1024, seconds: { view: 3600, download: 300, upload: 600 } });
   // A text fake replays its recorded proposals once per instance, so each Job gets a fresh one (a text run completes inside one submit).
   const transportFor = (offeringId: string) => (offeringId === FAKE_TEXT_PROFILE.offeringId ? new FakeTransport({ profile: FAKE_TEXT_PROFILE, clock, webhookSecret: "synthetic-staging-webhook-secret", proposals: STAGING_PROPOSALS }) : undefined);
   const execution: Execution = { scheduler, transportFor, credential: () => testCredential(), environment: config.environment };
@@ -69,7 +72,7 @@ export async function composeWeb(env: Env, write: (line: string) => void): Promi
   let socketAddress = (_: Request) => "unknown";
   const api = createApi({
     accounts, views: createViews(store), handleAuth: adapter.handle, origin: config.origin, requestId: ids.uuid, now: clock.now,
-    workflows: createWorkflows({ store, history: createHistory([sourceMaterialKind, treatmentOptionKind]), clock, ids, catalogue, pricePolicy: TEST_PRICE_POLICY, execution }),
+    workflows: createWorkflows({ store, history: createHistory([sourceMaterialKind, treatmentOptionKind]), clock, ids, catalogue, pricePolicy: TEST_PRICE_POLICY, execution, media }),
     clientAddress: (request) => (config.clientAddressHeader !== null ? request.headers.get(config.clientAddressHeader)?.split(",").at(-1)?.trim() : undefined) ?? socketAddress(request),
     onUnexpectedError: (error, { requestId }) => report(error, requestId),
   });

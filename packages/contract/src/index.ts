@@ -4,3 +4,5 @@ export * from "./history.ts";
 export * from "./generation.ts";
 export * from "./responses.ts";
 export * from "./vocabulary.ts";
+export * from "./media.ts";
+export * from "./world.ts";

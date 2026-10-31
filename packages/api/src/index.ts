@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { AccountRefusal, type Accounts } from "@aiuteur/accounts";
-import { accountIdSchema, changeRoleSchema, chooseOutcomeSchema, draftTreatmentResultSchema, draftTreatmentSchema, generationIdSchema, type Initiation, commitOutcomeSchema, idempotencyKeySchema, errorSchema, objectIdSchema, pasteSchema, projectIdSchema, projectSchema, type CommitOutcome, issueInvitationSchema, recoveryCompleteSchema, recoveryCompletedSchema, recoveryRequestSchema, recoveryRequestedSchema, redeemInvitationSchema, redeemedInvitationSchema, ROUTES, treatmentPreviewSchema } from "@aiuteur/contract";
+import { attachReferenceSchema, changePresenceSchema, createCharacterSchema, createShotSchema, entityOutcomeSchema, mediaLinkSchema, referenceOutcomeSchema, requestUploadSchema, uploadSchema, type EntityOutcome, accountIdSchema, changeRoleSchema, chooseOutcomeSchema, draftTreatmentResultSchema, draftTreatmentSchema, generationIdSchema, type Initiation, commitOutcomeSchema, idempotencyKeySchema, errorSchema, objectIdSchema, pasteSchema, projectIdSchema, projectSchema, type CommitOutcome, issueInvitationSchema, recoveryCompleteSchema, recoveryCompletedSchema, recoveryRequestSchema, recoveryRequestedSchema, redeemInvitationSchema, redeemedInvitationSchema, ROUTES, sessionSchema, treatmentPreviewSchema } from "@aiuteur/contract";
 import type { Views } from "@aiuteur/views";
 import { IdempotencyKeyReused, type Workflows } from "@aiuteur/workflows";
 
@@ -12,6 +12,13 @@ function outcome(c: Context, result: CommitOutcome) {
   // An unknown project or object answers exactly as every other absent id does (G1).
   if (result.result === "Refused") return result.reason === "not-found" ? c.json(errorSchema.parse({ code: "not-found" }), 404) : c.json(commitOutcomeSchema.parse(result), 422);
   return c.json(commitOutcomeSchema.parse(result), 409);
+}
+
+/** A write-gate result on a Character or Shot. A refused unknown id answers exactly as an absent one (G1). */
+function entity(c: Context, result: EntityOutcome, created: boolean) {
+  if (result.result === "Applied") return c.json(entityOutcomeSchema.parse(result), created && result.appended ? 201 : 200);
+  if (result.result === "Refused") return result.reason === "not-found" ? c.json(errorSchema.parse({ code: "not-found" }), 404) : c.json(entityOutcomeSchema.parse(result), 422);
+  return c.json(entityOutcomeSchema.parse(result), 409);
 }
 
 /**
@@ -89,6 +96,7 @@ export function createApi(options: { accounts: Accounts; views: Views; workflows
     if (!subject) throw new AccountRefusal("unauthenticated");
     const scope = await options.accounts.resolveScope(subject);
     if (!scope) throw new AccountRefusal("unauthenticated");
+    if (route.access === "session") return c.json(sessionSchema.parse({ accountId: scope.accountId }));
     if (route.access === "operator") {
       const parsed = issueInvitationSchema.safeParse(body);
       if (!parsed.success) return c.json(errorSchema.parse({ code: "invalid-request" }), 400);
@@ -106,6 +114,7 @@ export function createApi(options: { accounts: Accounts; views: Views; workflows
     if (key === "GET /api/studios/:accountId/projects") return respond(c, await options.views.projects(scope, id.data));
     if (key === "POST /api/studios/:accountId/projects") return c.json(projectSchema.parse(await options.workflows.createProject(scope)), 201);
     if (!project.success) return notFound();
+    if (key === "GET /api/studios/:accountId/projects/:projectId/source-material") return respond(c, await options.views.input(scope, project.data));
     if (key === "POST /api/studios/:accountId/projects/:projectId/source-material") {
       const parsed = pasteSchema.safeParse(body);
       const idem = idempotencyKeySchema.safeParse(c.req.header("idempotency-key"));
@@ -116,7 +125,51 @@ export function createApi(options: { accounts: Accounts; views: Views; workflows
       const generation = generationIdSchema.safeParse(c.req.param("generationId") ?? "");
       return generation.success ? respond(c, await options.views.generation(scope, project.data, generation.data)) : notFound();
     }
+    // T0-12: uploads, Characters and Shots. Every id is resolved under the Scope below this line.
+    const keyed = () => idempotencyKeySchema.safeParse(c.req.header("idempotency-key"));
+    const invalid = () => c.json(errorSchema.parse({ code: "invalid-request" }), 400);
+    if (key === "POST /api/studios/:accountId/projects/:projectId/uploads") {
+      if (!requestUploadSchema.safeParse(body).success) return invalid();
+      const upload = await options.workflows.requestUpload(scope, project.data);
+      return upload ? c.json(uploadSchema.parse(upload), 201) : notFound();
+    }
+    if (key === "GET /api/studios/:accountId/projects/:projectId/characters") return respond(c, await options.views.characters(scope, project.data));
+    if (key === "POST /api/studios/:accountId/projects/:projectId/characters") {
+      const parsed = createCharacterSchema.safeParse(body);
+      const idem = keyed();
+      if (!parsed.success || !idem.success) return invalid();
+      return entity(c, await options.workflows.createCharacter(scope, project.data, idem.data, parsed.data.name), true);
+    }
+    if (key === "GET /api/studios/:accountId/projects/:projectId/shots") return respond(c, await options.views.shots(scope, project.data));
+    if (key === "POST /api/studios/:accountId/projects/:projectId/shots") {
+      const parsed = createShotSchema.safeParse(body);
+      const idem = keyed();
+      if (!parsed.success || !idem.success) return invalid();
+      return entity(c, await options.workflows.createShot(scope, project.data, idem.data, parsed.data.action, parsed.data.presence), true);
+    }
     if (!object.success) return notFound();
+    if (key === "GET /api/studios/:accountId/projects/:projectId/characters/:objectId") return respond(c, await options.views.character(scope, project.data, object.data));
+    if (key === "POST /api/studios/:accountId/projects/:projectId/characters/:objectId/reference") {
+      const parsed = attachReferenceSchema.safeParse(body);
+      const idem = keyed();
+      if (!parsed.success || !idem.success) return invalid();
+      const result = await options.workflows.attachReference(scope, project.data, object.data, idem.data, parsed.data.uploadId);
+      if (result.result === "Applied") return c.json(referenceOutcomeSchema.parse(result), 201);
+      if (result.result === "Refused") return result.reason === "not-found" ? notFound() : c.json(referenceOutcomeSchema.parse(result), 422);
+      return c.json(referenceOutcomeSchema.parse(result), 409);
+    }
+    if (key === "GET /api/studios/:accountId/projects/:projectId/characters/:objectId/reference/view") {
+      const link = await options.workflows.referenceLink(scope, project.data, object.data);
+      // A signed URL is a bearer credential: never cached, never stored, never logged (G5).
+      return link ? c.json(mediaLinkSchema.parse(link), 200, { "cache-control": "no-store" }) : notFound();
+    }
+    if (key === "GET /api/studios/:accountId/projects/:projectId/shots/:objectId") return respond(c, await options.views.shot(scope, project.data, object.data));
+    if (key === "POST /api/studios/:accountId/projects/:projectId/shots/:objectId/presence") {
+      const parsed = changePresenceSchema.safeParse(body);
+      const idem = keyed();
+      if (!parsed.success || !idem.success) return invalid();
+      return entity(c, await options.workflows.changePresence(scope, project.data, object.data, idem.data, parsed.data.base, parsed.data.presence), false);
+    }
     if (key === "POST /api/studios/:accountId/projects/:projectId/source-material/:objectId/treatment-drafts") {
       const parsed = draftTreatmentSchema.safeParse(body);
       const idem = idempotencyKeySchema.safeParse(c.req.header("idempotency-key"));

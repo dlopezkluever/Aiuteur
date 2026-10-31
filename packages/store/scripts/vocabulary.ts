@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import {
   ACTOR_KINDS, ATTEMPT_ORIGINS, AUDIT_ACTIONS, BILLED, CALL_ROLES, DECISION_TYPES, EVENT_TYPES, FAILURE_CLASSES, GENERATION_OUTCOMES,
-  IDEMPOTENT_OPERATIONS, JOB_CLASSES, JOB_STATES, OPERATION_CLASSES, REVISION_CAUSES, WORKFLOW_OPERATIONS,
+  IDEMPOTENT_OPERATIONS, JOB_CLASSES, MEDIA_ORIGINS, REFERENCE_IMAGE_TYPES, JOB_STATES, OPERATION_CLASSES, REVISION_CAUSES, WORKFLOW_OPERATIONS,
 } from "@aiuteur/contract";
 
 const list = (values: readonly string[]) => values.map((value) => `'${value.replaceAll("'", "''")}'`).join(", ");
@@ -24,11 +24,11 @@ export const VOCABULARY_BLOCKS: Readonly<Record<string, readonly Vocabulary[]>> 
   "5-history.sql": [
     { table: "revision", constraint: "revision_cause", column: "cause", values: REVISION_CAUSES },
     { table: "revision", constraint: "revision_actor_kind", column: "actor_kind", values: ACTOR_KINDS },
-    { table: "attempt", constraint: "attempt_origin", column: "origin", values: ATTEMPT_ORIGINS },
+    { table: "attempt", constraint: "attempt_origin", column: "origin", values: ATTEMPT_ORIGINS.slice(0, 2) },
     { table: "idempotency", constraint: "idempotency_operation", column: "operation", values: IDEMPOTENT_OPERATIONS.slice(0, 2) },
   ],
   "6-generation-and-jobs.sql": [
-    { table: "idempotency", constraint: "idempotency_operation", column: "operation", values: IDEMPOTENT_OPERATIONS, replace: true },
+    { table: "idempotency", constraint: "idempotency_operation", column: "operation", values: IDEMPOTENT_OPERATIONS.slice(0, 4), replace: true },
     { table: "generation", constraint: "generation_operation", column: "operation", values: WORKFLOW_OPERATIONS },
     { table: "generation", constraint: "generation_operation_class", column: "operation_class", values: OPERATION_CLASSES },
     { table: "job", constraint: "job_class", column: "class", values: JOB_CLASSES },
@@ -42,6 +42,12 @@ export const VOCABULARY_BLOCKS: Readonly<Record<string, readonly Vocabulary[]>> 
     { table: "generation_settlement", constraint: "generation_settlement_outcome", column: "outcome", values: GENERATION_OUTCOMES },
     { table: "decision", constraint: "decision_type", column: "type", values: DECISION_TYPES },
     { table: "event", constraint: "event_type", column: "type", values: EVENT_TYPES },
+  ],
+  "7-media.sql": [
+    { table: "attempt", constraint: "attempt_origin", column: "origin", values: ATTEMPT_ORIGINS, replace: true },
+    { table: "idempotency", constraint: "idempotency_operation", column: "operation", values: IDEMPOTENT_OPERATIONS, replace: true },
+    { table: "media", constraint: "media_origin", column: "origin", values: MEDIA_ORIGINS },
+    { table: "media", constraint: "media_content_type", column: "content_type", values: REFERENCE_IMAGE_TYPES },
   ],
 };
 /** The constraints whose live CHECK must equal a contract set, with that set (the latest definition wins). */

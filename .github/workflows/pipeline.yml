@@ -42,6 +42,8 @@ jobs:
       # The suites read these; a missing one fails the suite, it never skips it.
       TEST_POSTGRES_URL: postgres://postgres@127.0.0.1:5432/postgres
       MIGRATION_DATABASE_URL: postgres://postgres@127.0.0.1:5432/generated_equality
+      # The S3-protocol gateway the R2 BlobStore adapter's conformance suite runs against (T0-12).
+      S3_GATEWAY_BIN: /usr/local/bin/versitygw
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -51,7 +53,15 @@ jobs:
           cache: pnpm
       - name: Install ffmpeg (the fake provider's media checks run it; absent means failure)
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Install the S3 gateway the R2 adapter conformance runs against (pinned, checksum-verified; absent means failure)
+        run: |
+          curl -fsSL -o /tmp/versitygw.tar.gz https://github.com/versity/versitygw/releases/download/v1.10.0/versitygw_v1.10.0_Linux_x86_64.tar.gz
+          echo "8f9869752939d4dc9cfe1bddb935a02cc6610e95319a3a9fc2947d2a6ebd2c91  /tmp/versitygw.tar.gz" | sha256sum -c -
+          tar -xzf /tmp/versitygw.tar.gz -C /tmp
+          sudo install -m 0755 /tmp/versitygw_v1.10.0_Linux_x86_64/versitygw /usr/local/bin/versitygw
       - run: pnpm install --frozen-lockfile
+      - name: Install the browser the VC9 short path drives (absent means failure)
+        run: pnpm --filter @aiuteur/web exec playwright install --with-deps chromium
       - name: Create the database the generated-code equality check migrates
         run: psql "$TEST_POSTGRES_URL" -v ON_ERROR_STOP=1 -c "CREATE DATABASE generated_equality"
       - name: VC1 static (types, R1-R24 rules, console ban, vendor names, secret scan, dependency audit, generated-code equality)

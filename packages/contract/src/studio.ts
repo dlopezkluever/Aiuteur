@@ -64,6 +64,10 @@ export const recoveryCompleteSchema = z.strictObject({
 export type RecoveryComplete = z.infer<typeof recoveryCompleteSchema>;
 export const recoveryCompletedSchema = z.strictObject({ status: z.literal("recovered") });
 
+// T0-08. Who the session is, so a client that has only its cookie (a reload, a new tab) can find its Account.
+export const sessionSchema = z.strictObject({ accountId: accountIdSchema });
+export type Session = z.infer<typeof sessionSchema>;
+
 export const AUDIT_ACTIONS = ["invitation.issued"] as const;
 
 // FC2 route authority. The API and G1/G2 both consume this inventory; there is
@@ -73,9 +77,11 @@ export const ROUTES = [
   { method: "POST", path: "/api/recovery/request", access: "recovery" },
   { method: "POST", path: "/api/recovery/complete", access: "recovery" },
   { method: "POST", path: "/api/operator/invitations", access: "operator" },
+  { method: "GET", path: "/api/session", access: "session" },
   { method: "GET", path: "/api/studios/:accountId", access: "scope" },
   { method: "GET", path: "/api/studios/:accountId/projects", access: "scope" },
   { method: "POST", path: "/api/studios/:accountId/projects", access: "scope" },
+  { method: "GET", path: "/api/studios/:accountId/projects/:projectId/source-material", access: "scope" },
   { method: "POST", path: "/api/studios/:accountId/projects/:projectId/source-material", access: "scope" },
   { method: "GET", path: "/api/studios/:accountId/projects/:projectId/source-material/:objectId", access: "scope" },
   { method: "GET", path: "/api/studios/:accountId/projects/:projectId/source-material/:objectId/revisions/:sequence", access: "scope" },
@@ -85,6 +91,17 @@ export const ROUTES = [
   { method: "GET", path: "/api/studios/:accountId/projects/:projectId/generations/:generationId", access: "scope" },
   { method: "GET", path: "/api/studios/:accountId/projects/:projectId/treatment-options/:objectId", access: "scope" },
   { method: "POST", path: "/api/studios/:accountId/projects/:projectId/treatment-options/:objectId/choose", access: "scope" },
+  // T0-12: private media upload and view, the hand-made Character and Shot.
+  { method: "POST", path: "/api/studios/:accountId/projects/:projectId/uploads", access: "scope" },
+  { method: "GET", path: "/api/studios/:accountId/projects/:projectId/characters", access: "scope" },
+  { method: "POST", path: "/api/studios/:accountId/projects/:projectId/characters", access: "scope" },
+  { method: "GET", path: "/api/studios/:accountId/projects/:projectId/characters/:objectId", access: "scope" },
+  { method: "POST", path: "/api/studios/:accountId/projects/:projectId/characters/:objectId/reference", access: "scope" },
+  { method: "GET", path: "/api/studios/:accountId/projects/:projectId/characters/:objectId/reference/view", access: "scope" },
+  { method: "GET", path: "/api/studios/:accountId/projects/:projectId/shots", access: "scope" },
+  { method: "POST", path: "/api/studios/:accountId/projects/:projectId/shots", access: "scope" },
+  { method: "GET", path: "/api/studios/:accountId/projects/:projectId/shots/:objectId", access: "scope" },
+  { method: "POST", path: "/api/studios/:accountId/projects/:projectId/shots/:objectId/presence", access: "scope" },
   { method: "POST", path: "/api/auth/sign-in/email", access: "auth" },
   { method: "POST", path: "/api/auth/sign-out", access: "auth" },
   { method: "POST", path: "/api/auth/two-factor/enable", access: "auth" },

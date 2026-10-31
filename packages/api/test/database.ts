@@ -2,7 +2,8 @@ import { randomUUID } from "node:crypto";
 import { ROUTES, ROUTE_RESPONSES, type RouteKey } from "@aiuteur/contract";
 import { Pool } from "pg";
 import { createPostgresScheduler, migrateDatabase, type Clock, type Ids } from "@aiuteur/store";
-import { FAKE_TEXT_PROFILE, FakeTransport, SpyTransport, testCredential, type RecordedProposal } from "@aiuteur/testing";
+import { createMedia } from "@aiuteur/media";
+import { FAKE_TEXT_PROFILE, FakeBlobStore, FakeTransport, SpyTransport, testCredential, type RecordedProposal } from "@aiuteur/testing";
 import type { SubmitInput } from "@aiuteur/providers";
 import type { Execution } from "@aiuteur/workflows";
 
@@ -29,7 +30,7 @@ export async function freshDatabase() {
   };
 }
 
-const HISTORY_TABLES = ["attempt", "capture", "decision", "event", "event_counter", "generation", "generation_call", "generation_run", "generation_settlement", "job", "lock", "object", "project", "revision"].map((table) => `accounts.${table}`).concat(["operator.breaker"]);
+const HISTORY_TABLES = ["attempt", "capture", "decision", "event", "event_counter", "generation", "generation_call", "generation_run", "generation_settlement", "job", "lock", "media", "object", "project", "revision"].map((table) => `accounts.${table}`).concat(["operator.breaker"]);
 /** Row counts of every persistent table and content hashes of every history table: the #100 read-purity seam (VC3), reused by P11. */
 export async function snapshot(pool: Pool) {
   const tables = (await pool.query<{ name: string }>("SELECT n.nspname || '.' || c.relname AS name FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE c.relkind = 'r' AND n.nspname IN ('accounts', 'auth', 'operator') ORDER BY 1")).rows;
@@ -51,7 +52,10 @@ export async function testExecution(database: { url(role?: string): string }, cl
     credential: () => testCredential(),
     environment: "local",
   };
-  return { execution, transport, close: () => scheduler.close() };
+  // Private media on the in-memory BlobStore (OPERATIONAL-BASELINE §6: `ci`), with the tuning values a composition root sets.
+  const blob = await FakeBlobStore.start({ clock });
+  const media = createMedia({ blob, clock, ids, maxBytes: 10 * 1024 * 1024, seconds: { view: 3600, download: 300, upload: 600 } });
+  return { execution, transport, media, blob, close: async () => { await scheduler.close(); await blob.close(); } };
 }
 
 /**

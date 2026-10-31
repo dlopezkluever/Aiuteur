@@ -12,8 +12,8 @@ One image, built once by the `release-staging` workflow after the required `veri
 |---|---|---|
 | `postgres.env` | the `postgres` container | the bootstrap password |
 | `owner.env` | the migration container, for one run | the bootstrap URL and the three runtime role passwords |
-| `web.env` | `web` (and the compatibility `web`) | `app`, `identity` and `scheduler` URLs, auth secret, SMTP, error tracker DSN, health thresholds |
-| `worker.env` | `worker` | `scheduler` URL, R2, error tracker DSN, heartbeat URL |
+| `web.env` | `web` (and the compatibility `web`) | `app`, `identity` and `scheduler` URLs, auth secret, SMTP, R2, error tracker DSN, health thresholds |
+| `worker.env` | `worker` | `scheduler` URL, error tracker DSN, heartbeat URL |
 | `smoke.env` | the smoke command only | the smoke Account's login and id |
 | `compose.env` | compose interpolation | the public host name, no secret |
 

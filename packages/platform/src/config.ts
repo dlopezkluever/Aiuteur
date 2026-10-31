@@ -29,12 +29,12 @@ export interface WebConfig extends Common {
   readonly workerStaleAfterMs: number;
   /** `/healthz/deep` is red when the oldest overdue due time is older than this (RUNTIME-PLATFORM §7). */
   readonly overdueAfterMs: number;
+  /** R2 object storage (RUNTIME-PLATFORM §1): `web` signs uploads and views and promotes staged bytes (`media`). */
+  readonly r2: { readonly endpoint: string; readonly bucket: string; readonly accessKeyId: string; readonly secretAccessKey: string };
   readonly secretValues: readonly string[];
 }
 export interface WorkerConfig extends Common {
   readonly role: "worker";
-  /** R2 object storage (RUNTIME-PLATFORM §4.1: `media.put` is the worker's). Validated here; the BlobStore adapter that uses it belongs to the media tickets. */
-  readonly r2: { readonly endpoint: string; readonly bucket: string; readonly accessKeyId: string; readonly secretAccessKey: string };
   /** The external heartbeat's ping URL, which the worker requests after every healthy tick. */
   readonly heartbeatUrl: string;
   readonly secretValues: readonly string[];
@@ -50,8 +50,8 @@ type Env = Readonly<Record<string, string | undefined>>;
 const DIGEST = /^sha256:[0-9a-f]{64}$/;
 /** Present in no running process, whatever its role: the owner DSN and the role passwords exist only in the migration step; the Postgres password only in the database container; the smoke login only in the smoke. */
 const NEVER_IN_A_PROCESS = [/^MIGRATION_DATABASE_URL$/, /^OWNER_DATABASE_URL$/, /^POSTGRES_/, /^ROLE_PASSWORD_/, /^SMOKE_/];
-const WEB_ONLY = [/^AUTH_SECRET$/, /^SMTP_/, /^DATABASE_URL_APP$/, /^DATABASE_URL_IDENTITY$/, /^OPERATOR_EMAILS$/, /^PUBLIC_ORIGIN$/, /^WORKER_STALE_AFTER_MS$/, /^OVERDUE_AFTER_MS$/, /^CLIENT_ADDRESS_HEADER$/];
-const WORKER_ONLY = [/^R2_/, /^HEARTBEAT_/];
+const WEB_ONLY = [/^R2_/, /^AUTH_SECRET$/, /^SMTP_/, /^DATABASE_URL_APP$/, /^DATABASE_URL_IDENTITY$/, /^OPERATOR_EMAILS$/, /^PUBLIC_ORIGIN$/, /^WORKER_STALE_AFTER_MS$/, /^OVERDUE_AFTER_MS$/, /^CLIENT_ADDRESS_HEADER$/];
+const WORKER_ONLY = [/^HEARTBEAT_/];
 
 function reader(env: Env, role: ProcessRole) {
   const problems: string[] = [];
@@ -102,6 +102,9 @@ export function readWebConfig(env: Env): WebConfig {
   const smtpUser = r.optional("SMTP_USER");
   const smtpPass = r.optional("SMTP_PASS");
   if ((smtpUser === undefined) !== (smtpPass === undefined)) r.problems.push("SMTP_USER and SMTP_PASS are set together");
+  const r2Account = r.text("R2_ACCOUNT_ID");
+  if (r2Account !== "" && !/^[0-9a-f]{32}$/.test(r2Account)) r.problems.push("R2_ACCOUNT_ID must be 32 hex digits");
+  const r2 = { endpoint: `https://${r2Account}.r2.cloudflarestorage.com`, bucket: r.text("R2_BUCKET"), accessKeyId: r.text("R2_ACCESS_KEY_ID"), secretAccessKey: r.text("R2_SECRET_ACCESS_KEY") };
   const errorSinkDsn = r.url("ERROR_SINK_DSN", ["https:"]);
   const header = r.optional("CLIENT_ADDRESS_HEADER")?.toLowerCase() ?? null;
   if (header !== null && !/^[a-z][a-z0-9-]*$/.test(header)) r.problems.push("CLIENT_ADDRESS_HEADER must be a header name");
@@ -116,22 +119,19 @@ export function readWebConfig(env: Env): WebConfig {
   return {
     environment: "staging", role: "web", release: r.release, port, origin, clientAddressHeader: header, databases, schedulerUrl: databases.scheduler, authSecret, operatorEmails,
     smtp: { host: smtpHost, port: smtpPort, from: smtpFrom, security: security as "tls" | "starttls" | "none", ...(smtpUser !== undefined && smtpPass !== undefined ? { auth: { user: smtpUser, pass: smtpPass } } : {}) },
-    errorSinkDsn, workerStaleAfterMs, overdueAfterMs,
-    secretValues: [authSecret, smtpPass, errorSinkDsn, ...Object.values(databases)].filter((value): value is string => value !== undefined && value !== ""),
+    errorSinkDsn, r2, workerStaleAfterMs, overdueAfterMs,
+    secretValues: [authSecret, smtpPass, r2.accessKeyId, r2.secretAccessKey, errorSinkDsn, ...Object.values(databases)].filter((value): value is string => value !== undefined && value !== ""),
   };
 }
 
 export function readWorkerConfig(env: Env): WorkerConfig {
   const r = reader(env, "worker");
   const schedulerUrl = r.database("DATABASE_URL_SCHEDULER", "scheduler");
-  const r2Account = r.text("R2_ACCOUNT_ID");
-  if (r2Account !== "" && !/^[0-9a-f]{32}$/.test(r2Account)) r.problems.push("R2_ACCOUNT_ID must be 32 hex digits");
-  const r2 = { endpoint: `https://${r2Account}.r2.cloudflarestorage.com`, bucket: r.text("R2_BUCKET"), accessKeyId: r.text("R2_ACCESS_KEY_ID"), secretAccessKey: r.text("R2_SECRET_ACCESS_KEY") };
   const errorSinkDsn = r.url("ERROR_SINK_DSN", ["https:"]);
   const heartbeatUrl = r.url("HEARTBEAT_PING_URL", ["https:"]);
   if (r.problems.length > 0) throw new ConfigInvalid(r.problems);
   return {
-    environment: "staging", role: "worker", release: r.release, schedulerUrl, r2, errorSinkDsn, heartbeatUrl,
-    secretValues: [r2.accessKeyId, r2.secretAccessKey, errorSinkDsn, heartbeatUrl, schedulerUrl].filter((value) => value !== ""),
+    environment: "staging", role: "worker", release: r.release, schedulerUrl, errorSinkDsn, heartbeatUrl,
+    secretValues: [errorSinkDsn, heartbeatUrl, schedulerUrl].filter((value) => value !== ""),
   };
 }

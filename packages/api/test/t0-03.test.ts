@@ -31,7 +31,7 @@ beforeAll(async () => {
   const generous = { max: 1_000_000, windowMs: 60_000 };
   const limit = { address: generous, email: generous };
   const accounts = createAccounts({ ...adapter, clock, ids, invitationTtlMs: 60_000, operatorEmails: [], mailer: new FakeMailer(), limits: { signIn: limit, recovery: limit, redemption: limit }, recoveryTtlMs: 600_000, recoveryPage: `${origin}/recover`, onMailFailure: (error) => { throw error; } });
-  api = createApi({ accounts, views: createViews(store), workflows: createWorkflows({ store, history: createHistory([sourceMaterialKind, treatmentOptionKind]), clock, ids, catalogue: syntheticCatalogue(), pricePolicy: TEST_PRICE_POLICY, execution: run.execution }), handleAuth: adapter.handle, origin, requestId: ids.uuid, now: () => clock.now(), clientAddress: () => "203.0.113.3" });
+  api = createApi({ accounts, views: createViews(store), workflows: createWorkflows({ store, history: createHistory([sourceMaterialKind, treatmentOptionKind]), clock, ids, catalogue: syntheticCatalogue(), pricePolicy: TEST_PRICE_POLICY, execution: run.execution, media: run.media }), handleAuth: adapter.handle, origin, requestId: ids.uuid, now: () => clock.now(), clientAddress: () => "203.0.113.3" });
 });
 afterAll(async () => { await run?.close(); await store?.close(); await adapter?.close(); await database?.close(); });
 
@@ -160,7 +160,7 @@ it("D5: runtime roles cannot rewrite history, and the blocking trigger really st
   const mutableCells = ["accounts.event_counter", "accounts.job", "accounts.settings"];
   const { rows: tables } = await database.inspect.query<{ name: string }>("SELECT n.nspname || '.' || c.relname AS name FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE c.relkind = 'r' AND n.nspname = 'accounts' ORDER BY 1");
   const appendOnly = tables.map((table) => table.name).filter((name) => !mutableCells.includes(name));
-  expect(appendOnly).toEqual(["accounts.account", "accounts.attempt", "accounts.capture", "accounts.decision", "accounts.event", "accounts.generation", "accounts.generation_call", "accounts.generation_run", "accounts.generation_settlement", "accounts.idempotency", "accounts.lock", "accounts.object", "accounts.project", "accounts.revision"]);
+  expect(appendOnly).toEqual(["accounts.account", "accounts.attempt", "accounts.capture", "accounts.decision", "accounts.event", "accounts.generation", "accounts.generation_call", "accounts.generation_run", "accounts.generation_settlement", "accounts.idempotency", "accounts.lock", "accounts.media", "accounts.object", "accounts.project", "accounts.revision"]);
   for (const name of appendOnly) {
     const [schema, table] = name.split(".");
     for (const role of ["app", "identity", "scheduler", "operator_read", "backup"]) {
@@ -171,12 +171,13 @@ it("D5: runtime roles cannot rewrite history, and the blocking trigger really st
   const names = appendOnly.map((name) => name.slice("accounts.".length));
   const client = await database.inspect.connect();
   try {
-    // The lock table is empty in the product, so the check gives it one row (rolled back below).
+    // The lock table is empty in the product, so the check gives it and the media table one row each (rolled back below).
     const arrange = async () => {
       await client.query("BEGIN; SET LOCAL ROLE owner");
       await client.query("SELECT set_config('aiuteur.account_id', $1, true)", [c.accountId]);
       await client.query("INSERT INTO accounts.idempotency VALUES ($1, 'source-material.paste', 'k', 'f', '{}', now())", [c.accountId]);
       await client.query("INSERT INTO accounts.lock VALUES ($1, 1, $2, $3, true, 'test', now())", [pasted.revision.objectId, c.accountId, c.project.projectId]);
+      await client.query("INSERT INTO accounts.media VALUES ($1::uuid, $2::uuid, repeat('a', 64), 1, 'image/png', 1, 1, 'a/' || $1::text || '/p/' || $2::text || '/m/' || repeat('a', 64), 'upload', now())", [c.accountId, c.project.projectId]);
     };
     await arrange();
     await assertRewritesBlocked(client, c.accountId, names);

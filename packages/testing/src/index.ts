@@ -19,3 +19,6 @@ export * from "./uuidv7.ts";
 export * from "./mock-server.ts";
 export * from "./conformance/error-sink.ts";
 export * from "./fake-error-sink.ts";
+export * from "./fake-blob-store.ts";
+export * from "./conformance/blob-store.ts";
+export * from "./images.ts";

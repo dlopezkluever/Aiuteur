@@ -1,5 +1,5 @@
 import { accountIdSchema, creatorIdSchema, DEFAULT_SETTINGS, eventSchema, type Account, type AccountId, type JobId, type ObjectId, type Project, type Settings, type StudioEvent } from "@aiuteur/contract";
-import type { Admission, AttemptRow, CallRow, CaptureRow, Clock, DecisionRow, GenerationRow, IdempotencyRow, Ids, JobRow, Leased, ObjectRow, ReadTx, RevisionRow, RunRow, Scheduler, Scope, SettlementRow, Store, WriteTx } from "@aiuteur/store";
+import type { Admission, AttemptRow, MediaRow, CallRow, CaptureRow, Clock, DecisionRow, GenerationRow, IdempotencyRow, Ids, JobRow, Leased, ObjectRow, ReadTx, RevisionRow, RunRow, Scheduler, Scope, SettlementRow, Store, WriteTx } from "@aiuteur/store";
 import { ManualClock } from "./fake-transport.ts";
 import type { StoreSubject } from "./conformance/store.ts";
 import type { SchedulerSubject } from "./conformance/scheduler.ts";
@@ -12,6 +12,7 @@ interface AccountState {
   objects: Map<string, ObjectRow>;
   revisions: Map<string, RevisionRow[]>;
   attempts: AttemptRow[];
+  media: MediaRow[];
   locks: Map<string, { locked: boolean; version: number }>;
   idempotency: Map<string, IdempotencyRow>;
   generations: Map<string, GenerationRow>;
@@ -32,10 +33,12 @@ function readView(state: AccountState, scope: Scope): ReadTx {
     projects: async () => copy(state.projects),
     project: async (id) => copy(state.projects.find((project) => project.projectId === id) ?? null),
     object: async (id) => copy(state.objects.get(id) ?? null),
+    objects: async (project, kind) => copy([...state.objects.values()].filter((row) => row.projectId === project && row.kind === kind)),
     head: async (id) => copy(state.revisions.get(id)?.at(-1) ?? null),
     revision: async (id, sequence) => copy(state.revisions.get(id)?.[sequence - 1] ?? null),
     sequences: async (id) => (state.revisions.get(id) ?? []).map((row) => row.sequence),
     attempts: async (id) => copy(state.attempts.filter((row) => row.objectId === id)),
+    media: async (project, hash) => copy(state.media.find((row) => row.projectId === project && row.hash === hash) ?? null),
     lockState: async (id) => copy(state.locks.get(id) ?? { locked: false, version: 0 }),
     generation: async (id) => copy(state.generations.get(id) ?? null),
     job: async (id) => copy(state.jobs.get(id) ?? null),
@@ -69,7 +72,7 @@ export class MemoryStore implements Store {
     for (const scope of scopes) this.#rows.set(scope.accountId, {
       account: { accountId: scope.accountId, createdAt: new Date(clock.now()).toISOString() },
       settings: structuredClone(DEFAULT_SETTINGS),
-      projects: [], objects: new Map(), revisions: new Map(), attempts: [], locks: new Map(), idempotency: new Map(),
+      projects: [], objects: new Map(), revisions: new Map(), attempts: [], media: [], locks: new Map(), idempotency: new Map(),
       generations: new Map(), jobs: new Map(), runs: [], calls: [], settlements: new Map(), captures: [], decisions: [], events: [],
     });
   }
@@ -199,7 +202,15 @@ export class MemoryStore implements Store {
         if (!rows || rows.length !== row.sequence - 1) throw new Error("revision sequence collision");
         rows.push(structuredClone(row));
       },
-      insertAttempt: async (row) => { state.attempts.push(structuredClone(row)); },
+      insertAttempt: async (row) => {
+        // The composite key of the real schema: an upload holds a Media of its own project, and only an upload holds one.
+        if ((row.origin === "upload") !== (row.media !== null) || (row.media !== null && !state.media.some((m) => m.projectId === row.projectId && m.hash === row.media))) throw new Error("attempt media refused");
+        state.attempts.push(structuredClone(row));
+      },
+      insertMedia: async (row) => {
+        if (!state.projects.some((p) => p.projectId === row.projectId) || row.key !== `a/${scope.accountId}/p/${row.projectId}/m/${row.hash}`) throw new Error("media refused");
+        unique(state.media, row, (r) => `${r.projectId}|${r.hash}`, "media");
+      },
       insertCapture: async (row) => {
         if (state.objects.get(row.objectId)?.projectId !== row.projectId || state.generations.get(row.generationId)?.projectId !== row.projectId) throw new Error("capture names another project");
         unique(state.captures, row, (r) => `${r.generationId}|${r.objectId}|${r.slice}`, "capture");
