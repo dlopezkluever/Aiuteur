@@ -139,7 +139,7 @@ export default function (amp: PluginAPI) {
         case "merge-ready": {
           const live = (await prForTicket(ticket))!;
           const guard = mergeGuard(r.verdict, live, await ciFor(live.headSha));
-          if (!guard.ok) { r = guard.reason === "head-moved" ? invalidateVerdict(r) : block(r, `not merge-ready: ${guard.reason}`); save(r); break; }
+          if (!guard.ok) { r = (guard.reason === "head-moved" || guard.reason === "wrong-pr") ? invalidateVerdict(r) : block(r, `not merge-ready: ${guard.reason}`); save(r); break; }
           r = { ...r, state: "MERGE_READY" };
           save(r);
           log(ticket, `MERGE_READY: would run gh pr merge ${action.pr} --match-head-commit ${action.sha}; stopping (manual-merge mode)`);
@@ -148,7 +148,7 @@ export default function (amp: PluginAPI) {
         case "merge": {
           const live = (await prForTicket(ticket))!;
           const guard = mergeGuard(r.verdict, live, await ciFor(live.headSha));
-          if (!guard.ok) { r = guard.reason === "head-moved" ? invalidateVerdict(r) : block(r, `merge refused: ${guard.reason}`); save(r); break; }
+          if (!guard.ok) { r = (guard.reason === "head-moved" || guard.reason === "wrong-pr") ? invalidateVerdict(r) : block(r, `merge refused: ${guard.reason}`); save(r); break; }
           const res = await mergePr(action.pr, action.sha);
           if (res.code === 0) {
             if ((await issueState(ticket)) === "OPEN") await closeIssue(ticket, `Merged via PR #${action.pr} at ${action.sha}; independent verifier PASS on that SHA and required CI green.`);

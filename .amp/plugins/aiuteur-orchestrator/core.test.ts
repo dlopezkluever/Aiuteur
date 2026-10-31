@@ -306,3 +306,19 @@ test("thread id is persisted while the Worker process is still running, before i
   assert.deepEqual(persistedWhileAlive, [TID]);
   assert.equal(out.kind === "blocked" && out.threadId, TID);
 });
+
+test("a verdict authorizes exactly its PR and SHA", () => {
+  const r = verified([]); // PASS for PR 7 @ SHA_A
+  const other = (n: number, sha: string) => pr(sha, { number: n });
+  // correct PR + SHA
+  assert.equal(decide(r, other(7, SHA_A), "pass", "manual").type, "merge-ready");
+  assert.equal(decide(r, other(7, SHA_A), "pass", "auto").type, "merge");
+  assert.deepEqual(mergeGuard(r.verdict, other(7, SHA_A), "pass"), { ok: true });
+  // wrong PR, same SHA; wrong PR + wrong SHA; same PR, wrong SHA
+  for (const live of [other(8, SHA_A), other(8, SHA_B), other(7, SHA_B)]) {
+    assert.deepEqual(decide(r, live, "pass", "manual"), { type: "verify", pr: live.number, sha: live.headSha });
+    assert.deepEqual(decide(r, live, "pass", "auto"), { type: "verify", pr: live.number, sha: live.headSha });
+    assert.equal(mergeGuard(r.verdict, live, "pass").ok, false);
+  }
+  assert.deepEqual(mergeGuard(r.verdict, other(8, SHA_A), "pass"), { ok: false, reason: "wrong-pr" });
+});

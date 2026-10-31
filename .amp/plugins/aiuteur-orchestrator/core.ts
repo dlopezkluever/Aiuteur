@@ -300,7 +300,7 @@ export interface TicketRun {
   lastCandidateSha?: string | undefined;
   lastVerifiedSha?: string | undefined;
   repairSentForSha?: string | undefined;
-  verdict?: Verdict | undefined; // bound to verdict.sha; stale the moment the PR head differs
+  verdict?: Verdict | undefined; // bound to (verdict.pr, verdict.sha); stale if either differs from the live PR
   blockedReason?: string | undefined;
 }
 export const newRun = (ticket: number): TicketRun => ({ ticket, state: "READY", repairAttempt: 0, failures: {} });
@@ -354,7 +354,7 @@ export function decide(run: TicketRun, pr: PrFacts | null, ci: CiState, mode: Me
   if (pr.draft) return { type: "wait", for: "worker", reason: "PR is still a draft" };
 
   const sha = pr.headSha;
-  const verdict = run.verdict?.sha === sha ? run.verdict : undefined;
+  const verdict = run.verdict?.sha === sha && run.verdict.pr === pr.number ? run.verdict : undefined; // key = (PR, SHA)
   if (!verdict) {
     if (ci === "fail") return repairOrEscalate(run, [ciFinding(sha)], sha); // no point verifying red code
     return { type: "verify", pr: pr.number, sha };
@@ -373,12 +373,13 @@ export function decide(run: TicketRun, pr: PrFacts | null, ci: CiState, mode: Me
 
 // ---- merge safeguards ----------------------------------------------------------------------------------------------
 
-export type MergeGuard = { ok: true } | { ok: false; reason: "head-moved" | "no-pass-verdict" | "ci-not-green" | "not-open" };
+export type MergeGuard = { ok: true } | { ok: false; reason: "head-moved" | "wrong-pr" | "no-pass-verdict" | "ci-not-green" | "not-open" };
 
 /** Re-check against freshly queried GitHub state immediately before merging. */
 export function mergeGuard(verdict: Verdict | undefined, live: PrFacts, ci: CiState): MergeGuard {
   if (!verdict || verdict.blocking.length > 0) return { ok: false, reason: "no-pass-verdict" };
   if (live.state !== "OPEN" || live.draft) return { ok: false, reason: "not-open" };
+  if (live.number !== verdict.pr) return { ok: false, reason: "wrong-pr" };
   if (live.headSha !== verdict.sha) return { ok: false, reason: "head-moved" };
   if (ci !== "pass") return { ok: false, reason: "ci-not-green" };
   return { ok: true };
