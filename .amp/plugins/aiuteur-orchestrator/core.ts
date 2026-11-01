@@ -86,7 +86,7 @@ export const extractThreadId = (stdout: string) => stdout.split("\n").map(initTh
 /** The execution error channel only: stderr plus the final `result` event when it is flagged is_error. Never assistant/user/tool events. */
 export function workerErrorText(stdout: string, stderr: string): string {
   const result = streamEvents(stdout).filter((e) => e.type === "result").at(-1);
-  const resultError = result && result.is_error === true && typeof result.result === "string" ? result.result : "";
+  const resultError = result && result.is_error === true ? [result.error, result.result].find((x) => typeof x === "string") ?? "" : "";
   return `${stderr}\n${resultError}`;
 }
 
@@ -96,9 +96,25 @@ export function workerErrorText(stdout: string, stderr: string): string {
  * "spawn-failed" means the OS never started the CLI, so nothing reached Amp.
  */
 export type TurnEnd = "spawn-failed" | "no-result" | "succeeded" | "failed";
-export function turnEnd(res: { stdout: string; spawned: boolean }): TurnEnd {
-  const result = streamEvents(res.stdout).filter((e) => e.type === "result").at(-1);
-  if (result) return result.is_error === true ? "failed" : "succeeded";
+const isNum = (x: unknown) => typeof x === "number" && Number.isFinite(x);
+/**
+ * A genuine terminal result matches Amp's documented stream-json result union (https://ampcode.com/docs/cli/streaming-json):
+ *   success: {type:"result", subtype:"success", session_id, is_error:false, result:string, duration_ms, num_turns}
+ *   error:   {type:"result", subtype:"error_during_execution"|"error_max_turns", session_id, is_error:true, error:string, duration_ms, num_turns}
+ * Optional documented fields are not required. Success vs failure comes from the matched shape, never from the exit code.
+ * When an init thread id was observed, session_id must equal it.
+ */
+function terminalResult(e: Record<string, unknown>, threadId?: string): "succeeded" | "failed" | undefined {
+  if (e.type !== "result" || typeof e.session_id !== "string" || e.session_id === "" || !isNum(e.duration_ms) || !isNum(e.num_turns)) return undefined;
+  if (threadId !== undefined && e.session_id !== threadId) return undefined;
+  if (e.subtype === "success" && e.is_error === false && typeof e.result === "string") return "succeeded";
+  if ((e.subtype === "error_during_execution" || e.subtype === "error_max_turns") && e.is_error === true && typeof e.error === "string") return "failed";
+  return undefined;
+}
+export function turnEnd(res: { stdout: string; spawned: boolean }, threadId?: string): TurnEnd {
+  const ends = streamEvents(res.stdout).map((e) => terminalResult(e, threadId)).filter((x) => x !== undefined);
+  const last = ends.at(-1);
+  if (last) return last;
   return res.spawned ? "no-result" : "spawn-failed";
 }
 
@@ -149,7 +165,7 @@ export async function launchWorker(d: LaunchDeps): Promise<LaunchOutcome> {
       const remoteStopped = await d.cancelRemote(threadId).catch(() => false);
       return { kind: "unresolved", threadId, model: route.model, remoteStopped, reason: `could not durably record Worker thread ${threadId} (${String(persistError).slice(0, 200)}); remote cancellation ${remoteStopped ? "confirmed the thread stopped" : "NOT confirmed"}. Ticket #${d.ticket} stays reserved; no replacement Worker will launch.` };
     }
-    const end = turnEnd(res);
+    const end = turnEnd(res, threadId);
     const errorText = workerErrorText(res.stdout, res.stderr);
     const detail = `exit ${res.code}${threadId ? `, thread ${threadId}` : ""}: ${errorText.trim().slice(-400)}`;
     if (end === "spawn-failed") return { kind: "blocked", reason: `could not start the Amp CLI; no launch reached Amp, no Worker exists. ${detail}` };

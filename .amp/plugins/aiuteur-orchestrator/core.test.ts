@@ -179,13 +179,13 @@ const noisyTranscript = [
   ev({ type: "system", subtype: "init", session_id: TID }),
   ev({ type: "user", message: { content: [{ type: "text", text: "ticket: quota, capacity, billing, subscription, 503" }] }, session_id: TID }),
   ev({ type: "assistant", message: { content: [{ type: "text", text: "pushed ticket/103-t0-06; typecheck failed in packages/api (quota capacity billing subscription 503)" }] }, session_id: TID }),
-  ev({ type: "result", subtype: "error_during_execution", is_error: true, result: "typecheck failed in packages/api", session_id: TID }),
+  ev({ type: "result", subtype: "error_during_execution", is_error: true, error: "typecheck failed in packages/api", duration_ms: 1, num_turns: 1, session_id: TID }),
 ].join("\n");
 const providerStart = ev({ type: "system", subtype: "init", session_id: TID });
-const providerResult = ev({ type: "result", is_error: true, result: "Claude usage limit reached", session_id: TID });
+const providerResult = ev({ type: "result", subtype: "error_during_execution", is_error: true, error: "Claude usage limit reached", duration_ms: 1, num_turns: 1, session_id: TID });
 
-const resultErr = (msg: string) => ev({ type: "result", is_error: true, result: msg });
-const resultOk = ev({ type: "result", subtype: "success", is_error: false, result: "done" });
+const resultErr = (msg: string) => ev({ type: "result", subtype: "error_during_execution", is_error: true, error: msg, duration_ms: 1, num_turns: 1, session_id: TID });
+const resultOk = ev({ type: "result", subtype: "success", is_error: false, result: "done", duration_ms: 1, num_turns: 1, session_id: TID });
 
 function harness(runs: { code: number; stdout: string; stderr?: string; spawned?: boolean }[], claimed: boolean[] = []) {
   const launches: string[][] = [];
@@ -284,7 +284,7 @@ test("only a system/init event establishes Worker identity", () => {
 
 test("an earlier non-init session_id cannot win over the real init event", async () => {
   const other = "T-0aaaaaaa-b730-7542-bd8f-fcfc74a58524";
-  const stream = [ev({ type: "assistant", session_id: other }), ev({ type: "result", session_id: other }), providerStart].join("\n");
+  const stream = [ev({ type: "assistant", session_id: other }), ev({ type: "result", subtype: "success", is_error: false, result: "x", duration_ms: 1, num_turns: 1, session_id: other }), providerStart].join("\n");
   assert.equal(extractThreadId(stream), TID);
   const h = harness([{ code: 1, stdout: stream }]);
   await launchWorker(h.deps);
@@ -432,4 +432,27 @@ test("applyLaunchOutcome/applyRepairOutcome: unknown outcome holds the slot and 
   assert.deepEqual([applyRepairOutcome(active, "failed", "x").state, applyRepairOutcome(active, "failed", "x").workerRunning], ["BLOCKED", false]);
   assert.deepEqual([applyRepairOutcome(active, "spawn-failed", "x").state, applyRepairOutcome(active, "spawn-failed", "x").workerRunning], ["BLOCKED", false]);
   assert.equal(applyRepairOutcome(active, "succeeded").state, "ACTIVE");
+});
+
+test("only a result event matching Amp's documented result union counts as completion", () => {
+  const ok = { type: "result", subtype: "success", session_id: TID, is_error: false, result: "done", duration_ms: 5, num_turns: 2 };
+  const bad = { type: "result", subtype: "error_max_turns", session_id: TID, is_error: true, error: "too many turns", duration_ms: 5, num_turns: 9 };
+  const end = (e: object, thread?: string) => turnEnd({ stdout: providerStart + "\n" + ev(e), spawned: true }, thread);
+  assert.equal(end(ok, TID), "succeeded");
+  assert.equal(end(bad, TID), "failed");
+  assert.equal(end(ok), "succeeded"); // no init id observed: any valid string session_id
+  const rejected: Record<string, object> = {
+    "bare result": { type: "result" },
+    "missing is_error": { ...ok, is_error: undefined },
+    "wrong is_error": { ...ok, is_error: true },
+    "error with is_error false": { ...bad, is_error: false },
+    "missing subtype": { ...ok, subtype: undefined },
+    "invalid subtype": { ...ok, subtype: "done" },
+    "missing session_id": { ...ok, session_id: undefined },
+    "mismatched session_id": { ...ok, session_id: "T-0aaaaaaa-b730-7542-bd8f-fcfc74a58524" },
+    "missing duration_ms": { ...ok, duration_ms: undefined },
+    "success without result string": { ...ok, result: undefined },
+    "error without error string": { ...bad, error: undefined },
+  };
+  for (const [name, e] of Object.entries(rejected)) assert.equal(end(e, TID), "no-result", name);
 });

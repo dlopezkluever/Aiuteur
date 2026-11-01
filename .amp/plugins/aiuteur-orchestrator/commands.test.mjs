@@ -21,9 +21,9 @@ function world({ issues = [7, 8], prs = [] } = {}) {
   const dir = mkdtempSync(join(tmpdir(), "aiu-cmd-"));
   writeFileSync(join(dir, "gh"), `#!/bin/sh\nD="${dir}"\ncase "$*" in\n*"api graphql"*) cat "$D/issues.ndjson";;\n*matching-refs*) cat "$D/refs.txt";;\n*check-runs*) cat "$D/ci.json";;\n"pr list"*) cat "$D/prs.json";;\n"pr comment"*) :;;\n*) echo "unexpected gh $*" >&2; exit 1;;\nesac\n`, { mode: 0o755 });
   // Fake `amp`. A Worker launch (--mode claude-code) or repair (threads continue) reads its behaviour from $D/mode or $D/repairmode:
-  //   kill_before_init | kill_after_init | kill_after_release (SIGKILL itself) | result_ok | result_fail | (absent: exits 1 with no result event)
+  //   result_malformed (a bare {"type":"result"}, which is not completion evidence) | kill_before_init | kill_after_init | kill_after_release (SIGKILL itself) | result_ok | result_fail | (absent: exits 1 with no result event)
   // After init it stays alive until $D/release exists. `breakafter` makes the CLI unspawnable (EACCES) once the model list was read.
-  const turn = (modeFile, init) => `m=$(cat "${dir}/${modeFile}" 2>/dev/null); [ "$m" = kill_before_init ] && kill -9 $$; ${init ? `echo '{"type":"system","subtype":"init","session_id":"${TID}"}'; ` : ""}[ "$m" = kill_after_init ] && kill -9 $$; while [ ! -f "${dir}/release" ]; do sleep 0.02; done; [ "$m" = kill_after_release ] && kill -9 $$; if [ "$m" = result_ok ]; then echo '{"type":"result","subtype":"success","is_error":false,"result":"done"}'; exit 0; fi; if [ "$m" = result_fail ]; then echo '{"type":"result","subtype":"error_during_execution","is_error":true,"result":"typecheck failed in packages/api"}'; exit 1; fi; echo "typecheck failed in packages/api" >&2; exit 1`;
+  const turn = (modeFile, init) => `m=$(cat "${dir}/${modeFile}" 2>/dev/null); [ "$m" = kill_before_init ] && kill -9 $$; ${init ? `echo '{"type":"system","subtype":"init","session_id":"${TID}"}'; ` : ""}[ "$m" = kill_after_init ] && kill -9 $$; while [ ! -f "${dir}/release" ]; do sleep 0.02; done; [ "$m" = kill_after_release ] && kill -9 $$; if [ "$m" = result_ok ]; then echo '{"type":"result","subtype":"success","session_id":"${TID}","is_error":false,"result":"done","duration_ms":5,"num_turns":1}'; exit 0; fi; if [ "$m" = result_malformed ]; then echo '{"type":"result"}'; exit 0; fi; if [ "$m" = result_fail ]; then echo '{"type":"result","subtype":"error_during_execution","session_id":"${TID}","is_error":true,"error":"typecheck failed in packages/api","duration_ms":5,"num_turns":1}'; exit 1; fi; echo "typecheck failed in packages/api" >&2; exit 1`;
   writeFileSync(join(dir, "amp"), `#!/bin/sh\ncase "$*" in\n"plugins show-agent-options"*) printf '%s' "$AIUTEUR_TEST_MODELS"; [ -f "${dir}/breakafter" ] && chmod 644 "${dir}/amp"; exit 0;;\n"threads continue"*) echo "$*" >> "${dir}/amp.log"; ${turn("repairmode", false)};;\n*"--mode claude-code"*) echo "$*" >> "${dir}/amp.log"; ${turn("mode", true)};;\n*) echo "$*" >> "${dir}/amp.log";;\nesac\n`, { mode: 0o755 });
   const w = {
     dir,
@@ -325,5 +325,26 @@ test("(g) CLI cannot be spawned (EACCES): nothing reached Amp, so BLOCKED with t
   chmodSync(join(w.dir, "amp"), 0o755);
   await b.call("dry-run");
   assert.equal(slots(b), "1");
+  cleanup(w);
+});
+
+test("a malformed result event is not completion evidence: after DONE the Worker keeps the slot and no second Worker launches", async () => {
+  const w = world();
+  const b = boot(w, {});
+  w.mode("result_malformed");
+  const launch = b.call("run-next");
+  await waitFor(() => w.runs()[7]?.workerThreadId);
+  w.setPrs([openPr(A, { state: "MERGED" })]);
+  await b.call("resume");
+  assert.equal(w.runs()[7].state, "DONE");
+  w.release(); // the fake emits {"type":"result"} and exits 0
+  await launch;
+  assert.equal(w.runs()[7].state, "DONE");
+  assert.equal(w.runs()[7].workerRunning, true);
+  await b.call("dry-run");
+  assert.equal(slots(b), "0");
+  await b.call("run-next");
+  assert.match(b.notices.at(-1), /No eligible ticket or no free concurrency slot/);
+  assert.equal(launches(w), 1);
   cleanup(w);
 });

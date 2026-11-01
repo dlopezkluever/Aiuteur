@@ -69,7 +69,7 @@ export default function (amp: PluginAPI) {
 
   async function repairWorker(r: TicketRun, prompt: string): Promise<TicketRun> {
     const res = await runStreaming("amp", workerContinueArgs(r.workerThreadId!, prompt), () => {}, WORKER_TURN_MS);
-    const end = turnEnd(res);
+    const end = turnEnd(res, r.workerThreadId);
     const out = workerErrorText(res.stdout, res.stderr);
     const detail = end === "succeeded" ? "" : `${end === "no-result" ? "repair turn ended without a terminal result; remote outcome unknown" : classifyFailure(out) === "provider" ? "provider/runtime condition" : "worker continuation failed"} (Worker thread ${r.workerThreadId}, exit ${res.code}): ${out.trim().slice(-400)}`;
     if (detail) log(r.ticket, detail);
