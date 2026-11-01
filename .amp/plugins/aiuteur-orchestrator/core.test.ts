@@ -4,7 +4,7 @@ import { test } from "node:test";
 import {
   afterRepairSent, buildVerdict, ciState, classifyFailure, computeFrontier, decide, invalidateVerdict, mergeArgs, mergeGuard,
   mergeRejectedForHead, newRun, parseVerifierReply, routeVerifier, routeWorker, selectTickets, workerStartArgs,
-  applyLaunchOutcome, applyRepairOutcome, checkReservation, holdsSlot, extractThreadId, initThreadId, hasClaim, launchWorker, workerErrorText, type LaunchDeps, type LaunchOutcome,
+  turnEnd, applyLaunchOutcome, applyRepairOutcome, checkReservation, holdsSlot, extractThreadId, initThreadId, hasClaim, launchWorker, workerErrorText, type LaunchDeps, type LaunchOutcome,
   mergeModeFrom, smokeReplyOk, smokeVerifierPrompt,
   type Finding, type IssueNode, type PrFacts, type TicketRun,
 } from "./core.ts";
@@ -184,7 +184,10 @@ const noisyTranscript = [
 const providerStart = ev({ type: "system", subtype: "init", session_id: TID });
 const providerResult = ev({ type: "result", is_error: true, result: "Claude usage limit reached", session_id: TID });
 
-function harness(runs: { code: number; stdout: string; stderr?: string }[], claimed: boolean[] = []) {
+const resultErr = (msg: string) => ev({ type: "result", is_error: true, result: msg });
+const resultOk = ev({ type: "result", subtype: "success", is_error: false, result: "done" });
+
+function harness(runs: { code: number; stdout: string; stderr?: string; spawned?: boolean }[], claimed: boolean[] = []) {
   const launches: string[][] = [];
   const persisted: string[] = [];
   let n = 0, c = 0;
@@ -195,7 +198,7 @@ function harness(runs: { code: number; stdout: string; stderr?: string }[], clai
       launches.push(args);
       const r = runs[Math.min(n++, runs.length - 1)]!;
       for (const line of r.stdout.split("\n")) onLine(line);
-      return { stderr: "", ...r };
+      return { stderr: "", spawned: true, ...r };
     },
     persistThread: (id) => { persisted.push(id); },
     cancelRemote: async () => false,
@@ -233,15 +236,15 @@ test("provider failure AFTER a thread exists: no fresh Worker, thread preserved"
 });
 
 test("implementation failure before any thread: no model fallback", async () => {
-  const h = harness([{ code: 1, stdout: "", stderr: "Error: cannot read project settings" }]);
+  const h = harness([{ code: 1, stdout: resultErr("Error: cannot read project settings") }]);
   assert.equal((await launchWorker(h.deps)).kind, "blocked");
   assert.equal(h.launches.length, 1);
 });
 
 test("genuine provider failure before any thread or claim falls back to the next subscription Claude model", async () => {
   const h = harness([
-    { code: 1, stdout: "", stderr: "Claude usage limit reached" },
-    { code: 0, stdout: providerStart },
+    { code: 1, stdout: resultErr("Claude usage limit reached") },
+    { code: 0, stdout: providerStart + "\n" + resultOk },
   ]);
   const out = await launchWorker(h.deps);
   assert.equal(h.launches.length, 2);
@@ -252,7 +255,7 @@ test("genuine provider failure before any thread or claim falls back to the next
 });
 
 test("a branch/PR that appears before fallback prevents another Worker", async () => {
-  const h = harness([{ code: 1, stdout: "", stderr: "HTTP 529 overloaded" }], [true]);
+  const h = harness([{ code: 1, stdout: resultErr("HTTP 529 overloaded") }], [true]);
   const out = await launchWorker(h.deps);
   assert.equal(h.launches.length, 1);
   assert.equal(out.kind, "blocked");
@@ -263,7 +266,7 @@ test("a branch/PR that appears before fallback prevents another Worker", async (
 });
 
 test("every provider failure with no thread or claim exhausts the models and stops without paid fallback", async () => {
-  const h = harness([{ code: 1, stdout: "", stderr: "usage limit" }]);
+  const h = harness([{ code: 1, stdout: resultErr("usage limit") }]);
   const out = await launchWorker(h.deps);
   assert.equal(h.launches.length, 3);
   assert.match(out.kind === "blocked" ? out.reason : "", /not falling back to paid usage/);
@@ -298,7 +301,7 @@ test("thread id is persisted while the Worker process is still running, before i
       onLine(providerStart);
       await new Promise((r) => setTimeout(r, 50)); // process still alive
       persistedWhileAlive = [...persisted];
-      return { code: 1, stdout: providerStart, stderr: "" };
+      return { code: 1, stdout: providerStart + "\n" + resultErr("typecheck failed"), stderr: "", spawned: true };
     },
     persistThread: (id) => { persisted.push(id); },
     cancelRemote: async () => false,
@@ -332,7 +335,7 @@ test("persistence failure after init: cancel attempted, ownership kept, no repla
     const deps: LaunchDeps = {
       ticket: 103,
       models: ["anthropic/claude-opus-5-5", "anthropic/claude-opus-5"],
-      exec: async (_a, onLine, signal) => { signal.addEventListener("abort", () => { aborted = true; }); onLine(providerStart); return { code: aborted ? 1 : 0, stdout: providerStart, stderr: "" }; },
+      exec: async (_a, onLine, signal) => { signal.addEventListener("abort", () => { aborted = true; }); onLine(providerStart); return { code: aborted ? 1 : 0, stdout: providerStart, stderr: "", spawned: true }; },
       persistThread: () => { throw new Error("disk full"); },
       cancelRemote: async (id) => { cancelled.push(id); return stopped; },
       claimed: async () => false,
@@ -383,6 +386,50 @@ test("late Worker outcomes never regress newer lifecycle state, but always recor
   assert.equal(applyLaunchOutcome(launching, { kind: "started", threadId: TID, model: "m" }).workerRunning, false);
   const lost = applyLaunchOutcome(launching, { kind: "unresolved", reason: "x", threadId: TID, model: "m", remoteStopped: false });
   assert.deepEqual([lost.state, lost.workerRunning], ["UNRESOLVED", true]);
-  assert.equal(applyRepairOutcome({ ...launching }, "boom").state, "BLOCKED");
-  assert.equal(applyRepairOutcome({ ...newRun(1), state: "MERGE_READY", workerRunning: true }, "boom").state, "MERGE_READY");
+  assert.equal(applyRepairOutcome({ ...launching }, "failed", "boom").state, "BLOCKED");
+  assert.equal(applyRepairOutcome({ ...newRun(1), state: "MERGE_READY", workerRunning: true }, "failed", "boom").state, "MERGE_READY");
+});
+
+test("completion evidence comes from the stream only: a terminal result frees; no result keeps the Worker owned", async () => {
+  assert.equal(turnEnd({ stdout: providerStart + "\n" + resultErr("x"), spawned: true }), "failed");
+  assert.equal(turnEnd({ stdout: providerStart + "\n" + resultOk, spawned: true }), "succeeded");
+  assert.equal(turnEnd({ stdout: providerStart, spawned: true }), "no-result"); // killed after init
+  assert.equal(turnEnd({ stdout: "", spawned: true }), "no-result"); // killed before init
+  assert.equal(turnEnd({ stdout: "", spawned: false }), "spawn-failed");
+  // launch: no result => unresolved, one launch, no fallback, regardless of exit code; with or without a thread id
+  for (const [stdout, thread] of [[providerStart, TID], ["", undefined]] as const) {
+    for (const code of [0, 1, 137]) {
+      const h = harness([{ code, stdout }]);
+      const out = await launchWorker(h.deps);
+      assert.equal(h.launches.length, 1);
+      assert.equal(out.kind, "unresolved");
+      assert.equal(out.kind === "unresolved" && out.threadId, thread);
+    }
+  }
+  // spawn failure: nothing reached Amp; blocked (not unresolved), no provider fallback even if the message looks like one
+  const sf = harness([{ code: 1, stdout: "", stderr: "spawn amp ENOENT usage limit", spawned: false }]);
+  const out = await launchWorker(sf.deps);
+  assert.equal(sf.launches.length, 1);
+  assert.equal(out.kind, "blocked");
+});
+
+test("applyLaunchOutcome/applyRepairOutcome: unknown outcome holds the slot and never regresses an advanced run", () => {
+  const unknown: LaunchOutcome = { kind: "unresolved", reason: "no result", model: "m", remoteStopped: false };
+  const active: TicketRun = { ...newRun(1), state: "ACTIVE", workerRunning: true };
+  assert.deepEqual([applyLaunchOutcome(active, unknown).state, applyLaunchOutcome(active, unknown).workerRunning], ["UNRESOLVED", true]);
+  for (const state of ["VERIFYING", "MERGE_READY", "DONE"] as const) {
+    const cur: TicketRun = { ...newRun(1), state, workerRunning: true, currentPR: 7 };
+    for (const next of [applyLaunchOutcome(cur, unknown), applyRepairOutcome(cur, "no-result", "x")]) {
+      assert.equal(next.state, state);
+      assert.equal(next.workerRunning, true);
+      assert.equal(next.currentPR, 7);
+      assert.equal(holdsSlot(next), true);
+    }
+    const done = applyRepairOutcome(cur, "failed", "x"); // terminal failure after advancing: slot freed, lifecycle kept
+    assert.deepEqual([done.state, done.workerRunning], [state, false]);
+  }
+  assert.equal(applyRepairOutcome(active, "no-result", "x").state, "UNRESOLVED");
+  assert.deepEqual([applyRepairOutcome(active, "failed", "x").state, applyRepairOutcome(active, "failed", "x").workerRunning], ["BLOCKED", false]);
+  assert.deepEqual([applyRepairOutcome(active, "spawn-failed", "x").state, applyRepairOutcome(active, "spawn-failed", "x").workerRunning], ["BLOCKED", false]);
+  assert.equal(applyRepairOutcome(active, "succeeded").state, "ACTIVE");
 });

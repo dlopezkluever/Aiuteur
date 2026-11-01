@@ -90,6 +90,18 @@ export function workerErrorText(stdout: string, stderr: string): string {
   return `${stderr}\n${resultError}`;
 }
 
+/**
+ * How a Worker/repair turn ended, judged ONLY from the stream: a terminal `result` event is the sole proof the remote turn
+ * finished (success or failure). Without one, a local kill/timeout/signal/non-zero exit proves nothing about the remote Orb.
+ * "spawn-failed" means the OS never started the CLI, so nothing reached Amp.
+ */
+export type TurnEnd = "spawn-failed" | "no-result" | "succeeded" | "failed";
+export function turnEnd(res: { stdout: string; spawned: boolean }): TurnEnd {
+  const result = streamEvents(res.stdout).filter((e) => e.type === "result").at(-1);
+  if (result) return result.is_error === true ? "failed" : "succeeded";
+  return res.spawned ? "no-result" : "spawn-failed";
+}
+
 export const hasClaim = (ticket: number, branches: string[], prs: PrNode[]) =>
   branches.some((b) => ticketOfBranch(b) === ticket) || prs.some((p) => ticketOfBranch(p.headRefName) === ticket);
 
@@ -97,13 +109,13 @@ export type LaunchOutcome =
   | { kind: "started"; threadId: string; model: string }
   | { kind: "blocked"; reason: string; threadId?: string; model?: string }
   /** A Worker may exist that the coordinator could not durably own. Ownership must be kept; nothing may relaunch. */
-  | { kind: "unresolved"; reason: string; threadId: string; model: string; remoteStopped: boolean };
+  | { kind: "unresolved"; reason: string; threadId?: string; model: string; remoteStopped: boolean };
 
 export interface LaunchDeps {
   ticket: number;
   models: readonly string[];
   /** Must call `onLine` for each stdout line as it arrives, not at exit. */
-  exec: (args: string[], onLine: (line: string) => void, signal: AbortSignal) => Promise<{ code: number; stdout: string; stderr: string }>;
+  exec: (args: string[], onLine: (line: string) => void, signal: AbortSignal) => Promise<{ code: number; stdout: string; stderr: string; spawned: boolean }>;
   /** Called the moment the init event arrives, while the Worker is still running, so a crash cannot lose the identity. */
   persistThread: (threadId: string, model: string) => unknown;
   /** Ask Amp to stop the remote Worker thread; true only if it is confirmed no longer running. Killing the local CLI proves nothing. */
@@ -137,9 +149,14 @@ export async function launchWorker(d: LaunchDeps): Promise<LaunchOutcome> {
       const remoteStopped = await d.cancelRemote(threadId).catch(() => false);
       return { kind: "unresolved", threadId, model: route.model, remoteStopped, reason: `could not durably record Worker thread ${threadId} (${String(persistError).slice(0, 200)}); remote cancellation ${remoteStopped ? "confirmed the thread stopped" : "NOT confirmed"}. Ticket #${d.ticket} stays reserved; no replacement Worker will launch.` };
     }
-    if (res.code === 0 && threadId) return { kind: "started", threadId, model: route.model };
+    const end = turnEnd(res);
     const errorText = workerErrorText(res.stdout, res.stderr);
     const detail = `exit ${res.code}${threadId ? `, thread ${threadId}` : ""}: ${errorText.trim().slice(-400)}`;
+    if (end === "spawn-failed") return { kind: "blocked", reason: `could not start the Amp CLI; no launch reached Amp, no Worker exists. ${detail}` };
+    if (end === "no-result") {
+      return { kind: "unresolved", model: route.model, remoteStopped: false, ...(threadId ? { threadId } : {}), reason: `Worker turn ended without a terminal result (${detail}); a local exit does not prove the remote Orb stopped. Ticket #${d.ticket} stays reserved; no retry, no fallback.` };
+    }
+    if (end === "succeeded" && threadId) return { kind: "started", threadId, model: route.model };
     const provider = classifyFailure(errorText) === "provider";
     if (threadId) return { kind: "blocked", threadId, model: route.model, reason: `${provider ? "provider/runtime condition" : "worker run failed"} after Worker thread ${threadId} existed; not launching another Worker. Resume that thread (amp threads continue ${threadId}). ${detail}` };
     if (!provider) return { kind: "blocked", reason: `worker run failed (implementation): ${detail}` };
@@ -247,8 +264,8 @@ export interface Finding { class: FindingClass; summary: string; requirement?: s
 export function applyLaunchOutcome(cur: TicketRun, out: LaunchOutcome): TicketRun {
   const launchPhase = cur.state === "RESERVED" || cur.state === "ACTIVE";
   if (out.kind === "unresolved") {
-    const held = { ...cur, workerThreadId: out.threadId, workerModel: out.model, workerRunning: true };
-    return cur.state === "DONE" ? held : { ...held, state: "UNRESOLVED", blockedReason: out.reason };
+    const held: TicketRun = { ...cur, workerRunning: true, ...(out.threadId ? { workerThreadId: out.threadId, workerModel: out.model } : {}) };
+    return launchPhase ? { ...held, state: "UNRESOLVED", blockedReason: out.reason } : held; // an advanced run keeps its lifecycle; only the slot stays held
   }
   const finished: TicketRun = { ...cur, workerRunning: false };
   if (out.kind === "started") return launchPhase ? { ...finished, state: "ACTIVE" } : finished;
@@ -256,10 +273,18 @@ export function applyLaunchOutcome(cur: TicketRun, out: LaunchOutcome): TicketRu
   return launchPhase ? { ...withThread, state: "BLOCKED", blockedReason: out.reason } : withThread;
 }
 
-/** Same rule for a repair turn: always clear workerRunning; block only if the run is still waiting on that repair. */
-export function applyRepairOutcome(cur: TicketRun, failure?: string): TicketRun {
+/**
+ * Same rule for a repair turn. A terminal result (either kind) or a failed spawn clears workerRunning; no result keeps it set.
+ * Lifecycle changes only while the run is still ACTIVE waiting on this repair; later states are never regressed.
+ */
+export function applyRepairOutcome(cur: TicketRun, end: TurnEnd, detail = ""): TicketRun {
+  const waiting = cur.state === "ACTIVE";
+  if (end === "no-result") {
+    const held: TicketRun = { ...cur, workerRunning: true };
+    return waiting ? { ...held, state: "UNRESOLVED", blockedReason: detail } : held;
+  }
   const finished: TicketRun = { ...cur, workerRunning: false };
-  return failure !== undefined && cur.state === "ACTIVE" ? { ...finished, state: "BLOCKED", blockedReason: failure } : finished;
+  return (end === "failed" || end === "spawn-failed") && waiting ? { ...finished, state: "BLOCKED", blockedReason: detail } : finished;
 }
 
 export interface Verdict {

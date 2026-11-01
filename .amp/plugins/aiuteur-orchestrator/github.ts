@@ -14,10 +14,11 @@ export function run(cmd: string, args: string[], opts: { timeoutMs?: number; inp
 }
 
 /** Like `run`, but hands each stdout line to `onLine` as it arrives (the Worker's stream-json). Still returns everything at exit. */
-export function runStreaming(cmd: string, args: string[], onLine: (line: string) => void, timeoutMs: number, signal?: AbortSignal): Promise<{ stdout: string; stderr: string; code: number }> {
+export function runStreaming(cmd: string, args: string[], onLine: (line: string) => void, timeoutMs: number, signal?: AbortSignal): Promise<{ stdout: string; stderr: string; code: number; spawned: boolean }> {
   return new Promise((resolve) => {
     const child = spawn(cmd, args, { stdio: ["ignore", "pipe", "pipe"], timeout: timeoutMs, ...(signal ? { signal } : {}) });
-    let stdout = "", stderr = "", pending = "";
+    let stdout = "", stderr = "", pending = "", spawned = false;
+    child.on("spawn", () => { spawned = true; }); // absent => the OS never started the CLI (ENOENT/EACCES): nothing reached Amp
     child.stdout.on("data", (d: Buffer) => {
       const text = d.toString();
       stdout += text;
@@ -26,8 +27,8 @@ export function runStreaming(cmd: string, args: string[], onLine: (line: string)
       while ((nl = pending.indexOf("\n")) >= 0) { onLine(pending.slice(0, nl)); pending = pending.slice(nl + 1); }
     });
     child.stderr.on("data", (d: Buffer) => { stderr += d.toString(); });
-    child.on("error", (e) => resolve({ stdout, stderr: stderr || String(e.message), code: 1 }));
-    child.on("close", (code) => { if (pending) onLine(pending); resolve({ stdout, stderr, code: code ?? 1 }); });
+    child.on("error", (e) => resolve({ stdout, stderr: stderr || String(e.message), code: 1, spawned }));
+    child.on("close", (code) => { if (pending) onLine(pending); resolve({ stdout, stderr, code: code ?? 1, spawned }); });
   });
 }
 

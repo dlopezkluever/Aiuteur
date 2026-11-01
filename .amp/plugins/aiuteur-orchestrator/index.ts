@@ -8,7 +8,7 @@
 import type { PluginAPI, ThreadID } from "@ampcode/plugin";
 import {
   DEFAULT_CAP, REPO, mergeModeFrom, smokeReplyOk, smokeVerifierPrompt, VERIFIER_EFFORT, VERIFIER_INSTRUCTIONS, VERIFIER_MODELS, VERIFIER_TOOLS, WORKER_EFFORT,
-  afterRepairSent, applyLaunchOutcome, applyRepairOutcome, buildVerdict, holdsSlot, ownsTicket, classifyFailure, computeFrontier, hasClaim, launchWorker, workerErrorText, decide, extractThreadId, invalidateVerdict, mergeGuard,
+  afterRepairSent, turnEnd, applyLaunchOutcome, applyRepairOutcome, buildVerdict, holdsSlot, ownsTicket, classifyFailure, computeFrontier, hasClaim, launchWorker, workerErrorText, decide, extractThreadId, invalidateVerdict, mergeGuard,
   mergeRejectedForHead, parseVerifierReply, repairPrompt, routeVerifier, routeWorker, selectTickets, verifierModeKey,
   verifierPrompt, workerContinueArgs, workerPrompt, workerStartArgs, type TicketRun,
 } from "./core.ts";
@@ -68,11 +68,12 @@ export default function (amp: PluginAPI) {
   }
 
   async function repairWorker(r: TicketRun, prompt: string): Promise<TicketRun> {
-    const res = await exec("amp", workerContinueArgs(r.workerThreadId!, prompt), { timeoutMs: WORKER_TURN_MS });
+    const res = await runStreaming("amp", workerContinueArgs(r.workerThreadId!, prompt), () => {}, WORKER_TURN_MS);
+    const end = turnEnd(res);
     const out = workerErrorText(res.stdout, res.stderr);
-    const failure = res.code === 0 ? undefined : `${classifyFailure(out) === "provider" ? "provider/runtime condition" : "worker continuation failed"} (Worker thread ${r.workerThreadId} kept): ${out.trim().slice(-400)}`;
-    if (failure) log(r.ticket, failure);
-    return store.mutate(r.ticket, (cur) => applyRepairOutcome(cur, failure));
+    const detail = end === "succeeded" ? "" : `${end === "no-result" ? "repair turn ended without a terminal result; remote outcome unknown" : classifyFailure(out) === "provider" ? "provider/runtime condition" : "worker continuation failed"} (Worker thread ${r.workerThreadId}, exit ${res.code}): ${out.trim().slice(-400)}`;
+    if (detail) log(r.ticket, detail);
+    return store.mutate(r.ticket, (cur) => applyRepairOutcome(cur, end, detail));
   }
 
   // ---- Verifier (fresh Orb thread for every call) -------------------------------------------------------------------
