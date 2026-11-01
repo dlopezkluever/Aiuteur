@@ -14,7 +14,7 @@ import {
 } from "./core.ts";
 import { createStore, reserveLaunch, StaleRun, stateDir } from "./state.ts";
 import { dryRunReport } from "./dry-run.ts";
-import { availableModels, ciFor, closeIssue, commentOnPr, githubSnapshot, issueState, mergePr, prForTicket, run as exec, runStreaming } from "./github.ts";
+import { availableModels, ciFor, closeIssue, commentOnPr, githubSnapshot, issueState, mergePr, prForTicket, runStreaming } from "./github.ts";
 
 export const description = "Runs the Aiuteur ticket graph: Claude Code worker, fresh OpenAI verifier per SHA, exact-SHA merge.";
 
@@ -234,7 +234,8 @@ export default function (amp: PluginAPI) {
   amp.registerCommand("smoke-worker", { title: "Smoke-test worker launch", category: "aiuteur", description: "Launch a Claude Code subscription worker Orb on a no-op prompt to confirm model flags and thread-id capture. Touches no ticket." }, async (ctx) => {
     const route = routeWorker(await availableModels());
     if (!route) return void (await ctx.ui.notify("No subscription-backed Claude model available."));
-    const res = await exec("amp", workerStartArgs("Reply with the single word READY. Do not run any command or change any file.", route.model, "[orchestrator] worker smoke test"), { timeoutMs: 15 * 60 * 1000 });
-    await ctx.ui.notify(`exit ${res.code}; thread ${extractThreadId(res.stdout) ?? "NOT CAPTURED"}; model ${route.model}, effort ${WORKER_EFFORT}\n${res.stderr.slice(-300)}`);
+    const res = await runStreaming("amp", workerStartArgs("Reply with the single word READY. Do not run any command or change any file.", route.model, "[orchestrator] worker smoke test"), () => {}, 15 * 60 * 1000);
+    const threadId = extractThreadId(res.stdout);
+    await ctx.ui.notify(`exit ${res.code}; thread ${threadId ?? "NOT CAPTURED"}; turn ${turnEnd(res, threadId)}; model ${route.model}, effort ${WORKER_EFFORT}\n${res.stderr.slice(-300)}`);
   });
 }
