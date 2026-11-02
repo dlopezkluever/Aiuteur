@@ -1,0 +1,29 @@
+{
+  "name": "@aiuteur/platform",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "dependencies": {
+    "@aiuteur/accounts": "workspace:*",
+    "@aiuteur/api": "workspace:*",
+    "@aiuteur/contract": "workspace:*",
+    "@aiuteur/history": "workspace:*",
+    "@aiuteur/mail": "workspace:*",
+    "@aiuteur/media": "workspace:*",
+    "@aiuteur/observability": "workspace:*",
+    "@aiuteur/production": "workspace:*",
+    "@aiuteur/providers": "workspace:*",
+    "@aiuteur/store": "workspace:*",
+    "@aiuteur/story": "workspace:*",
+    "@aiuteur/testing": "workspace:*",
+    "@aiuteur/views": "workspace:*",
+    "@aiuteur/web": "workspace:*",
+    "@aiuteur/world": "workspace:*",
+    "@aiuteur/workflows": "workspace:*",
+    "hono": "^4.13.14",
+    "pg": "^8.16.3"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.16.0"
+  }
+}

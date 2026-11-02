@@ -1,0 +1,81 @@
+import { admitFields, ID_FIELDS, type Deployment, type IdFields } from "./fields.ts";
+import type { SecretRegistry } from "./secrets.ts";
+import type { SourceIndex } from "./source-index.ts";
+
+/** What a caller may attach to a captured error: the tier A ids and a closed code, nothing else. */
+export interface ErrorContext extends IdFields { readonly code?: string }
+
+/**
+ * OPERATIONAL-BASELINE §7.1: the `ErrorSink` port. Only violations of our own invariants and unclassified exceptions go
+ * here; expected failures are product events. No vendor type crosses this interface (RT5).
+ */
+export interface ErrorSink {
+  /** Never throws and never blocks the caller. */
+  capture(error: unknown, context?: ErrorContext): void;
+  /** Waits for events already captured, up to the timeout; used at shutdown. */
+  flush(timeoutMs: number): Promise<void>;
+}
+
+/**
+ * A stack frame is a position in code we shipped: a source file from the deployed image's own index, a line and a column.
+ * There is no function name, because a name in a stack is whatever the thrower wrote and cannot be told from creator content.
+ * A file the index does not list (a path built at run time, or anything a caller invented) is reported as `unknown`.
+ */
+export interface Frame { readonly file: string; readonly line: number; readonly column: number }
+
+/**
+ * The deny-by-default shape (§7.1 rule 2): error class, closed code, stack frames, release, process role, environment
+ * and the id tags. There is no message member: provider error text may echo a prompt (rule 3), and a message is
+ * free text. Request bodies, headers, cookies, query strings, breadcrumbs and local variables have nowhere to go.
+ */
+export interface ScrubbedEvent {
+  readonly errorClass: string;
+  readonly code: string | null;
+  readonly frames: readonly Frame[];
+  readonly release: string;
+  readonly role: string;
+  readonly environment: string;
+  readonly tags: Readonly<Record<string, string>>;
+}
+
+/**
+ * The closed classification: the platform's own built-in error classes, matched by `instanceof`, never by name. A name is
+ * whatever the thrower or a dynamic subclass chose and cannot be told from creator content, so it is never read. Anything
+ * not matched is the generic `Error` (or `NonError` for a thrown non-Error).
+ */
+const KNOWN_CLASSES: readonly (readonly [new (...args: never[]) => Error, string])[] = [
+  [TypeError, "TypeError"], [RangeError, "RangeError"], [SyntaxError, "SyntaxError"],
+  [ReferenceError, "ReferenceError"], [EvalError, "EvalError"], [URIError, "URIError"], [AggregateError, "AggregateError"],
+];
+const classOf = (error: unknown): string =>
+  !(error instanceof Error) ? "NonError" : (KNOWN_CLASSES.find(([constructor]) => error instanceof constructor)?.[1] ?? "Error");
+const FRAME = /^\s*at (?:(.+?) \()?(.+?):(\d+):(\d+)\)?\s*$/;
+const MAX_FRAMES = 50;
+
+function framesOf(error: unknown, secrets: SecretRegistry, source: SourceIndex): Frame[] {
+  const stack = error instanceof Error && typeof error.stack === "string" ? error.stack : "";
+  const frames: Frame[] = [];
+  for (const line of stack.split("\n")) {
+    const match = FRAME.exec(line);
+    if (!match || frames.length >= MAX_FRAMES) continue;
+    const [, , rawFile, row, column] = match;
+    const file = (rawFile ?? "").replace(/^file:\/\//, "");
+    // Fail closed: only a file of our own deployed source survives; the position numbers are numbers.
+    frames.push({ file: source.has(file) && secrets.scrub(file) === file ? file : "unknown", line: Number(row), column: Number(column) });
+  }
+  return frames;
+}
+
+export function scrubError(error: unknown, context: ErrorContext | undefined, deployment: Deployment, secrets: SecretRegistry, source: SourceIndex): ScrubbedEvent {
+  const { fields } = admitFields(context);
+  const tags: Record<string, string> = {};
+  const clean = (value: string) => secrets.scrub(value);
+  for (const key of ID_FIELDS) { const value = fields[key]; if (typeof value === "string") tags[key] = clean(value); }
+  return {
+    errorClass: classOf(error),
+    code: typeof fields["code"] === "string" ? clean(fields["code"]) : null,
+    frames: framesOf(error, secrets, source),
+    release: deployment.release, role: deployment.role, environment: deployment.environment,
+    tags,
+  };
+}

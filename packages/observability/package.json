@@ -1,0 +1,7 @@
+{
+  "name": "@aiuteur/observability",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "dependencies": { "@aiuteur/contract": "workspace:*" }
+}

@@ -1,0 +1,66 @@
+# The staging VPS: web, worker, Postgres and the TLS edge (RUNTIME-PLATFORM §0). Both process roles run the same image,
+# named by digest in IMAGE_REF (`<repository>@sha256:<64 hex>`); deploy.sh sets it and never a tag.
+# Each service reads only its own host secret file (deploy/env/*.example): web.env, worker.env, postgres.env. The migration step's
+# owner.env and the smoke login are never given to a long-running service. Postgres demands a password from every peer: there is
+# no trust path, and web and worker connect as the non-superuser app, identity and scheduler roles.
+services:
+  postgres:
+    image: postgres:15
+    restart: unless-stopped
+    env_file: ${POSTGRES_ENV_FILE:?set by deploy.sh}
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_DB: aiuteur
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres", "-d", "aiuteur"]
+      interval: 3s
+      timeout: 5s
+      retries: 20
+
+  web:
+    image: ${IMAGE_REF:?set by deploy.sh}
+    command: ["node", "packages/platform/scripts/web.ts"]
+    restart: unless-stopped
+    env_file: ${WEB_ENV_FILE:?set by deploy.sh}
+    environment:
+      AIUTEUR_ENVIRONMENT: staging
+      RELEASE_DIGEST: ${RELEASE_DIGEST:?set by deploy.sh}
+      PORT: "8080"
+      CLIENT_ADDRESS_HEADER: x-forwarded-for
+    depends_on:
+      postgres: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/healthz').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  worker:
+    image: ${IMAGE_REF:?set by deploy.sh}
+    command: ["node", "packages/platform/scripts/worker.ts"]
+    restart: unless-stopped
+    stop_grace_period: 120s
+    env_file: ${WORKER_ENV_FILE:?set by deploy.sh}
+    environment:
+      AIUTEUR_ENVIRONMENT: staging
+      RELEASE_DIGEST: ${RELEASE_DIGEST:?set by deploy.sh}
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  edge:
+    image: caddy:2
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    environment:
+      PUBLIC_HOST: ${PUBLIC_HOST:?set in compose.env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+    depends_on:
+      web: { condition: service_healthy }
+
+volumes:
+  pgdata:
+  caddy-data:

@@ -86,8 +86,8 @@ function collectWorkspaceFiles(root: string, pattern: RegExp): string[] {
   return files.sort();
 }
 
-/** Where a vendor or model name may appear (R9): adapters, and the Catalogue data directory. */
-const VENDOR_NAME_HOMES = [ADAPTERS_DIR, "packages/providers/catalogue/"];
+/** Where a vendor or model name may appear (R9): adapters, the Catalogue data directory, and the ErrorSink adapter (RT5: the tracker is named only there). */
+const VENDOR_NAME_HOMES = [ADAPTERS_DIR, "packages/providers/catalogue/", "packages/observability/src/adapters/"];
 /** The names R9 searches for, whole words, case-insensitive: the providers and models PROVIDERS-AND-MODELS names, and the tracing vendors VERIFICATION-AND-OBSERVABILITY forbids. */
 export const VENDOR_NAMES = /\b(openai|anthropic|google|gemini|veo|kling|luma|wan|sora|grok|ltx|runway|elevenlabs|midjourney|replicate|claude|gpt-?[0-9]\w*|llama|mistral|ideogram|recraft|minimax|seedance|hailuo|imagen|stabilityai|sdxl|fal\.ai|sentry|langfuse|datadog|posthog)\b/i;
 /** Ambient flags no module may branch on, wherever it lives outside a composition root. */
