@@ -6,7 +6,7 @@ Owner: platform. Authority: OPERATIONAL-BASELINE §4.2 and §9, issue #107. Appl
 
 One image, built once by the `release-staging` workflow after the required `verify` check passed on `main`. It is named only by its digest (`ghcr.io/<owner>/<repo>@sha256:<64 hex>`). The host never builds, never retags, and refuses a tag, `latest` or a commit id.
 
-## Host files (root, mode 0600, never in the repository)
+## Host files (owned by the deploy user, mode 0600, not group or world readable, never in the repository)
 
 | File in `/etc/aiuteur` | Read by | Holds |
 |---|---|---|
@@ -18,6 +18,19 @@ One image, built once by the `release-staging` workflow after the required `veri
 | `compose.env` | compose interpolation | the public host name, no secret |
 
 Examples: `deploy/env/*.example`. A process refuses to start when it finds a variable that belongs to another role, an owner or smoke value, or a database URL that does not name its own least-privilege role. Postgres accepts no connection without a password.
+
+The workflows SSH in as the non-root `STAGING_SSH_USER` and run `deploy.sh` without sudo, and the Docker client reads these files as that user. So the user must own them (`chown <deploy user> /etc/aiuteur/*.env; chmod 0600 /etc/aiuteur/*.env`) and be in the `docker` group. A root-owned file is unreadable to it.
+
+## Bootstrap order (first release)
+
+The first deploy runs the full smoke, so `smoke.env` must be complete before it, including `SMOKE_ACCOUNT_ID`, which does not exist until the Account does. Order:
+
+1. Fill in every other file, with `smoke.env` holding the email, password and origin.
+2. Take the first digest from the `build` job of `release-staging` (its summary).
+3. Run `deploy.sh smoke-account <digest>` on the host and put the printed `SMOKE_ACCOUNT_ID=...` into `smoke.env`.
+4. Then deploy that digest.
+
+To pause the workflow between the build and deploy jobs for steps 2 and 3, add a required reviewer to the `staging` GitHub environment; the deploy job waits for approval. A failed first deploy leaves nothing running and `current` empty, so it can simply be run again; `unknown` is reserved for a confirmed digest that was replaced and could not be restored.
 
 ## One-time: the smoke Account
 

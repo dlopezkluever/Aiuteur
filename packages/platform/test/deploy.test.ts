@@ -19,6 +19,7 @@ dir=$(dirname "$STUB_LOG")
 echo "\${IMAGE_REF:-}|$*|web=\${WEB_ENV_FILE:-} worker=\${WORKER_ENV_FILE:-} postgres=\${POSTGRES_ENV_FILE:-}" >> "$STUB_LOG"
 running=$(cat "$dir/running" 2>/dev/null || true)
 case "$1" in
+  run) [[ "$*" == *migrate.ts* && -n "\${STUB_FAIL_MIGRATE:-}" ]] && exit 1; exit 0 ;;
   image) echo "\${@: -1}" ;;
   exec)
     if [[ "$*" == *aiuteur-compat* ]]; then [[ -n "\${STUB_FAIL_COMPAT:-}" ]] && exit 1; exit 0; fi
@@ -30,6 +31,7 @@ case "$1" in
       [[ -n "\${STUB_FAIL_UP_FOR:-}" && "\${IMAGE_REF:-}" == *"$STUB_FAIL_UP_FOR" ]] && exit 1
       echo "$IMAGE_REF" > "$dir/running"
     fi
+    if [[ "$*" == *" rm "* && "$*" == *"web worker"* ]]; then rm -f "$dir/running"; exit 0; fi
     [[ "$*" == *" ps "* ]] && echo container-id
     exit 0 ;;
 esac
@@ -171,11 +173,27 @@ describe("deploy and rollback by digest", () => {
     expect(state("attempted")).toBeNull();
   });
 
-  it("a first deploy that fails its smoke leaves the state unknown, not empty", () => {
-    expect(run(["deploy", A], { STUB_FAIL_SMOKE_FOR: A }).status).not.toBe(0);
-    expect(state("current")).toBe("unknown");
-    expect(state("deployed")).toBeNull();
-    expect(history().at(-1)).toMatchObject({ result: "smoke-failed", deployed: "", running: "unknown" });
+  it("a first deploy that fails its smoke tears down web and worker, leaves current empty, and does not block the next deploy", () => {
+    const failed = run(["deploy", A], { STUB_FAIL_SMOKE_FOR: A });
+    expect(failed.status).not.toBe(0);
+    expect(running()).toBeNull(); // the stub's running set holds no web or worker
+    expect(calls().some((c) => c.includes("|compose") && c.includes(" rm -sf web worker"))).toBe(true);
+    expect(calls().some((c) => c.includes(" down"))).toBe(false); // Postgres and its data are left alone
+    expect([state("current"), state("attempted"), state("deployed")]).toEqual([null, null, null]);
+    expect(history().at(-1)).toMatchObject({ action: "deploy", result: "smoke-failed", attempted: A, deployed: "", restored: "", running: "none" });
+    const next = run(["deploy", B]);
+    expect(next.status).toBe(0);
+    expect(running()).toBe(ref(B));
+    expect(state("current")).toBe(B);
+    expect(state("deployed")).toBe(B);
+  });
+
+  it("a failed migration records no unknown state and the next deploy is accepted", () => {
+    expect(run(["deploy", A], { STUB_FAIL_MIGRATE: "1" }).status).not.toBe(0);
+    expect([state("current"), state("attempted")]).toEqual([null, null]);
+    expect(history().at(-1)).toMatchObject({ result: "migration-failed", running: "none" });
+    expect(run(["deploy", A]).status).toBe(0);
+    expect(state("current")).toBe(A);
   });
 
   it("rollback restores the recorded previous digest by pulling it: no migration, no build, no tag", () => {

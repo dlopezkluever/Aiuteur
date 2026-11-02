@@ -130,6 +130,11 @@ deploy() {
         event auto-rollback restore-failed "$current" "" "" "$new" unknown
         event deploy smoke-failed "$new" "" "" "$current" unknown
       fi
+    elif [[ -z $current ]]; then
+      # No digest was ever confirmed running here, so nothing needs restoring and nothing is unknown: tear down what this
+      # attempt started (web and worker; Postgres and its data stay) and leave `current` empty so a later deploy is accepted.
+      compose "$new" rm -sf web worker > /dev/null 2>&1 || true
+      event deploy smoke-failed "$new" "" "" "" none
     else
       mark_unknown "$new"
       event deploy smoke-failed "$new" "" "" "$current" unknown
